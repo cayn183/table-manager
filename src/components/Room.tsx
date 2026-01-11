@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import Importer, { Group } from './Importer'
 import { bestFitAssign } from '../utils/placement'
 
@@ -369,11 +369,16 @@ function fillOnly(
 }
 
 export default function Room() {
+  const navigate = useNavigate()
   // State: source data
   const [room, setRoom] = useState<Room | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [groups, setGroups] = useState<Group[]>([])
   const [assignedGroups, setAssignedGroups] = useState<Record<string, AssignedGroup[]>>({})
+  const [showEventSaveModal, setShowEventSaveModal] = useState(false)
+  const [eventSaveName, setEventSaveName] = useState('')
+  const [isDirty, setIsDirty] = useState(false)
+  const [lastSaveTime, setLastSaveTime] = useState<string | null>(null)
 
   // State: UI and interaction
   const [showModal, setShowModal] = useState(false)
@@ -443,6 +448,11 @@ export default function Room() {
     return result
   }, [assignedGroups, room])
 
+  // Track dirty state: when groups or assignedGroups change, mark as dirty
+  useEffect(() => {
+    setIsDirty(true)
+  }, [groups, assignedGroups])
+
   function updatePreviewPosition(coords: { clientX: number; clientY: number }) {
     if (!draggingGroup || !room) return
     const gridElement = document.querySelector('.grid') as HTMLElement
@@ -485,6 +495,25 @@ export default function Room() {
     const stored = loadRoomFromStorage()
     if (stored) {
       setRoom(stored)
+      
+      // Try to load event data (groups and assigned groups)
+      try {
+        const currentEvent = localStorage.getItem('currentEvent')
+        if (currentEvent) {
+          const event = JSON.parse(currentEvent)
+          if (event.groups && Array.isArray(event.groups)) {
+            setGroups(event.groups)
+          }
+          if (event.assignedGroups && typeof event.assignedGroups === 'object') {
+            setAssignedGroups(event.assignedGroups)
+          }
+          if (event.lastModified) {
+            setLastSaveTime(event.lastModified)
+          }
+        }
+      } catch (err) {
+        console.error('Event-Daten konnten nicht geladen werden', err)
+      }
     } else {
       setLoadError('Kein gespeicherter Raum gefunden. Bitte im Editor speichern und erneut öffnen.')
     }
@@ -538,6 +567,31 @@ export default function Room() {
       setNewGroupToGo(false)
       setShowModal(false)
     }
+  }
+
+  function handleSaveEvent() {
+    setEventSaveName(localStorage.getItem('currentEvent') ? JSON.parse(localStorage.getItem('currentEvent') || '{}').name : 'Event')
+    setShowEventSaveModal(true)
+  }
+
+  function confirmSaveEvent(name: string) {
+    const event = JSON.parse(localStorage.getItem('currentEvent') || '{}')
+    event.name = name || event.name || `Event ${new Date().toLocaleDateString()}`
+    if (!event.createdAt) event.createdAt = new Date().toLocaleDateString()
+    const now = new Date()
+    event.lastModified = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`
+    event.assignedGroups = assignedGroups
+    event.groups = groups
+    const list = JSON.parse(localStorage.getItem('events') || '[]')
+    const updated = list.map((e: any) => e.id === event.id ? event : e)
+    if (!updated.find((e: any) => e.id === event.id)) updated.push(event)
+    localStorage.setItem('events', JSON.stringify(updated))
+    localStorage.setItem('currentEvent', JSON.stringify(event))
+    setShowEventSaveModal(false)
+    const timeStr = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`
+    setLastSaveTime(timeStr)
+    setIsDirty(false)
+    alert('Event gespeichert!')
   }
 
   function autoAssign() {
@@ -622,10 +676,38 @@ export default function Room() {
   }
 
   return (
-    <div className="container">
-      <h1>Raum - Plätze belegen</h1>
-      <div className="room-content">
-        <div className="sidebar">
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw' }}>
+      {/* Header */}
+      <div style={{ 
+        background: '#f0f0f0', 
+        padding: '12px 20px', 
+        borderBottom: '1px solid #ddd',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <h1 style={{ margin: '0', fontSize: '24px' }}>Eventplanung</h1>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <Link to="/" style={{ textDecoration: 'none' }}><button>← Hauptseite</button></Link>
+          <button onClick={() => navigate('/new-room')}>Raum bearbeiten</button>
+          <button 
+            onClick={() => handleSaveEvent()} 
+            disabled={!isDirty || !Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0)}
+            style={{ 
+              background: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? '#4CAF50' : '#ccc',
+              color: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? '#fff' : '#999',
+              cursor: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 'pointer' : 'not-allowed'
+            }}
+          >
+            Event speichern
+          </button>
+          {lastSaveTime && <p style={{ margin: 0, fontSize: 12, color: '#666' }}>Zuletzt gespeichert: {lastSaveTime}</p>}
+        </div>
+      </div>
+      
+      {/* Main Content */}
+      <div className="room-content" style={{ flex: 1, overflow: 'auto', display: 'flex' }}>
+        <div className="sidebar" style={{ flex: '0 0 350px', minWidth: '200px', maxWidth: '500px', overflowY: 'auto', borderRight: '1px solid #ddd', padding: '12px' }}>
           <button onClick={() => setShowModal(true)}>Familie anlegen</button>
           <div className="controls">
             <button onClick={autoAssign}>
@@ -680,7 +762,7 @@ export default function Room() {
             )}
           </div>
         </div>
-        <div className="room-layout">
+        <div className="room-layout" style={{ flex: 1, overflowX: 'auto', overflowY: 'auto', padding: '12px' }}>
           <div
             className="grid"
             style={{
@@ -1118,6 +1200,24 @@ export default function Room() {
               setResizeModal(null)
             }}>Anpassen</button>
             <button onClick={() => setResizeModal(null)}>Abbrechen</button>
+          </div>
+        </div>
+      )}
+
+      {showEventSaveModal && (
+        <div className="modal">
+          <div className="modal-content" style={{ minWidth: 360 }}>
+            <h3>Event speichern</h3>
+            <input
+              type="text"
+              value={eventSaveName}
+              onChange={e => setEventSaveName(e.target.value)}
+              placeholder="Eventname"
+            />
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button onClick={() => confirmSaveEvent(eventSaveName)}>Speichern</button>
+              <button onClick={() => setShowEventSaveModal(false)}>Abbrechen</button>
+            </div>
           </div>
         </div>
       )}

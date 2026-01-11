@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 type Table = {
@@ -14,11 +14,34 @@ export default function RoomEditor() {
   const [tables, setTables] = useState<Table[]>([])
   const [nextId, setNextId] = useState(1)
   const [capacityInput, setCapacityInput] = useState('4')
+  const [roomName, setRoomName] = useState('Neuer Raum')
+  const [showSaveModal, setShowSaveModal] = useState(false)
+  const [saveRoomName, setSaveRoomName] = useState('Neuer Raum')
+  const [isEditingExisting, setIsEditingExisting] = useState(false)
   const gridRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
 
   const gridSize = 20
   const cellSize = 40
+
+  useEffect(() => {
+    const currentRoom = localStorage.getItem('currentRoom')
+    if (currentRoom) {
+      try {
+        const room = JSON.parse(currentRoom)
+        if (room.tables && room.tables.length > 0) {
+          setTables(room.tables)
+          const maxId = Math.max(...room.tables.map((t: Table) => parseInt(t.id.slice(1), 10) || 0))
+          setNextId(maxId + 1)
+          setIsEditingExisting(true)
+          setRoomName('Bearbeiteter Raum')
+          setSaveRoomName('Bearbeiteter Raum')
+        }
+      } catch (e) {
+        console.error('Fehler beim Laden des Raums', e)
+      }
+    }
+  }, [])
 
   function addTable() {
     const capacity = parseInt(capacityInput) || 4
@@ -55,16 +78,27 @@ export default function RoomEditor() {
     e.preventDefault()
   }
 
-  function saveRoom() {
+  function confirmSaveRoom(name: string) {
     const room = { tables }
     localStorage.setItem('currentRoom', JSON.stringify(room))
+    const list = JSON.parse(localStorage.getItem('rooms') || '[]')
+    const entry = { id: `r-${Date.now()}`, name: name || `Raum ${list.length + 1}`, createdAt: new Date().toLocaleDateString(), data: room }
+    localStorage.setItem('rooms', JSON.stringify([...list, entry]))
+    setShowSaveModal(false)
     navigate('/room')
   }
 
   return (
     <div className="container">
-      <h1>Raum bearbeiten</h1>
+      <h1>{isEditingExisting ? 'Raum bearbeiten' : 'Raum anlegen'}</h1>
       <div className="editor-controls">
+        <input
+          type="text"
+          value={roomName}
+          onChange={e => setRoomName(e.target.value)}
+          placeholder="Raumname"
+          style={{ width: 240 }}
+        />
         <input
           type="number"
           value={capacityInput}
@@ -72,7 +106,7 @@ export default function RoomEditor() {
           placeholder="Plätze"
         />
         <button onClick={addTable}>Tisch anlegen</button>
-        <button onClick={saveRoom} disabled={tables.length === 0}>Speichern</button>
+        <button onClick={() => { setSaveRoomName(roomName); setShowSaveModal(true); }} disabled={tables.length === 0}>Speichern</button>
       </div>
       <div
         className="grid"
@@ -120,6 +154,24 @@ export default function RoomEditor() {
           </div>
         ))}
       </div>
+
+      {showSaveModal && (
+        <div className="modal">
+          <div className="modal-content" style={{ minWidth: 360 }}>
+            <h3>Raum speichern</h3>
+            <input
+              type="text"
+              value={saveRoomName}
+              onChange={e => setSaveRoomName(e.target.value)}
+              placeholder="Raumname"
+            />
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button onClick={() => confirmSaveRoom(saveRoomName)}>Speichern</button>
+              <button onClick={() => setShowSaveModal(false)}>Abbrechen</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
