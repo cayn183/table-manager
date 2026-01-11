@@ -22,6 +22,7 @@ type AssignedGroup = {
   locked: boolean
   x: number
   y: number
+  color: string
 }
 
 type DraggingMeta = { tableId?: string; agIdx?: number } | null
@@ -29,11 +30,11 @@ type DraggingMeta = { tableId?: string; agIdx?: number } | null
 const GRID_SIZE = 20
 const CELL_SIZE = 40
 const STORAGE_KEY = 'currentRoom'
-const PALETTE = ['#8E9AAF', '#CBC0D3', '#EFD3D7', '#FEEAFA', '#DEE2FF']
+const PALETTE = ['#E91E63', '#FF9800', '#4CAF50', '#673AB7', '#FF5722']
 const UNASSIGNED_COLOR = '#80808080'
 
 function paletteColor(hex: string): string {
-  return hex + '40'
+  return hex + '70'
 }
 
 function getPositionsForSize(size: number, rotation: number): { x: number; y: number }[] {
@@ -98,6 +99,35 @@ function loadRoomFromStorage(): Room | null {
   }
 }
 
+function getColorForGroup(ag: AssignedGroup, tableAssignments: AssignedGroup[], table: Table): string {
+  const positions = getPositionsForSize(ag.group.size, ag.rotation)
+  const agPositions = positions.map(p => ({ x: ag.x + p.x, y: ag.y + p.y }))
+
+  const isAdjacent = (a: { x: number; y: number }[], b: { x: number; y: number }[]) => {
+    for (const pa of a) {
+      for (const pb of b) {
+        if (Math.abs(pa.x - pb.x) <= 1 && Math.abs(pa.y - pb.y) <= 1) {
+          return true
+        }
+      }
+    }
+    return false
+  }
+
+  const bannedColors = new Set<string>()
+  for (const other of tableAssignments) {
+    if (other === ag) continue
+    const otherPositions = getPositionsForSize(other.group.size, other.rotation)
+    const otherAbsPositions = otherPositions.map(p => ({ x: other.x + p.x, y: other.y + p.y }))
+    if (isAdjacent(agPositions, otherAbsPositions)) {
+      bannedColors.add(other.color)
+    }
+  }
+
+  const picked = PALETTE.find(c => !bannedColors.has(paletteColor(c))) || PALETTE[0]
+  return paletteColor(picked)
+}
+
 export default function Room() {
   // State: source data
   const [room, setRoom] = useState<Room | null>(null)
@@ -121,7 +151,7 @@ export default function Room() {
   const [editName, setEditName] = useState('')
   const [editSize, setEditSize] = useState('')
 
-  // Derived: palette-based colors for assigned groups; greedy coloring avoids gleiche Farben bei Berührung.
+  // Get colors by recalculating on each render based on current positions
   const assignedColors = useMemo(() => {
     const result: Record<string, string[]> = {}
 
@@ -137,34 +167,29 @@ export default function Room() {
     }
 
     Object.entries(assignedGroups).forEach(([tableId, ags]) => {
-      const positionsByIdx = ags.map(ag => {
-        const positions = getPositionsForSize(ag.group.size, ag.rotation)
-        return positions.map(p => ({ x: ag.x + p.x, y: ag.y + p.y }))
-      })
+      const colors: string[] = new Array(ags.length)
 
-      const neighbors: Record<number, Set<number>> = {}
+      // Sortiere nach Index für konsistente Reihenfolge
       for (let i = 0; i < ags.length; i++) {
-        neighbors[i] = new Set<number>()
-      }
-      for (let i = 0; i < ags.length; i++) {
-        for (let j = i + 1; j < ags.length; j++) {
-          if (isAdjacent(positionsByIdx[i], positionsByIdx[j])) {
-            neighbors[i].add(j)
-            neighbors[j].add(i)
+        const ag = ags[i]
+        const positions = getPositionsForSize(ag.group.size, ag.rotation)
+        const agPositions = positions.map(p => ({ x: ag.x + p.x, y: ag.y + p.y }))
+
+        const banned = new Set<string>()
+        for (let j = 0; j < ags.length; j++) {
+          if (i === j) continue
+          const other = ags[j]
+          const otherPositions = getPositionsForSize(other.group.size, other.rotation)
+          const otherAbsPositions = otherPositions.map(p => ({ x: other.x + p.x, y: other.y + p.y }))
+          if (isAdjacent(agPositions, otherAbsPositions)) {
+            if (colors[j]) banned.add(colors[j])
           }
         }
-      }
 
-      const colors: string[] = new Array(ags.length)
-      for (let i = 0; i < ags.length; i++) {
-        const banned = new Set<string>()
-        neighbors[i].forEach(n => {
-          const c = colors[n]
-          if (c) banned.add(c)
-        })
-        const picked = PALETTE.find(c => !banned.has(c)) || PALETTE[0]
+        const picked = PALETTE.find(c => !banned.has(paletteColor(c))) || PALETTE[0]
         colors[i] = paletteColor(picked)
       }
+
       result[tableId] = colors
     })
 
@@ -265,7 +290,7 @@ export default function Room() {
     const result = bestFitAssign(room.tables, groups)
     const newAssigned: Record<string, AssignedGroup[]> = {}
     for (const table of room.tables) {
-      newAssigned[table.id] = (result[table.id] || []).map(g => ({ group: g, rotation: 0, locked: false, x: 0, y: 0 }))
+      newAssigned[table.id] = (result[table.id] || []).map(g => ({ group: g, rotation: 0, locked: false, x: 0, y: 0, color: PALETTE[0] }))
     }
     setAssignedGroups(newAssigned)
     setGroups([])
@@ -333,6 +358,13 @@ export default function Room() {
                 <div
                   key={`${tableId}-${idx}`}
                   className="assigned-item"
+                  style={{
+                    background: assignedColors[tableId]?.[idx],
+                    padding: '8px',
+                    borderRadius: '4px',
+                    marginBottom: '4px',
+                    cursor: 'pointer'
+                  }}
                   onContextMenu={e => {
                     e.preventDefault()
                     setContextMenu({ x: e.clientX, y: e.clientY, tableId, agIdx: idx, isList: false, isAssignedList: true })
@@ -406,7 +438,7 @@ export default function Room() {
                 if (totalOccupied <= table.capacity && isValidPosition(table, group, previewRotation, relX, relY, assignedGroups)) {
                   setAssignedGroups({
                     ...assignedGroups,
-                    [table.id]: [...current, { group, rotation: previewRotation, locked: false, x: relX, y: relY }]
+                    [table.id]: [...current, { group, rotation: previewRotation, locked: false, x: relX, y: relY, color: PALETTE[0] }]
                   })
                   setGroups(groups.filter((_, idx) => idx !== data.index))
                 }
@@ -433,20 +465,38 @@ export default function Room() {
                   style={{
                     gridColumn: `${table.x + 1} / span ${table.width}`,
                     gridRow: `${table.y + 1} / span ${table.height}`,
-                    background: 'lightblue',
-                    border: '1px solid blue',
+                    background: '#f5f5f565',
+                    border: '2px solid #999',
                     display: 'flex',
                     flexDirection: 'column',
                     position: 'relative',
                     backgroundImage: `
-                      linear-gradient(to right, rgba(0,0,255,0.2) 1px, transparent 1px),
-                      linear-gradient(to bottom, rgba(0,0,255,0.2) 1px, transparent 1px)
+                      linear-gradient(to right, rgba(80,80,80,0.2) 1px, transparent 1px),
+                      linear-gradient(to bottom, rgba(80,80,80,0.2) 1px, transparent 1px)
                     `,
-                    backgroundSize: `${CELL_SIZE}px ${CELL_SIZE}px`
+                    backgroundSize: `${CELL_SIZE}px ${CELL_SIZE}px`,
+                    justifyContent: 'flex-start',
+                    alignItems: 'center'
                   }}
                 >
-                  <div style={{ fontSize: '12px', position: 'absolute', top: '2px', left: '2px' }}>
-                    Tisch {table.id.slice(1)} - {occupied}/{table.capacity}
+                  <div style={{
+                    fontSize: '10px',
+                    background: 'rgba(80, 80, 80, 0.55)',
+                    color: '#fff',
+                    padding: '3px 8px',
+                    borderRadius: '6px 6px 0 0',
+                    fontWeight: 'bold',
+                    position: 'absolute',
+                    top: '-31px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: '65px',
+                    maxHeight: '40px',
+                    textAlign: 'center',
+                    lineHeight: '1.2',
+                    overflow: 'hidden'
+                  }}>
+                    Tisch {table.id.slice(1)}<br />{occupied}/{table.capacity}
                   </div>
                 </div>
               )
@@ -629,9 +679,10 @@ export default function Room() {
             <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
               {room?.tables.map(table => (
                 <div key={table.id} onClick={() => {
+                  const current = assignedGroups[table.id] || []
                   setAssignedGroups({
                     ...assignedGroups,
-                    [table.id]: [...(assignedGroups[table.id] || []), { group: tableSelectModal.group, rotation: 0, locked: false, x: 0, y: 0 }]
+                    [table.id]: [...current, { group: tableSelectModal.group, rotation: 0, locked: false, x: 0, y: 0, color: PALETTE[0] }]
                   })
                   setGroups(groups.filter((_, i) => i !== tableSelectModal.index))
                   setTableSelectModal(null)
