@@ -29,11 +29,11 @@ type DraggingMeta = { tableId?: string; agIdx?: number } | null
 const GRID_SIZE = 20
 const CELL_SIZE = 40
 const STORAGE_KEY = 'currentRoom'
+const PALETTE = ['#8E9AAF', '#CBC0D3', '#EFD3D7', '#FEEAFA', '#DEE2FF']
+const UNASSIGNED_COLOR = '#80808080'
 
-// Helpers stay outside of the component to keep render light.
-function getRandomColor() {
-  const hue = Math.floor(Math.random() * 360)
-  return `hsla(${hue}, 80%, 50%, 0.3)`
+function paletteColor(hex: string): string {
+  return hex + '40'
 }
 
 function getPositionsForSize(size: number, rotation: number): { x: number; y: number }[] {
@@ -111,6 +111,8 @@ export default function Room() {
   const [newGroupSize, setNewGroupSize] = useState('4')
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tableId: string; agIdx: number; isList: boolean; listIdx?: number; isAssignedList?: boolean } | null>(null)
   const [editModal, setEditModal] = useState<{ tableId: string; agIdx: number; isList: boolean; listIdx?: number } | null>(null)
+  const [resizeModal, setResizeModal] = useState<{ tableId: string; agIdx: number; maxSize: number } | null>(null)
+  const [resizeValue, setResizeValue] = useState('1')
   const [tableSelectModal, setTableSelectModal] = useState<{ group: Group; index: number } | null>(null)
   const [dragOverPosition, setDragOverPosition] = useState<{ tableId: string; x: number; y: number } | null>(null)
   const [draggingGroup, setDraggingGroup] = useState<{ group: Group; rotation: number } | null>(null)
@@ -119,17 +121,55 @@ export default function Room() {
   const [editName, setEditName] = useState('')
   const [editSize, setEditSize] = useState('')
 
-  // Derived: consistent colors for groups
-  const groupColors = useMemo(() => {
-    const colors: Record<string, string> = {}
-    groups.forEach(g => { colors[g.name] = getRandomColor() })
-    Object.values(assignedGroups).forEach(ags => {
-      ags.forEach(ag => {
-        if (!colors[ag.group.name]) colors[ag.group.name] = getRandomColor()
+  // Derived: palette-based colors for assigned groups; greedy coloring avoids gleiche Farben bei Berührung.
+  const assignedColors = useMemo(() => {
+    const result: Record<string, string[]> = {}
+
+    const isAdjacent = (a: { x: number; y: number }[], b: { x: number; y: number }[]) => {
+      for (const pa of a) {
+        for (const pb of b) {
+          if (Math.abs(pa.x - pb.x) <= 1 && Math.abs(pa.y - pb.y) <= 1) {
+            return true
+          }
+        }
+      }
+      return false
+    }
+
+    Object.entries(assignedGroups).forEach(([tableId, ags]) => {
+      const positionsByIdx = ags.map(ag => {
+        const positions = getPositionsForSize(ag.group.size, ag.rotation)
+        return positions.map(p => ({ x: ag.x + p.x, y: ag.y + p.y }))
       })
+
+      const neighbors: Record<number, Set<number>> = {}
+      for (let i = 0; i < ags.length; i++) {
+        neighbors[i] = new Set<number>()
+      }
+      for (let i = 0; i < ags.length; i++) {
+        for (let j = i + 1; j < ags.length; j++) {
+          if (isAdjacent(positionsByIdx[i], positionsByIdx[j])) {
+            neighbors[i].add(j)
+            neighbors[j].add(i)
+          }
+        }
+      }
+
+      const colors: string[] = new Array(ags.length)
+      for (let i = 0; i < ags.length; i++) {
+        const banned = new Set<string>()
+        neighbors[i].forEach(n => {
+          const c = colors[n]
+          if (c) banned.add(c)
+        })
+        const picked = PALETTE.find(c => !banned.has(c)) || PALETTE[0]
+        colors[i] = paletteColor(picked)
+      }
+      result[tableId] = colors
     })
-    return colors
-  }, [groups, assignedGroups])
+
+    return result
+  }, [assignedGroups])
 
   // Initial load: room definition from localStorage
   useEffect(() => {
@@ -155,10 +195,11 @@ export default function Room() {
       return
     }
 
-    const relX = x - table.x
-    const relY = y - table.y
+    let relX = x - table.x
+    let relY = y - table.y
     const skipAg = draggingMeta?.tableId ? assignedGroups[draggingMeta.tableId]?.[draggingMeta.agIdx ?? -1] : undefined
 
+    // Versuche beste Rotation
     let bestRotation = draggingGroup.rotation
     if (!isValidPosition(table, draggingGroup.group, bestRotation, relX, relY, assignedGroups, skipAg)) {
       for (let rot = 1; rot < 4; rot++) {
@@ -168,6 +209,18 @@ export default function Room() {
           break
         }
       }
+    }
+
+    // Wenn immer noch nicht gültig, versuche Position zu cleuppen
+    if (!isValidPosition(table, draggingGroup.group, bestRotation, relX, relY, assignedGroups, skipAg)) {
+      const positions = getPositionsForSize(draggingGroup.group.size, bestRotation)
+      const maxX = Math.max(...positions.map(p => p.x))
+      const maxY = Math.max(...positions.map(p => p.y))
+      
+      relX = Math.min(relX, table.width - 1 - maxX)
+      relY = Math.min(relY, table.height - 1 - maxY)
+      relX = Math.max(relX, 0)
+      relY = Math.max(relY, 0)
     }
 
     setPreviewRotation(bestRotation)
@@ -257,6 +310,7 @@ export default function Room() {
               <div
                 key={i}
                 className="group-item"
+                style={{ background: UNASSIGNED_COLOR, color: '#000' }}
                 draggable
                 onDragStart={e => {
                   e.dataTransfer.setData('text/plain', JSON.stringify({ index: i, ...g }))
@@ -421,13 +475,14 @@ export default function Room() {
                     style={{
                       gridColumn: (table.x + ag.x + pos.x + 1),
                       gridRow: (table.y + ag.y + pos.y + 1),
-                      background: groupColors[ag.group.name] || 'orange',
+                      background: assignedColors[tableId]?.[idx] || paletteColor(PALETTE[0]),
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontSize: '10px',
                       cursor: ag.locked ? 'default' : 'move',
-                      zIndex: 10
+                      zIndex: 10,
+                      border: '1px solid rgba(0,0,0,0.2)'
                     }}
                     onDoubleClick={() => {
                       setAssignedGroups({
@@ -436,7 +491,7 @@ export default function Room() {
                       })
                     }}
                   >
-                    {pidx === 0 ? (ag.locked ? '🔒' : '') + ag.group.name : ''}
+                    {pidx === 0 ? (ag.locked ? '🔒 ' : '') + ag.group.name + ' (' + ag.group.size + ')' : ''}
                   </div>
                 ))
               })
@@ -541,6 +596,15 @@ export default function Room() {
                 setContextMenu(null)
               }}>Rotieren</div>
               <div onClick={() => {
+                const table = room.tables.find(t => t.id === contextMenu.tableId)
+                if (!table) return
+                const occupied = assignedGroups[contextMenu.tableId].reduce((sum, a, i) => i === contextMenu.agIdx ? sum : sum + a.group.size, 0)
+                const available = table.capacity - occupied
+                setResizeModal({ tableId: contextMenu.tableId, agIdx: contextMenu.agIdx, maxSize: available })
+                setResizeValue(available.toString())
+                setContextMenu(null)
+              }}>Größe anpassen</div>
+              <div onClick={() => {
                 setEditModal({ tableId: contextMenu.tableId, agIdx: contextMenu.agIdx, isList: false })
                 const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
                 setEditName(ag.group.name)
@@ -630,6 +694,33 @@ export default function Room() {
               setEditModal(null)
             }}>Speichern</button>
             <button onClick={() => setEditModal(null)}>Abbrechen</button>
+          </div>
+        </div>
+      )}
+      {resizeModal && (
+        <div className="modal">
+          <div className="modal-content">
+            <h3>Familiengr\u00f6\u00dfe anpassen</h3>
+            <p>Verf\u00fcgbare Pl\u00e4tze am Tisch: {resizeModal.maxSize}</p>
+            <input
+              type="number"
+              placeholder="Neue Gr\u00f6\u00dfe"
+              value={resizeValue}
+              onChange={e => setResizeValue(e.target.value)}
+              min="1"
+              max={resizeModal.maxSize}
+            />
+            <button onClick={() => {
+              const size = Math.min(Math.max(parseInt(resizeValue) || 1, 1), resizeModal.maxSize)
+              setAssignedGroups({
+                ...assignedGroups,
+                [resizeModal.tableId]: assignedGroups[resizeModal.tableId].map((ag, i) => 
+                  i === resizeModal.agIdx ? { ...ag, group: { ...ag.group, size } } : ag
+                )
+              })
+              setResizeModal(null)
+            }}>Anpassen</button>
+            <button onClick={() => setResizeModal(null)}>Abbrechen</button>
           </div>
         </div>
       )}
