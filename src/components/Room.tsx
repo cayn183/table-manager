@@ -37,7 +37,63 @@ function paletteColor(hex: string): string {
   return hex + '70'
 }
 
-function getPositionsForSize(size: number, rotation: number): { x: number; y: number }[] {
+function generatePossibleLayouts(size: number, maxWidth: number, maxHeight: number): { x: number; y: number }[][] {
+  const layouts: { x: number; y: number }[][] = []
+  
+  for (let cols = 1; cols <= maxWidth; cols++) {
+    for (let rows = 1; rows <= maxHeight; rows++) {
+      const mainBlock = cols * rows
+      if (mainBlock >= size) {
+        const pos: { x: number; y: number }[] = []
+        for (let i = 0; i < size; i++) {
+          pos.push({ x: i % cols, y: Math.floor(i / cols) })
+        }
+        layouts.push(pos)
+      } else if (mainBlock < size && rows < maxHeight) {
+        const pos: { x: number; y: number }[] = []
+        for (let i = 0; i < mainBlock; i++) {
+          pos.push({ x: i % cols, y: Math.floor(i / cols) })
+        }
+        const remaining = size - mainBlock
+        for (let i = 0; i < Math.min(remaining, cols); i++) {
+          pos.push({ x: i, y: rows })
+        }
+        if (pos.length === size) {
+          layouts.push(pos)
+        }
+      }
+    }
+  }
+  
+  return layouts.filter(layout => {
+    const maxX = Math.max(...layout.map(p => p.x))
+    const maxY = Math.max(...layout.map(p => p.y))
+    return maxX < maxWidth && maxY < maxHeight
+  })
+}
+
+function adaptiveLayout(size: number, maxWidth: number, maxHeight: number): { x: number; y: number }[] {
+  const layouts = generatePossibleLayouts(size, maxWidth, maxHeight)
+  
+  if (layouts.length === 0) {
+    const cols = Math.ceil(Math.sqrt(size))
+    const positions: { x: number; y: number }[] = []
+    for (let i = 0; i < size; i++) {
+      positions.push({ x: i % cols, y: Math.floor(i / cols) })
+    }
+    return positions
+  }
+  
+  const best = layouts.sort((a, b) => {
+    const aArea = (Math.max(...a.map(p => p.x)) + 1) * (Math.max(...a.map(p => p.y)) + 1)
+    const bArea = (Math.max(...b.map(p => p.x)) + 1) * (Math.max(...b.map(p => p.y)) + 1)
+    return aArea - bArea
+  })[0]
+  
+  return best
+}
+
+function getPositionsForSize(size: number, rotation: number, tableWidth?: number, tableHeight?: number): { x: number; y: number }[] {
   let positions: { x: number; y: number }[] = []
   if (size === 1) {
     positions = [{ x: 0, y: 0 }]
@@ -48,9 +104,13 @@ function getPositionsForSize(size: number, rotation: number): { x: number; y: nu
   } else if (size === 4) {
     positions = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }]
   } else {
-    const cols = Math.ceil(Math.sqrt(size))
-    for (let i = 0; i < size; i++) {
-      positions.push({ x: i % cols, y: Math.floor(i / cols) })
+    if (tableWidth && tableHeight) {
+      positions = adaptiveLayout(size, tableWidth, tableHeight)
+    } else {
+      const cols = Math.ceil(Math.sqrt(size))
+      for (let i = 0; i < size; i++) {
+        positions.push({ x: i % cols, y: Math.floor(i / cols) })
+      }
     }
   }
 
@@ -69,7 +129,7 @@ function getPositionsForSize(size: number, rotation: number): { x: number; y: nu
 }
 
 function isValidPosition(table: Table, group: Group, rotation: number, x: number, y: number, assignedGroups: Record<string, AssignedGroup[]>, skipAg?: AssignedGroup): boolean {
-  const positions = getPositionsForSize(group.size, rotation)
+  const positions = getPositionsForSize(group.size, rotation, table.width, table.height)
   for (const pos of positions) {
     const absX = table.x + x + pos.x
     const absY = table.y + y + pos.y
@@ -78,7 +138,7 @@ function isValidPosition(table: Table, group: Group, rotation: number, x: number
     }
     for (const ag of assignedGroups[table.id] || []) {
       if (ag === skipAg) continue
-      const agPositions = getPositionsForSize(ag.group.size, ag.rotation)
+      const agPositions = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height)
       for (const agPos of agPositions) {
         if (absX === table.x + ag.x + agPos.x && absY === table.y + ag.y + agPos.y) {
           return false
@@ -100,7 +160,7 @@ function loadRoomFromStorage(): Room | null {
 }
 
 function getColorForGroup(ag: AssignedGroup, tableAssignments: AssignedGroup[], table: Table): string {
-  const positions = getPositionsForSize(ag.group.size, ag.rotation)
+  const positions = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height)
   const agPositions = positions.map(p => ({ x: ag.x + p.x, y: ag.y + p.y }))
 
   const isAdjacent = (a: { x: number; y: number }[], b: { x: number; y: number }[]) => {
@@ -117,7 +177,7 @@ function getColorForGroup(ag: AssignedGroup, tableAssignments: AssignedGroup[], 
   const bannedColors = new Set<string>()
   for (const other of tableAssignments) {
     if (other === ag) continue
-    const otherPositions = getPositionsForSize(other.group.size, other.rotation)
+    const otherPositions = getPositionsForSize(other.group.size, other.rotation, table.width, table.height)
     const otherAbsPositions = otherPositions.map(p => ({ x: other.x + p.x, y: other.y + p.y }))
     if (isAdjacent(agPositions, otherAbsPositions)) {
       bannedColors.add(other.color)
@@ -126,6 +186,59 @@ function getColorForGroup(ag: AssignedGroup, tableAssignments: AssignedGroup[], 
 
   const picked = PALETTE.find(c => !bannedColors.has(paletteColor(c))) || PALETTE[0]
   return paletteColor(picked)
+}
+
+function addPositionsToSet(set: Set<string>, positions: { x: number; y: number }[], offsetX: number, offsetY: number) {
+  positions.forEach(p => set.add(`${offsetX + p.x},${offsetY + p.y}`))
+}
+
+function findPlacement(
+  table: Table,
+  group: Group,
+  existing: AssignedGroup[],
+  occupied: Set<string>
+): { x: number; y: number; rotation: number } | null {
+  for (let rot = 0; rot < 4; rot++) {
+    const positions = getPositionsForSize(group.size, rot, table.width, table.height)
+    const maxX = Math.max(...positions.map(p => p.x))
+    const maxY = Math.max(...positions.map(p => p.y))
+
+    for (let y = 0; y <= table.height - 1 - maxY; y++) {
+      for (let x = 0; x <= table.width - 1 - maxX; x++) {
+        let collision = false
+        for (const pos of positions) {
+          const key = `${x + pos.x},${y + pos.y}`
+          if (occupied.has(key)) {
+            collision = true
+            break
+          }
+        }
+        if (!collision) {
+          return { x, y, rotation: rot }
+        }
+      }
+    }
+  }
+  return null
+}
+
+function placeGroupsOnTable(table: Table, groups: Group[]): { placed: AssignedGroup[]; unplaced: Group[] } {
+  const placed: AssignedGroup[] = []
+  const unplaced: Group[] = []
+  const occupied = new Set<string>()
+
+  for (const g of groups) {
+    const placement = findPlacement(table, g, placed, occupied)
+    if (placement) {
+      const positions = getPositionsForSize(g.size, placement.rotation, table.width, table.height)
+      addPositionsToSet(occupied, positions, placement.x, placement.y)
+      placed.push({ group: g, rotation: placement.rotation, locked: false, x: placement.x, y: placement.y, color: PALETTE[0] })
+    } else {
+      unplaced.push(g)
+    }
+  }
+
+  return { placed, unplaced }
 }
 
 export default function Room() {
@@ -167,19 +280,21 @@ export default function Room() {
     }
 
     Object.entries(assignedGroups).forEach(([tableId, ags]) => {
+      const table = room?.tables.find(t => t.id === tableId)
+      if (!table) return
       const colors: string[] = new Array(ags.length)
 
       // Sortiere nach Index für konsistente Reihenfolge
       for (let i = 0; i < ags.length; i++) {
         const ag = ags[i]
-        const positions = getPositionsForSize(ag.group.size, ag.rotation)
+        const positions = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height)
         const agPositions = positions.map(p => ({ x: ag.x + p.x, y: ag.y + p.y }))
 
         const banned = new Set<string>()
         for (let j = 0; j < ags.length; j++) {
           if (i === j) continue
           const other = ags[j]
-          const otherPositions = getPositionsForSize(other.group.size, other.rotation)
+          const otherPositions = getPositionsForSize(other.group.size, other.rotation, table.width, table.height)
           const otherAbsPositions = otherPositions.map(p => ({ x: other.x + p.x, y: other.y + p.y }))
           if (isAdjacent(agPositions, otherAbsPositions)) {
             if (colors[j]) banned.add(colors[j])
@@ -238,7 +353,7 @@ export default function Room() {
 
     // Wenn immer noch nicht gültig, versuche Position zu cleuppen
     if (!isValidPosition(table, draggingGroup.group, bestRotation, relX, relY, assignedGroups, skipAg)) {
-      const positions = getPositionsForSize(draggingGroup.group.size, bestRotation)
+      const positions = getPositionsForSize(draggingGroup.group.size, bestRotation, table.width, table.height)
       const maxX = Math.max(...positions.map(p => p.x))
       const maxY = Math.max(...positions.map(p => p.y))
       
@@ -289,11 +404,16 @@ export default function Room() {
     if (!room) return
     const result = bestFitAssign(room.tables, groups)
     const newAssigned: Record<string, AssignedGroup[]> = {}
+    const remaining: Group[] = []
+
     for (const table of room.tables) {
-      newAssigned[table.id] = (result[table.id] || []).map(g => ({ group: g, rotation: 0, locked: false, x: 0, y: 0, color: PALETTE[0] }))
+      const { placed, unplaced } = placeGroupsOnTable(table, result[table.id] || [])
+      newAssigned[table.id] = placed
+      remaining.push(...unplaced)
     }
+
     setAssignedGroups(newAssigned)
-    setGroups([])
+    setGroups(remaining)
   }
 
   const preview = useMemo(() => {
@@ -301,7 +421,7 @@ export default function Room() {
     const table = room.tables.find(t => t.id === dragOverPosition.tableId)
     if (!table) return null
     const skipAg = draggingMeta?.tableId ? assignedGroups[draggingMeta.tableId]?.[draggingMeta.agIdx ?? -1] : undefined
-    const positions = getPositionsForSize(draggingGroup.group.size, previewRotation)
+    const positions = getPositionsForSize(draggingGroup.group.size, previewRotation, table.width, table.height)
     const valid = isValidPosition(table, draggingGroup.group, previewRotation, dragOverPosition.x, dragOverPosition.y, assignedGroups, skipAg)
     return { table, positions, valid }
   }, [room, draggingGroup, dragOverPosition, previewRotation, draggingMeta, assignedGroups])
@@ -506,7 +626,7 @@ export default function Room() {
               ags.map((ag, idx) => {
                 const table = room.tables.find(t => t.id === tableId)
                 if (!table) return null
-                const positions = getPositionsForSize(ag.group.size, ag.rotation)
+                const positions = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height)
                 return positions.map((pos, pidx) => (
                   <div
                     key={`${tableId}-${idx}-${pidx}`}
