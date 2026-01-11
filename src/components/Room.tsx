@@ -379,6 +379,8 @@ export default function Room() {
   const [eventSaveName, setEventSaveName] = useState('')
   const [isDirty, setIsDirty] = useState(false)
   const [lastSaveTime, setLastSaveTime] = useState<string | null>(null)
+  const [timeInterval, setTimeInterval] = useState(15) // 5, 10, 15 Min
+  const [viewMode, setViewMode] = useState<'map' | 'timeline'>('map')
 
   // State: UI and interaction
   const [showModal, setShowModal] = useState(false)
@@ -676,51 +678,135 @@ export default function Room() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', background: '#f8fafc' }}>
       {/* Header */}
       <div style={{ 
-        background: '#f0f0f0', 
-        padding: '12px 20px', 
-        borderBottom: '1px solid #ddd',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
+        padding: '16px 24px', 
+        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center'
       }}>
-        <h1 style={{ margin: '0', fontSize: '24px' }}>Eventplanung</h1>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Link to="/" style={{ textDecoration: 'none' }}><button>← Hauptseite</button></Link>
-          <button onClick={() => navigate('/new-room')}>Raum bearbeiten</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <Link to="/" style={{ textDecoration: 'none', color: 'white', display: 'flex', alignItems: 'center', transition: 'opacity 0.2s' }}>
+            <span style={{ fontSize: '20px', cursor: 'pointer' }} title="Zurück zur Hauptseite">←</span>
+          </Link>
+          <h1 style={{ margin: '0', fontSize: '24px', fontWeight: '600', color: 'white' }}>Eventplanung</h1>
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <button 
+            onClick={() => navigate('/new-room')}
+            style={{
+              padding: '8px 16px',
+              background: 'rgba(255,255,255,0.2)',
+              color: 'white',
+              border: '1px solid rgba(255,255,255,0.3)',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500',
+              transition: 'all 0.2s',
+              backdropFilter: 'blur(10px)'
+            }}
+            onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
+            onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+          >Raum bearbeiten</button>
           <button 
             onClick={() => handleSaveEvent()} 
             disabled={!isDirty || !Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0)}
             style={{ 
-              background: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? '#4CAF50' : '#ccc',
-              color: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? '#fff' : '#999',
-              cursor: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 'pointer' : 'not-allowed'
+              padding: '8px 16px',
+              background: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? '#10b981' : 'rgba(255,255,255,0.15)',
+              color: 'white',
+              border: '1px solid rgba(255,255,255,0.3)',
+              borderRadius: '6px',
+              cursor: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 'pointer' : 'not-allowed',
+              fontSize: '14px',
+              fontWeight: '600',
+              transition: 'all 0.2s',
+              opacity: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 1 : 0.5
             }}
           >
-            Event speichern
+            💾 Event speichern
           </button>
-          {lastSaveTime && <p style={{ margin: 0, fontSize: 12, color: '#666' }}>Zuletzt gespeichert: {lastSaveTime}</p>}
+          {lastSaveTime && <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.9)', background: 'rgba(0,0,0,0.2)', padding: '4px 12px', borderRadius: '12px' }}>Zuletzt: {lastSaveTime}</p>}
         </div>
       </div>
       
       {/* Main Content */}
       <div className="room-content" style={{ flex: 1, overflow: 'auto', display: 'flex' }}>
-        <div className="sidebar" style={{ flex: '0 0 350px', minWidth: '200px', maxWidth: '500px', overflowY: 'auto', borderRight: '1px solid #ddd', padding: '12px' }}>
-          <button onClick={() => setShowModal(true)}>Familie anlegen</button>
-          <div className="controls">
-            <button onClick={autoAssign}>
-              {hasAutoAssigned ? 'Re-Assign (Best-Fit)' : 'Auto Assign (Best-Fit)'}
-            </button>
-          </div>
-          <h3>Verfügbare Familien ({groups.length})</h3>
-          <div className="groups-list">
+        {/* Sidebar - always visible */}
+        <div className="sidebar" style={{ 
+          flex: '0 0 360px', 
+          minWidth: '320px', 
+          maxWidth: '500px', 
+          overflowY: 'auto', 
+          background: 'white',
+          boxShadow: '2px 0 12px rgba(0,0,0,0.05)',
+          padding: '20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '16px'
+        }}>
+          <button 
+            onClick={() => setShowModal(true)}
+            style={{
+              padding: '12px 20px',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '600',
+              boxShadow: '0 2px 8px rgba(102,126,234,0.3)',
+              transition: 'all 0.2s'
+            }}
+            onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+            onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
+          >+ Familie anlegen</button>
+          <button 
+            onClick={autoAssign}
+            style={{
+              padding: '12px 20px',
+              background: 'white',
+              color: '#667eea',
+              border: '2px solid #667eea',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '600',
+              transition: 'all 0.2s'
+            }}
+            onMouseOver={e => { e.currentTarget.style.background = '#667eea'; e.currentTarget.style.color = 'white'; }}
+            onMouseOut={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = '#667eea'; }}
+          >
+            {hasAutoAssigned ? '🔄 Re-Assign' : '✨ Auto Assign'}
+          </button>
+          <div style={{ marginTop: '8px' }}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ background: '#e0e7ff', padding: '4px 12px', borderRadius: '12px', fontSize: '14px' }}>{groups.length}</span>
+              Verfügbare Familien
+            </h3>
+          <div className="groups-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {groups.map((g, i) => (
               <div
                 key={i}
                 className="group-item"
-                style={{ background: g.toGo ? TOGO_COLOR : UNASSIGNED_COLOR, color: '#000', opacity: g.toGo ? 0.9 : 1 }}
+                style={{ 
+                  background: g.toGo ? '#fef3c7' : '#f1f5f9', 
+                  color: '#1e293b', 
+                  padding: '12px',
+                  borderRadius: '8px',
+                  border: '1px solid ' + (g.toGo ? '#fbbf24' : '#e2e8f0'),
+                  cursor: g.toGo ? 'default' : 'move',
+                  transition: 'all 0.2s',
+                  fontWeight: '500',
+                  fontSize: '13px'
+                }}
+                onMouseOver={e => !g.toGo && (e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)')}
+                onMouseOut={e => e.currentTarget.style.boxShadow = 'none'}
                 draggable={!g.toGo}
                 onDragStart={e => {
                   if (g.toGo) return
@@ -737,20 +823,30 @@ export default function Room() {
               </div>
             ))}
           </div>
-          <h3>Zugewiesene Familien</h3>
-          <div className="assigned-list">
+          </div>
+          <div style={{ marginTop: '8px' }}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ background: '#dbeafe', padding: '4px 12px', borderRadius: '12px', fontSize: '14px' }}>{Object.values(assignedGroups).flat().length}</span>
+              Zugewiesene Familien
+            </h3>
+          <div className="assigned-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {Object.entries(assignedGroups).map(([tableId, ags]) =>
               ags.map((ag, idx) => (
                 <div
                   key={`${tableId}-${idx}`}
                   className="assigned-item"
                   style={{
-                    background: tableId === 'TOGO' ? TOGO_COLOR : assignedColors[tableId]?.[idx],
-                    padding: '8px',
-                    borderRadius: '4px',
-                    marginBottom: '4px',
-                    cursor: 'pointer'
+                    background: tableId === 'TOGO' ? '#fef3c7' : (assignedColors[tableId]?.[idx] || '#e0e7ff'),
+                    padding: '12px',
+                    borderRadius: '8px',
+                    border: '1px solid ' + (tableId === 'TOGO' ? '#fbbf24' : '#c7d2fe'),
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    fontWeight: '500',
+                    fontSize: '13px'
                   }}
+                  onMouseOver={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'}
+                  onMouseOut={e => e.currentTarget.style.boxShadow = 'none'}
                   onContextMenu={e => {
                     e.preventDefault()
                     setContextMenu({ x: e.clientX, y: e.clientY, tableId, agIdx: idx, isList: false, isAssignedList: true })
@@ -761,10 +857,95 @@ export default function Room() {
               ))
             )}
           </div>
+          </div>
         </div>
-        <div className="room-layout" style={{ flex: 1, overflowX: 'auto', overflowY: 'auto', padding: '12px' }}>
-          <div
-            className="grid"
+
+        {/* Main area - switches between map and timeline */}
+        <div className="room-layout" style={{ flex: 1, overflowX: 'auto', overflowY: 'auto', padding: '12px', position: 'relative' }}>
+          {/* View Toggle Bar - positioned over the content */}
+          <div style={{
+            position: 'absolute',
+            top: '12px',
+            left: '12px',
+            right: '12px',
+            zIndex: 20,
+            display: 'flex',
+            gap: 12,
+            alignItems: 'center',
+            background: 'rgba(255, 255, 255, 0.95)',
+            padding: '8px 12px',
+            borderRadius: '6px',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+          }}>
+            {/* View Toggle Buttons */}
+            <div style={{ display: 'flex', gap: 6, background: '#f1f5f9', padding: '6px', borderRadius: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+              <button
+                onClick={() => setViewMode('map')}
+                style={{
+                  padding: '8px 16px',
+                  background: viewMode === 'map' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'transparent',
+                  color: viewMode === 'map' ? 'white' : '#64748b',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '13px',
+                  transition: 'all 0.2s',
+                  boxShadow: viewMode === 'map' ? '0 2px 8px rgba(102,126,234,0.3)' : 'none'
+                }}
+              >
+                📍 Kartenübersicht
+              </button>
+              <button
+                onClick={() => setViewMode('timeline')}
+                style={{
+                  padding: '8px 16px',
+                  background: viewMode === 'timeline' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'transparent',
+                  color: viewMode === 'timeline' ? 'white' : '#64748b',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '13px',
+                  transition: 'all 0.2s',
+                  boxShadow: viewMode === 'timeline' ? '0 2px 8px rgba(102,126,234,0.3)' : 'none'
+                }}
+              >
+                🕐 Zeitplan
+              </button>
+            </div>
+
+            {/* Zeitintervall Dropdown - nur in Zeitplan-Ansicht */}
+            {viewMode === 'timeline' && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '13px', fontWeight: '600', color: '#64748b' }}>
+                Intervall:
+                <select 
+                  value={timeInterval} 
+                  onChange={e => setTimeInterval(parseInt(e.target.value))}
+                  style={{ 
+                    padding: '8px 12px', 
+                    borderRadius: '8px', 
+                    border: '2px solid #e2e8f0', 
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    background: 'white',
+                    cursor: 'pointer',
+                    outline: 'none'
+                  }}
+                >
+                  <option value={5}>5 Min</option>
+                  <option value={10}>10 Min</option>
+                  <option value={15}>15 Min</option>
+                </select>
+              </label>
+            )}
+          </div>
+
+          {/* Content area with top padding to avoid toggle overlap */}
+          <div style={{ paddingTop: '60px' }}>
+            {viewMode === 'map' ? (
+            <div
+              className="grid"
             style={{
               display: 'grid',
               gridTemplateColumns: `repeat(${GRID_SIZE}, ${CELL_SIZE}px)`,
@@ -959,6 +1140,10 @@ export default function Room() {
               </div>
             ))}
           </div>
+          ) : (
+            <TimelineView groups={groups} assignedGroups={assignedGroups} timeInterval={timeInterval} />
+          )}
+            </div>
         </div>
       </div>
       {contextMenu && (
@@ -1228,4 +1413,115 @@ export default function Room() {
 function ensureToGoBucket(map: Record<string, AssignedGroup[]>): Record<string, AssignedGroup[]> {
   if (!map['TOGO']) map['TOGO'] = []
   return map
+}
+
+function TimelineView({ 
+  groups, 
+  assignedGroups, 
+  timeInterval 
+}: { 
+  groups: Group[]
+  assignedGroups: Record<string, AssignedGroup[]>
+  timeInterval: number
+}) {
+  // Sammle alle Familien (unzugeordnet + zugeordnet) mit ihren Zeiten
+  const allGroupsWithTime = groups.map(g => ({ group: g, tableId: null as string | null }))
+  const assignedGroupsList: Array<{ group: Group; tableId: string }> = []
+  
+  Object.entries(assignedGroups).forEach(([tableId, ags]) => {
+    ags.forEach(ag => {
+      assignedGroupsList.push({ group: ag.group, tableId })
+    })
+  })
+
+  // Unzugeordnete (ohne Zeit)
+  const unassignedNoTime = allGroupsWithTime.filter(g => !g.group.time)
+  const unassignedWithTime = allGroupsWithTime.filter(g => g.group.time)
+  const assignedNoTime = assignedGroupsList.filter(g => !g.group.time)
+  const assignedWithTime = assignedGroupsList.filter(g => g.group.time)
+
+  // Kombiniere alle mit Zeit
+  const allWithTime = [...unassignedWithTime.map(g => ({ ...g, isAssigned: false })), ...assignedWithTime.map(g => ({ ...g, isAssigned: true }))]
+  
+  // Sortiere nach Zeit
+  const sorted = allWithTime.sort((a, b) => (a.group.time || '').localeCompare(b.group.time || ''))
+  
+  // Generiere Zeitslots basierend auf Intervall
+  const timeSlots = new Map<string, Array<{ group: Group; tableId: string | null; isAssigned: boolean }>>()
+  
+  sorted.forEach(item => {
+    if (!item.group.time) return
+    
+    const [hours, minutes] = item.group.time.split(':').map(Number)
+    const slotMinutes = Math.floor(minutes / timeInterval) * timeInterval
+    const slotTime = `${String(hours).padStart(2, '0')}:${String(slotMinutes).padStart(2, '0')}`
+    const endMinutes = (slotMinutes + timeInterval) % 60
+    const endHours = hours + (slotMinutes + timeInterval >= 60 ? 1 : 0)
+    const endTime = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`
+    const slotKey = `${slotTime} - ${endTime}`
+    
+    if (!timeSlots.has(slotKey)) {
+      timeSlots.set(slotKey, [])
+    }
+    timeSlots.get(slotKey)!.push(item)
+  })
+
+  return (
+    <div style={{ padding: '12px', overflowY: 'auto' }}>
+      {/* Unzugeordnete ohne Zeit */}
+      {[...unassignedNoTime, ...assignedNoTime].length > 0 && (
+        <div style={{ marginBottom: '20px' }}>
+          <h3 style={{ borderBottom: '2px solid #ddd', paddingBottom: '8px' }}>Unzugeordnete Familien</h3>
+          {unassignedNoTime.map((item, i) => (
+            <div key={`unassigned-${i}`} style={{ padding: '8px', background: '#f9f9f9', marginBottom: '4px', borderRadius: '4px' }}>
+              {item.group.name} ({item.group.size} {item.group.toGo ? '| ToGo' : ''})
+            </div>
+          ))}
+          {assignedNoTime.map((item, i) => (
+            <div key={`assigned-notime-${i}`} style={{ padding: '8px', background: '#f9f9f9', marginBottom: '4px', borderRadius: '4px' }}>
+              {item.group.name} ({item.group.size}) - {item.tableId === 'TOGO' ? 'ToGo' : `Tisch ${item.tableId?.slice(1)}`}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Zeitslots */}
+      {Array.from(timeSlots.entries()).map(([slotKey, items]) => {
+        const totalPeople = items.reduce((sum, item) => sum + item.group.size, 0)
+        const familyCount = items.length
+        
+        return (
+          <div key={slotKey} style={{ marginBottom: '16px' }}>
+            <h4 style={{ 
+              background: '#e3f2fd', 
+              padding: '8px', 
+              borderRadius: '4px',
+              margin: '0 0 8px 0',
+              fontSize: '14px',
+              fontWeight: '600'
+            }}>
+              {slotKey} ({familyCount} Familien, {totalPeople} Personen)
+            </h4>
+            <div style={{ paddingLeft: '12px' }}>
+              {items.map((item, i) => (
+                <div 
+                  key={`${slotKey}-${i}`} 
+                  style={{ 
+                    padding: '6px 8px', 
+                    background: '#f5f5f5', 
+                    marginBottom: '4px',
+                    borderRadius: '3px',
+                    fontSize: '13px',
+                    borderLeft: '3px solid #2196F3'
+                  }}
+                >
+                  {item.group.name} ({item.group.size}) {item.isAssigned && item.tableId !== 'TOGO' ? `- Tisch ${item.tableId?.slice(1)}` : item.isAssigned && item.tableId === 'TOGO' ? '- ToGo' : ''}
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
 }

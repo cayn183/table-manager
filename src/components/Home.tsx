@@ -52,39 +52,201 @@ export default function Home() {
   }
 
   return (
-    <div className="container">
-      <h1>Event-Start</h1>
-      <div style={{ display: 'flex', gap: 12 }}>
-        <button onClick={() => setShowEventModal(true)}>Neues Event anlegen</button>
-        <Link to="/load-event"><button>Event laden</button></Link>
-        <Link to="/load-room"><button>Raum laden</button></Link>
-        <Link to="/new-room"><button>Raum anlegen</button></Link>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column' }}>
+      {/* Header */}
+      <div style={{ 
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
+        padding: '24px', 
+        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+      }}>
+        <h1 style={{ margin: '0', fontSize: '32px', fontWeight: '600', color: 'white', textAlign: 'center' }}>🎉 Event-Manager</h1>
+        <p style={{ margin: '8px 0 0', fontSize: '16px', color: 'rgba(255,255,255,0.9)', textAlign: 'center' }}>Planung leicht gemacht</p>
+      </div>
+      
+      {/* Main Content */}
+      <div style={{ flex: 1, padding: '40px 24px', maxWidth: '1200px', width: '100%', margin: '0 auto' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginTop: '20px' }}>
+          <button 
+            onClick={() => setShowEventModal(true)}
+            style={{
+              padding: '32px 24px',
+              background: 'white',
+              border: '2px solid #667eea',
+              borderRadius: '16px',
+              cursor: 'pointer',
+              fontSize: '18px',
+              fontWeight: '600',
+              color: '#667eea',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+              transition: 'all 0.2s',
+              textAlign: 'left',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}
+            onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(102,126,234,0.3)'; }}
+            onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'; }}
+          >
+            <span style={{ fontSize: '32px' }}>✨</span>
+            <span>Neues Event anlegen</span>
+            <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '400' }}>Starte ein neues Event mit Raum und Familien</span>
+          </button>
+          <Link to="/load-event" style={{ textDecoration: 'none' }}>
+            <button style={{
+              width: '100%',
+              padding: '32px 24px',
+              background: 'white',
+              border: '2px solid #e2e8f0',
+              borderRadius: '16px',
+              cursor: 'pointer',
+              fontSize: '18px',
+              fontWeight: '600',
+              color: '#1e293b',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+              transition: 'all 0.2s',
+              textAlign: 'left',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}
+            onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.15)'; }}
+            onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'; }}>
+              <span style={{ fontSize: '32px' }}>📂</span>
+              <span>Event laden</span>
+              <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '400' }}>Bestehende Events öffnen und bearbeiten</span>
+            </button>
+          </Link>
+          <Link to="/load-room" style={{ textDecoration: 'none' }}>
+            <button style={{
+              width: '100%',
+              padding: '32px 24px',
+              background: 'white',
+              border: '2px solid #e2e8f0',
+              borderRadius: '16px',
+              cursor: 'pointer',
+              fontSize: '18px',
+              fontWeight: '600',
+              color: '#1e293b',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+              transition: 'all 0.2s',
+              textAlign: 'left',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}
+            onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.15)'; }}
+            onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'; }}>
+              <span style={{ fontSize: '32px' }}>🏠</span>
+              <span>Raum laden</span>
+              <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '400' }}>Gespeicherte Raum-Layouts verwenden</span>
+            </button>
+          </Link>
+          <Link to="/new-room" style={{ textDecoration: 'none' }}>
+            <button style={{
+              width: '100%',
+              padding: '32px 24px',
+              background: 'white',
+              border: '2px solid #e2e8f0',
+              borderRadius: '16px',
+              cursor: 'pointer',
+              fontSize: '18px',
+              fontWeight: '600',
+              color: '#1e293b',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+              transition: 'all 0.2s',
+              textAlign: 'left',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}
+            onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.15)'; }}
+            onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'; }}>
+              <span style={{ fontSize: '32px' }}>🏗️</span>
+              <span>Raum anlegen</span>
+              <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '400' }}>Neuen Raum mit Tisch-Layout erstellen</span>
+            </button>
+          </Link>
+        </div>
       </div>
 
       {showEventModal && (
-        <div className="modal">
-          <div className="modal-content" style={{ minWidth: 360 }}>
-            <h3>Neues Event anlegen</h3>
-            <input type="text" placeholder="Eventname" value={eventName} onChange={e => setEventName(e.target.value)} />
-            <input type="date" placeholder="Datum" value={eventDate} onChange={e => setEventDate(e.target.value)} style={{ marginTop: 8 }} />
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <input type="time" placeholder="von" value={fromTime} onChange={e => setFromTime(e.target.value)} />
-              <input type="time" placeholder="bis" value={toTime} onChange={e => setToTime(e.target.value)} />
+        <div className="modal" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'white', borderRadius: '16px', padding: '32px', minWidth: '420px', maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <h3 style={{ margin: '0 0 24px', fontSize: '24px', fontWeight: '600', color: '#1e293b' }}>✨ Neues Event anlegen</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <input 
+                type="text" 
+                placeholder="Eventname" 
+                value={eventName} 
+                onChange={e => setEventName(e.target.value)} 
+                style={{ padding: '12px 16px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none' }}
+                onFocus={e => e.target.style.borderColor = '#667eea'}
+                onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+              />
+              <input 
+                type="date" 
+                placeholder="Datum" 
+                value={eventDate} 
+                onChange={e => setEventDate(e.target.value)} 
+                style={{ padding: '12px 16px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none' }}
+                onFocus={e => e.target.style.borderColor = '#667eea'}
+                onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+              />
+              <div style={{ display: 'flex', gap: 12 }}>
+                <input 
+                  type="time" 
+                  placeholder="von" 
+                  value={fromTime} 
+                  onChange={e => setFromTime(e.target.value)} 
+                  style={{ flex: 1, padding: '12px 16px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none' }}
+                  onFocus={e => e.target.style.borderColor = '#667eea'}
+                  onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                />
+                <input 
+                  type="time" 
+                  placeholder="bis" 
+                  value={toTime} 
+                  onChange={e => setToTime(e.target.value)} 
+                  style={{ flex: 1, padding: '12px 16px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', outline: 'none' }}
+                  onFocus={e => e.target.style.borderColor = '#667eea'}
+                  onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                />
+              </div>
+              <div style={{ background: '#f1f5f9', padding: '16px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '500' }}>
+                  <input type="radio" checked={useExistingRoom === 'existing'} onChange={() => setUseExistingRoom('existing')} /> 
+                  Bestehenden Raum verwenden
+                </label>
+                {useExistingRoom === 'existing' && (
+                  <select 
+                    style={{ padding: '12px 16px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', background: 'white', cursor: 'pointer', outline: 'none' }} 
+                    value={selectedRoomId} 
+                    onChange={e => setSelectedRoomId(e.target.value)}
+                    onFocus={e => e.target.style.borderColor = '#667eea'}
+                    onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                  >
+                    {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  </select>
+                )}
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '500' }}>
+                  <input type="radio" checked={useExistingRoom === 'new'} onChange={() => setUseExistingRoom('new')} /> 
+                  Neuen Raum anlegen
+                </label>
+              </div>
             </div>
-            <div style={{ marginTop: 8 }}>
-              <label><input type="radio" checked={useExistingRoom === 'existing'} onChange={() => setUseExistingRoom('existing')} /> Bestehenden Raum verwenden</label>
-              {useExistingRoom === 'existing' && (
-                <select style={{ width: '100%', marginTop: 6 }} value={selectedRoomId} onChange={e => setSelectedRoomId(e.target.value)}>
-                  {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                </select>
-              )}
-              <label style={{ display: 'block', marginTop: 8 }}>
-                <input type="radio" checked={useExistingRoom === 'new'} onChange={() => setUseExistingRoom('new')} /> Neuen Raum anlegen
-              </label>
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button onClick={createEvent}>Weiter</button>
-              <button onClick={() => setShowEventModal(false)}>Abbrechen</button>
+            <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+              <button 
+                onClick={createEvent}
+                style={{ flex: 1, padding: '12px 24px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', boxShadow: '0 2px 8px rgba(102,126,234,0.3)', transition: 'all 0.2s' }}
+                onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
+              >Weiter →</button>
+              <button 
+                onClick={() => setShowEventModal(false)}
+                style={{ padding: '12px 24px', background: 'white', color: '#64748b', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', transition: 'all 0.2s' }}
+                onMouseOver={e => { e.currentTarget.style.background = '#f1f5f9'; }}
+                onMouseOut={e => { e.currentTarget.style.background = 'white'; }}
+              >Abbrechen</button>
             </div>
           </div>
         </div>
