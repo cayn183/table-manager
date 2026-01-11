@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import Importer, { Group } from './Importer'
 import { bestFitAssign } from '../utils/placement'
 
@@ -23,10 +24,88 @@ type AssignedGroup = {
   y: number
 }
 
+type DraggingMeta = { tableId?: string; agIdx?: number } | null
+
+const GRID_SIZE = 20
+const CELL_SIZE = 40
+const STORAGE_KEY = 'currentRoom'
+
+// Helpers stay outside of the component to keep render light.
+function getRandomColor() {
+  const hue = Math.floor(Math.random() * 360)
+  return `hsla(${hue}, 80%, 50%, 0.3)`
+}
+
+function getPositionsForSize(size: number, rotation: number): { x: number; y: number }[] {
+  let positions: { x: number; y: number }[] = []
+  if (size === 1) {
+    positions = [{ x: 0, y: 0 }]
+  } else if (size === 2) {
+    positions = [{ x: 0, y: 0 }, { x: 0, y: 1 }]
+  } else if (size === 3) {
+    positions = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }]
+  } else if (size === 4) {
+    positions = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }]
+  } else {
+    const cols = Math.ceil(Math.sqrt(size))
+    for (let i = 0; i < size; i++) {
+      positions.push({ x: i % cols, y: Math.floor(i / cols) })
+    }
+  }
+
+  const rotated = positions.map(pos => {
+    switch (rotation % 4) {
+      case 1: return { x: pos.y, y: -pos.x }
+      case 2: return { x: -pos.x, y: -pos.y }
+      case 3: return { x: -pos.y, y: pos.x }
+      default: return pos
+    }
+  })
+
+  const minX = Math.min(...rotated.map(p => p.x))
+  const minY = Math.min(...rotated.map(p => p.y))
+  return rotated.map(p => ({ x: p.x - minX, y: p.y - minY }))
+}
+
+function isValidPosition(table: Table, group: Group, rotation: number, x: number, y: number, assignedGroups: Record<string, AssignedGroup[]>, skipAg?: AssignedGroup): boolean {
+  const positions = getPositionsForSize(group.size, rotation)
+  for (const pos of positions) {
+    const absX = table.x + x + pos.x
+    const absY = table.y + y + pos.y
+    if (absX < table.x || absX >= table.x + table.width || absY < table.y || absY >= table.y + table.height) {
+      return false
+    }
+    for (const ag of assignedGroups[table.id] || []) {
+      if (ag === skipAg) continue
+      const agPositions = getPositionsForSize(ag.group.size, ag.rotation)
+      for (const agPos of agPositions) {
+        if (absX === table.x + ag.x + agPos.x && absY === table.y + ag.y + agPos.y) {
+          return false
+        }
+      }
+    }
+  }
+  return true
+}
+
+function loadRoomFromStorage(): Room | null {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    return stored ? JSON.parse(stored) as Room : null
+  } catch (err) {
+    console.error('Raum konnte nicht geladen werden', err)
+    return null
+  }
+}
+
 export default function Room() {
+  // State: source data
   const [room, setRoom] = useState<Room | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [groups, setGroups] = useState<Group[]>([])
   const [assignedGroups, setAssignedGroups] = useState<Record<string, AssignedGroup[]>>({})
+
+  // State: UI and interaction
   const [showModal, setShowModal] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
   const [newGroupSize, setNewGroupSize] = useState('4')
@@ -35,123 +114,84 @@ export default function Room() {
   const [tableSelectModal, setTableSelectModal] = useState<{ group: Group; index: number } | null>(null)
   const [dragOverPosition, setDragOverPosition] = useState<{ tableId: string; x: number; y: number } | null>(null)
   const [draggingGroup, setDraggingGroup] = useState<{ group: Group; rotation: number } | null>(null)
+  const [draggingMeta, setDraggingMeta] = useState<DraggingMeta>(null)
   const [previewRotation, setPreviewRotation] = useState<number>(0)
   const [editName, setEditName] = useState('')
   const [editSize, setEditSize] = useState('')
 
-  // Function to generate a random color with 30% opacity
-  function getRandomColor() {
-    const hue = Math.floor(Math.random() * 360)
-    return `hsla(${hue}, 80%, 50%, 0.3)`
-  }
-
-  // Assign colors to groups, ensuring adjacent families have different colors
+  // Derived: consistent colors for groups
   const groupColors = useMemo(() => {
     const colors: Record<string, string> = {}
-    groups.forEach(g => {
-      colors[g.name] = getRandomColor()
-    })
-    // For assigned groups, assign colors if not already
+    groups.forEach(g => { colors[g.name] = getRandomColor() })
     Object.values(assignedGroups).forEach(ags => {
       ags.forEach(ag => {
-        if (!colors[ag.group.name]) {
-          colors[ag.group.name] = getRandomColor()
-        }
+        if (!colors[ag.group.name]) colors[ag.group.name] = getRandomColor()
       })
     })
     return colors
   }, [groups, assignedGroups])
 
-  // Function to check if a position is valid for a group in a table
-  function isValidPosition(table: Table, group: Group, rotation: number, x: number, y: number, assignedGroups: Record<string, AssignedGroup[]>, skipAg?: AssignedGroup): boolean {
-    const positions = getPositionsForSize(group.size, rotation)
-    for (const pos of positions) {
-      const absX = table.x + x + pos.x
-      const absY = table.y + y + pos.y
-      // Check within table bounds
-      if (absX < table.x || absX >= table.x + table.width || absY < table.y || absY >= table.y + table.height) {
-        return false
-      }
-      // Check no overlap with other groups
-      for (const ag of assignedGroups[table.id] || []) {
-        if (ag === skipAg) continue
-        const agPositions = getPositionsForSize(ag.group.size, ag.rotation)
-        for (const agPos of agPositions) {
-          if (absX === table.x + ag.x + agPos.x && absY === table.y + ag.y + agPos.y) {
-            return false
-          }
-        }
-      }
-    }
-    return true
-  }
-
-  function getPositionsForSize(size: number, rotation: number): { x: number; y: number }[] {
-    let positions: { x: number; y: number }[] = []
-    if (size === 1) {
-      positions = [{ x: 0, y: 0 }]
-    } else if (size === 2) {
-      positions = [{ x: 0, y: 0 }, { x: 0, y: 1 }] // 1x2
-    } else if (size === 3) {
-      positions = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] // L
-    } else if (size === 4) {
-      positions = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }] // 2x2
-    } else {
-      // For larger, fill in rows
-      const cols = Math.ceil(Math.sqrt(size))
-      for (let i = 0; i < size; i++) {
-        positions.push({ x: i % cols, y: Math.floor(i / cols) })
-      }
-    }
-    // Rotate
-    const rotated = positions.map(pos => {
-      switch (rotation % 4) {
-        case 1: return { x: pos.y, y: -pos.x } // 90 deg
-        case 2: return { x: -pos.x, y: -pos.y } // 180 deg
-        case 3: return { x: -pos.y, y: pos.x } // 270 deg
-        default: return pos
-      }
-    })
-    // Shift to positive
-    const minX = Math.min(...rotated.map(p => p.x))
-    const minY = Math.min(...rotated.map(p => p.y))
-    return rotated.map(p => ({ x: p.x - minX, y: p.y - minY }))
-  }
-
+  // Initial load: room definition from localStorage
   useEffect(() => {
-    if (draggingGroup) {
-      const handleMouseMove = (e: MouseEvent) => {
-        const gridElement = document.querySelector('.grid') as HTMLElement
-        if (!gridElement || !room) return
-        const rect = gridElement.getBoundingClientRect()
-        const x = Math.floor((e.clientX - rect.left) / cellSize)
-        const y = Math.floor((e.clientY - rect.top) / cellSize)
-        const table = room.tables.find(t => x >= t.x && x < t.x + t.width && y >= t.y && y < t.y + t.height)
-        if (table) {
-          const relX = x - table.x
-          const relY = y - table.y
-          // Find best rotation, preferring current
-          let bestRotation = draggingGroup.rotation
-          if (!isValidPosition(table, draggingGroup.group, bestRotation, relX, relY, assignedGroups)) {
-            for (let rot = 1; rot < 4; rot++) {
-              const r = (draggingGroup.rotation + rot) % 4
-              if (isValidPosition(table, draggingGroup.group, r, relX, relY, assignedGroups)) {
-                bestRotation = r
-                break
-              }
-            }
-          }
-          setPreviewRotation(bestRotation)
-          setDragOverPosition({ tableId: table.id, x: relX, y: relY })
-        } else {
-          setDragOverPosition(null)
+    const stored = loadRoomFromStorage()
+    if (stored) {
+      setRoom(stored)
+    } else {
+      setLoadError('Kein gespeicherter Raum gefunden. Bitte im Editor speichern und erneut öffnen.')
+    }
+  }, [])
+
+  function updatePreviewPosition(coords: { clientX: number; clientY: number }) {
+    if (!draggingGroup || !room) return
+    const gridElement = document.querySelector('.grid') as HTMLElement
+    if (!gridElement) return
+
+    const rect = gridElement.getBoundingClientRect()
+    const x = Math.floor((coords.clientX - rect.left) / CELL_SIZE)
+    const y = Math.floor((coords.clientY - rect.top) / CELL_SIZE)
+    const table = room.tables.find(t => x >= t.x && x < t.x + t.width && y >= t.y && y < t.y + t.height)
+    if (!table) {
+      setDragOverPosition(null)
+      return
+    }
+
+    const relX = x - table.x
+    const relY = y - table.y
+    const skipAg = draggingMeta?.tableId ? assignedGroups[draggingMeta.tableId]?.[draggingMeta.agIdx ?? -1] : undefined
+
+    let bestRotation = draggingGroup.rotation
+    if (!isValidPosition(table, draggingGroup.group, bestRotation, relX, relY, assignedGroups, skipAg)) {
+      for (let rot = 1; rot < 4; rot++) {
+        const candidate = (draggingGroup.rotation + rot) % 4
+        if (isValidPosition(table, draggingGroup.group, candidate, relX, relY, assignedGroups, skipAg)) {
+          bestRotation = candidate
+          break
         }
       }
-      document.addEventListener('mousemove', handleMouseMove)
-      return () => document.removeEventListener('mousemove', handleMouseMove)
     }
-  }, [draggingGroup, room, assignedGroups, cellSize])
 
+    setPreviewRotation(bestRotation)
+    setDragOverPosition({ tableId: table.id, x: relX, y: relY })
+  }
+
+  // Drag tracking for preview; skip collision against the item being moved.
+  useEffect(() => {
+    if (!draggingGroup) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      updatePreviewPosition({ clientX: e.clientX, clientY: e.clientY })
+    }
+
+    const handleGlobalDragOver = (e: DragEvent) => {
+      updatePreviewPosition({ clientX: e.clientX, clientY: e.clientY })
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('dragover', handleGlobalDragOver)
+    return () => document.removeEventListener('mousemove', handleMouseMove)
+  }, [draggingGroup, draggingMeta, room, assignedGroups])
+
+  // Data actions
   function handleImport(parsed: Group[]) {
     setGroups([...groups, ...parsed])
   }
@@ -178,10 +218,27 @@ export default function Room() {
     setGroups([])
   }
 
-  if (!room) return <div>Lade Raum...</div>
+  const preview = useMemo(() => {
+    if (!room || !draggingGroup || !dragOverPosition) return null
+    const table = room.tables.find(t => t.id === dragOverPosition.tableId)
+    if (!table) return null
+    const skipAg = draggingMeta?.tableId ? assignedGroups[draggingMeta.tableId]?.[draggingMeta.agIdx ?? -1] : undefined
+    const positions = getPositionsForSize(draggingGroup.group.size, previewRotation)
+    const valid = isValidPosition(table, draggingGroup.group, previewRotation, dragOverPosition.x, dragOverPosition.y, assignedGroups, skipAg)
+    return { table, positions, valid }
+  }, [room, draggingGroup, dragOverPosition, previewRotation, draggingMeta, assignedGroups])
 
-  const gridSize = 20
-  const cellSize = 40
+  if (!room) {
+    return (
+      <div className="container">
+        <h1>Raum - Plätze belegen</h1>
+        <p>{loadError ?? 'Lade Raum...'}</p>
+        <Link to="/new-room">
+          <button>Zum Editor</button>
+        </Link>
+      </div>
+    )
+  }
 
   return (
     <div className="container">
@@ -204,6 +261,7 @@ export default function Room() {
                 onDragStart={e => {
                   e.dataTransfer.setData('text/plain', JSON.stringify({ index: i, ...g }))
                   setDraggingGroup({ group: g, rotation: 0 })
+                  setDraggingMeta(null)
                 }}
                 onContextMenu={e => {
                   e.preventDefault()
@@ -237,23 +295,23 @@ export default function Room() {
             className="grid"
             style={{
               display: 'grid',
-              gridTemplateColumns: `repeat(${gridSize}, ${cellSize}px)`,
-              gridTemplateRows: `repeat(${gridSize}, ${cellSize}px)`,
+              gridTemplateColumns: `repeat(${GRID_SIZE}, ${CELL_SIZE}px)`,
+              gridTemplateRows: `repeat(${GRID_SIZE}, ${CELL_SIZE}px)`,
               border: '1px solid #ccc',
-              width: gridSize * cellSize + 'px',
-              height: gridSize * cellSize + 'px',
+              width: GRID_SIZE * CELL_SIZE + 'px',
+              height: GRID_SIZE * CELL_SIZE + 'px',
               position: 'relative',
               backgroundImage: `
                 linear-gradient(to right, #ddd 1px, transparent 1px),
                 linear-gradient(to bottom, #ddd 1px, transparent 1px)
               `,
-              backgroundSize: `${cellSize}px ${cellSize}px`
+              backgroundSize: `${CELL_SIZE}px ${CELL_SIZE}px`
             }}
             onDrop={e => {
               e.preventDefault()
               const rect = e.currentTarget.getBoundingClientRect()
-              const x = Math.floor((e.clientX - rect.left) / cellSize)
-              const y = Math.floor((e.clientY - rect.top) / cellSize)
+              const x = Math.floor((e.clientX - rect.left) / CELL_SIZE)
+              const y = Math.floor((e.clientY - rect.top) / CELL_SIZE)
               // Find which table this position is in
               const table = room.tables.find(t => x >= t.x && x < t.x + t.width && y >= t.y && y < t.y + t.height)
               if (!table) return
@@ -301,15 +359,15 @@ export default function Room() {
               }
               setDragOverPosition(null)
               setDraggingGroup(null)
+              setDraggingMeta(null)
               setPreviewRotation(0)
             }}
             onDragOver={e => {
               e.preventDefault()
+              updatePreviewPosition({ clientX: e.clientX, clientY: e.clientY })
             }}
             onDragLeave={() => {
               setDragOverPosition(null)
-              setDraggingGroup(null)
-              setPreviewRotation(0)
             }}
           >
             {room.tables.map(table => {
@@ -330,7 +388,7 @@ export default function Room() {
                       linear-gradient(to right, rgba(0,0,255,0.2) 1px, transparent 1px),
                       linear-gradient(to bottom, rgba(0,0,255,0.2) 1px, transparent 1px)
                     `,
-                    backgroundSize: `${cellSize}px ${cellSize}px`
+                    backgroundSize: `${CELL_SIZE}px ${CELL_SIZE}px`
                   }}
                 >
                   <div style={{ fontSize: '12px', position: 'absolute', top: '2px', left: '2px' }}>
@@ -353,6 +411,7 @@ export default function Room() {
                       if (!ag.locked) {
                         e.dataTransfer.setData('text/plain', JSON.stringify({ tableId, agIdx: idx, ...ag.group }))
                         setDraggingGroup({ group: ag.group, rotation: ag.rotation })
+                        setDraggingMeta({ tableId, agIdx: idx })
                       }
                     }}
                     onContextMenu={e => {
@@ -382,32 +441,25 @@ export default function Room() {
                 ))
               })
             )}
-            {dragOverPosition && draggingGroup && (
-              (() => {
-                const table = room.tables.find(t => t.id === dragOverPosition.tableId)
-                if (!table) return null
-                const positions = getPositionsForSize(draggingGroup.group.size, previewRotation)
-                return positions.map((pos, pidx) => (
-                  <div
-                    key={`preview-${pidx}`}
-                    style={{
-                      gridColumn: (table.x + dragOverPosition.x + pos.x + 1),
-                      gridRow: (table.y + dragOverPosition.y + pos.y + 1),
-                      background: 'rgba(0,255,0,0.5)',
-                      border: '2px dashed green',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '10px',
-                      pointerEvents: 'none',
-                      zIndex: 5
-                    }}
-                  >
-                    {pidx === 0 ? 'Vorschau' : ''}
-                  </div>
-                ))
-              })()
-            )}
+            {preview && preview.positions.map((pos, pidx) => (
+              <div
+                key={`preview-${pidx}`}
+                style={{
+                  gridColumn: (preview.table.x + dragOverPosition!.x + pos.x + 1),
+                  gridRow: (preview.table.y + dragOverPosition!.y + pos.y + 1),
+                  background: preview.valid ? 'rgba(0,255,0,0.4)' : 'rgba(255,0,0,0.25)',
+                  border: preview.valid ? '2px dashed green' : '2px dashed red',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '10px',
+                  pointerEvents: 'none',
+                  zIndex: 5
+                }}
+              >
+                {pidx === 0 ? 'Vorschau' : ''}
+              </div>
+            ))}
           </div>
         </div>
       </div>
