@@ -1,9 +1,10 @@
-export type Group = { name: string; size: number }
+export type Group = { name: string; size: number; time?: string; toGo?: boolean }
 export type Table = { id: string; capacity: number; width: number; height: number }
 
-// Generate layouts that fit inside the table grid (e.g., 2x3 + 1)
+// Generate layouts that fit inside the table grid (e.g., 2x3 + 1), deduped by coordinates
 function generatePossibleLayouts(size: number, maxWidth: number, maxHeight: number): { x: number; y: number }[][] {
   const layouts: { x: number; y: number }[][] = []
+  const seen = new Set<string>()
 
   for (let cols = 1; cols <= maxWidth; cols++) {
     for (let rows = 1; rows <= maxHeight; rows++) {
@@ -11,27 +12,47 @@ function generatePossibleLayouts(size: number, maxWidth: number, maxHeight: numb
       if (mainBlock >= size) {
         const pos: { x: number; y: number }[] = []
         for (let i = 0; i < size; i++) pos.push({ x: i % cols, y: Math.floor(i / cols) })
-        layouts.push(pos)
+        const maxX = Math.max(...pos.map(p => p.x))
+        const maxY = Math.max(...pos.map(p => p.y))
+        if (maxX < maxWidth && maxY < maxHeight) {
+          const key = pos.map(p => `${p.x},${p.y}`).sort().join('|')
+          if (!seen.has(key)) {
+            seen.add(key)
+            layouts.push(pos)
+          }
+        }
       } else if (mainBlock < size && rows < maxHeight) {
         const pos: { x: number; y: number }[] = []
         for (let i = 0; i < mainBlock; i++) pos.push({ x: i % cols, y: Math.floor(i / cols) })
         const remaining = size - mainBlock
         for (let i = 0; i < Math.min(remaining, cols); i++) pos.push({ x: i, y: rows })
-        if (pos.length === size) layouts.push(pos)
+        if (pos.length === size) {
+          const maxX = Math.max(...pos.map(p => p.x))
+          const maxY = Math.max(...pos.map(p => p.y))
+          if (maxX < maxWidth && maxY < maxHeight) {
+            const key = pos.map(p => `${p.x},${p.y}`).sort().join('|')
+            if (!seen.has(key)) {
+              seen.add(key)
+              layouts.push(pos)
+            }
+          }
+        }
       }
     }
   }
 
-  return layouts.filter(layout => {
-    const maxX = Math.max(...layout.map(p => p.x))
-    const maxY = Math.max(...layout.map(p => p.y))
-    return maxX < maxWidth && maxY < maxHeight
+  // keep layouts with minimal bounding-box area for each key shape
+  return layouts.sort((a, b) => {
+    const aArea = (Math.max(...a.map(p => p.x)) + 1) * (Math.max(...a.map(p => p.y)) + 1)
+    const bArea = (Math.max(...b.map(p => p.x)) + 1) * (Math.max(...b.map(p => p.y)) + 1)
+    return aArea - bArea
   })
 }
 
 // Quick check whether a group can fit the table grid respecting width/height
 function canFit(size: number, tableWidth: number, tableHeight: number): boolean {
   if (size <= 0) return false
+  if (size > tableWidth * tableHeight) return false
   // Simple rectangle packing
   for (let w = 1; w <= tableWidth; w++) {
     for (let h = 1; h <= tableHeight; h++) {
@@ -56,13 +77,20 @@ export function bestFitAssign(tables: Table[], groups: Group[]) {
   for (const g of sorted) {
     let bestId: string | null = null
     let bestRem = Infinity
+    let bestArea = Infinity
 
     for (const t of tables) {
       const rem = remaining.get(t.id) ?? 0
       if (rem >= g.size && canFit(g.size, t.width, t.height)) {
         const after = rem - g.size
-        if (after < bestRem) {
+        const area = t.width * t.height
+        if (
+          after < bestRem ||
+          (after === bestRem && area < bestArea) ||
+          (after === bestRem && area === bestArea && (bestId === null || t.id < bestId))
+        ) {
           bestRem = after
+          bestArea = area
           bestId = t.id
         }
       }

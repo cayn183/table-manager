@@ -32,6 +32,7 @@ const CELL_SIZE = 40
 const STORAGE_KEY = 'currentRoom'
 const PALETTE = ['#E91E63', '#FF9800', '#4CAF50', '#673AB7', '#FF5722']
 const UNASSIGNED_COLOR = '#80808080'
+const TOGO_COLOR = '#FFE082'
 
 function paletteColor(hex: string): string {
   return hex + '70'
@@ -222,10 +223,16 @@ function findPlacement(
   return null
 }
 
-function placeGroupsOnTable(table: Table, groups: Group[]): { placed: AssignedGroup[]; unplaced: Group[] } {
-  const placed: AssignedGroup[] = []
+function placeGroupsOnTable(table: Table, groups: Group[], seedPlaced: AssignedGroup[] = []): { placed: AssignedGroup[]; unplaced: Group[] } {
+  const placed: AssignedGroup[] = [...seedPlaced]
   const unplaced: Group[] = []
   const occupied = new Set<string>()
+
+  // Mark occupied cells from seed placements (e.g., locked items)
+  for (const ag of seedPlaced) {
+    const positions = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height)
+    addPositionsToSet(occupied, positions, ag.x, ag.y)
+  }
 
   for (const g of groups) {
     const placement = findPlacement(table, g, placed, occupied)
@@ -241,6 +248,126 @@ function placeGroupsOnTable(table: Table, groups: Group[]): { placed: AssignedGr
   return { placed, unplaced }
 }
 
+// Stable identity for a group across runs
+function groupKey(g: Group) {
+  return `${g.name}|${g.time ?? ''}|${g.size}|${g.toGo ? '1' : '0'}`
+}
+
+// Build occupied cell-set for a table from given placements
+function buildOccupied(table: Table, placements: AssignedGroup[]): Set<string> {
+  const occ = new Set<string>()
+  for (const ag of placements) {
+    const cells = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height)
+    for (const c of cells) occ.add(`${ag.x + c.x},${ag.y + c.y}`)
+  }
+  return occ
+}
+
+// Try to place a group on a table without overlapping occupied cells
+function tryPlaceOnTable(
+  table: Table,
+  group: Group,
+  occupied: Set<string>
+): { x: number; y: number; rotation: number } | null {
+  for (let rot = 0; rot < 4; rot++) {
+    const cells = getPositionsForSize(group.size, rot, table.width, table.height)
+    const w = Math.max(...cells.map(c => c.x)) + 1
+    const h = Math.max(...cells.map(c => c.y)) + 1
+    if (w > table.width || h > table.height) continue
+
+    for (let y = 0; y <= table.height - h; y++) {
+      for (let x = 0; x <= table.width - w; x++) {
+        let ok = true
+        for (const c of cells) {
+          const key = `${x + c.x},${y + c.y}`
+          if (occupied.has(key)) { ok = false; break }
+        }
+        if (ok) return { x, y, rotation: rot }
+      }
+    }
+  }
+  return null
+}
+
+// Greedy re-layout of all movable groups, preserving locked as seeds
+function greedyReLayout(
+  tables: Table[],
+  lockedByTable: Record<string, AssignedGroup[]>,
+  candidates: Group[]
+): { nextByTable: Record<string, AssignedGroup[]>; placedKeys: Set<string>; notPlaced: Group[] } {
+  const nextByTable: Record<string, AssignedGroup[]> = {}
+  const occByTable: Record<string, Set<string>> = {}
+  const placedKeys = new Set<string>()
+
+  for (const t of tables) {
+    nextByTable[t.id] = [...(lockedByTable[t.id] || [])]
+    occByTable[t.id] = buildOccupied(t, nextByTable[t.id])
+  }
+
+  const sorted = [...candidates].sort((a, b) => b.size - a.size)
+  const notPlaced: Group[] = []
+
+  for (const g of sorted) {
+    let best: { table: Table; pos: { x: number; y: number; rotation: number }; score: number } | null = null
+    for (const t of tables) {
+      const pos = tryPlaceOnTable(t, g, occByTable[t.id])
+      if (!pos) continue
+      const usedCellsNow = nextByTable[t.id].reduce((acc, ag) => acc + ag.group.size, 0)
+      const score = (t.width * t.height) - (usedCellsNow + g.size)
+      if (!best || score < best.score || (score === best.score && t.id < best.table.id)) {
+        best = { table: t, pos, score }
+      }
+    }
+    if (best) {
+      const ag: AssignedGroup = { group: g, rotation: best.pos.rotation, locked: false, x: best.pos.x, y: best.pos.y, color: '' }
+      nextByTable[best.table.id].push(ag)
+      const cells = getPositionsForSize(g.size, ag.rotation, best.table.width, best.table.height)
+      for (const c of cells) occByTable[best.table.id].add(`${ag.x + c.x},${ag.y + c.y}`)
+      placedKeys.add(groupKey(g))
+    } else {
+      notPlaced.push(g)
+    }
+  }
+
+  return { nextByTable, placedKeys, notPlaced }
+}
+
+// Keep all current placements; only fill free cells with new groups
+function fillOnly(
+  tables: Table[],
+  currentByTable: Record<string, AssignedGroup[]>,
+  newGroups: Group[]
+): { nextByTable: Record<string, AssignedGroup[]>; notPlaced: Group[] } {
+  const nextByTable: Record<string, AssignedGroup[]> = {}
+  const occByTable: Record<string, Set<string>> = {}
+
+  for (const t of tables) {
+    const keep = [...(currentByTable[t.id] || [])]
+    nextByTable[t.id] = keep
+    occByTable[t.id] = buildOccupied(t, keep)
+  }
+
+  const remaining: Group[] = []
+  const sorted = [...newGroups].sort((a, b) => b.size - a.size)
+
+  for (const g of sorted) {
+    let placed = false
+    for (const t of tables) {
+      const pos = tryPlaceOnTable(t, g, occByTable[t.id])
+      if (!pos) continue
+      const ag: AssignedGroup = { group: g, rotation: pos.rotation, locked: false, x: pos.x, y: pos.y, color: '' }
+      nextByTable[t.id].push(ag)
+      const cells = getPositionsForSize(g.size, ag.rotation, t.width, t.height)
+      for (const c of cells) occByTable[t.id].add(`${ag.x + c.x},${ag.y + c.y}`)
+      placed = true
+      break
+    }
+    if (!placed) remaining.push(g)
+  }
+
+  return { nextByTable, notPlaced: remaining }
+}
+
 export default function Room() {
   // State: source data
   const [room, setRoom] = useState<Room | null>(null)
@@ -252,6 +379,8 @@ export default function Room() {
   const [showModal, setShowModal] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
   const [newGroupSize, setNewGroupSize] = useState('4')
+  const [newGroupTime, setNewGroupTime] = useState('')
+  const [newGroupToGo, setNewGroupToGo] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tableId: string; agIdx: number; isList: boolean; listIdx?: number; isAssignedList?: boolean } | null>(null)
   const [editModal, setEditModal] = useState<{ tableId: string; agIdx: number; isList: boolean; listIdx?: number } | null>(null)
   const [resizeModal, setResizeModal] = useState<{ tableId: string; agIdx: number; maxSize: number } | null>(null)
@@ -263,6 +392,10 @@ export default function Room() {
   const [previewRotation, setPreviewRotation] = useState<number>(0)
   const [editName, setEditName] = useState('')
   const [editSize, setEditSize] = useState('')
+  const [editTime, setEditTime] = useState('')
+  const [editToGo, setEditToGo] = useState(false)
+  const [hasAutoAssigned, setHasAutoAssigned] = useState(false)
+
 
   // Get colors by recalculating on each render based on current positions
   const assignedColors = useMemo(() => {
@@ -284,7 +417,6 @@ export default function Room() {
       if (!table) return
       const colors: string[] = new Array(ags.length)
 
-      // Sortiere nach Index für konsistente Reihenfolge
       for (let i = 0; i < ags.length; i++) {
         const ag = ags[i]
         const positions = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height)
@@ -309,17 +441,7 @@ export default function Room() {
     })
 
     return result
-  }, [assignedGroups])
-
-  // Initial load: room definition from localStorage
-  useEffect(() => {
-    const stored = loadRoomFromStorage()
-    if (stored) {
-      setRoom(stored)
-    } else {
-      setLoadError('Kein gespeicherter Raum gefunden. Bitte im Editor speichern und erneut öffnen.')
-    }
-  }, [])
+  }, [assignedGroups, room])
 
   function updatePreviewPosition(coords: { clientX: number; clientY: number }) {
     if (!draggingGroup || !room) return
@@ -330,33 +452,24 @@ export default function Room() {
     const x = Math.floor((coords.clientX - rect.left) / CELL_SIZE)
     const y = Math.floor((coords.clientY - rect.top) / CELL_SIZE)
     const table = room.tables.find(t => x >= t.x && x < t.x + t.width && y >= t.y && y < t.y + t.height)
-    if (!table) {
-      setDragOverPosition(null)
-      return
-    }
+    if (!table) { setDragOverPosition(null); return }
 
     let relX = x - table.x
     let relY = y - table.y
     const skipAg = draggingMeta?.tableId ? assignedGroups[draggingMeta.tableId]?.[draggingMeta.agIdx ?? -1] : undefined
 
-    // Versuche beste Rotation
     let bestRotation = draggingGroup.rotation
     if (!isValidPosition(table, draggingGroup.group, bestRotation, relX, relY, assignedGroups, skipAg)) {
       for (let rot = 1; rot < 4; rot++) {
         const candidate = (draggingGroup.rotation + rot) % 4
-        if (isValidPosition(table, draggingGroup.group, candidate, relX, relY, assignedGroups, skipAg)) {
-          bestRotation = candidate
-          break
-        }
+        if (isValidPosition(table, draggingGroup.group, candidate, relX, relY, assignedGroups, skipAg)) { bestRotation = candidate; break }
       }
     }
 
-    // Wenn immer noch nicht gültig, versuche Position zu cleuppen
     if (!isValidPosition(table, draggingGroup.group, bestRotation, relX, relY, assignedGroups, skipAg)) {
       const positions = getPositionsForSize(draggingGroup.group.size, bestRotation, table.width, table.height)
       const maxX = Math.max(...positions.map(p => p.x))
       const maxY = Math.max(...positions.map(p => p.y))
-      
       relX = Math.min(relX, table.width - 1 - maxX)
       relY = Math.min(relY, table.height - 1 - maxY)
       relX = Math.max(relX, 0)
@@ -366,6 +479,16 @@ export default function Room() {
     setPreviewRotation(bestRotation)
     setDragOverPosition({ tableId: table.id, x: relX, y: relY })
   }
+
+  // Load room definition from localStorage on mount
+  useEffect(() => {
+    const stored = loadRoomFromStorage()
+    if (stored) {
+      setRoom(stored)
+    } else {
+      setLoadError('Kein gespeicherter Raum gefunden. Bitte im Editor speichern und erneut öffnen.')
+    }
+  }, [])
 
   // Drag tracking for preview; skip collision against the item being moved.
   useEffect(() => {
@@ -386,34 +509,94 @@ export default function Room() {
 
   // Data actions
   function handleImport(parsed: Group[]) {
-    setGroups([...groups, ...parsed])
+    const toGo = parsed.filter(g => g.toGo)
+    const rest = parsed.filter(g => !g.toGo)
+    const updatedAssigned = ensureToGoBucket({ ...assignedGroups })
+    updatedAssigned['TOGO'] = [
+      ...(updatedAssigned['TOGO'] || []),
+      ...toGo.map(g => ({ group: g, rotation: 0, locked: false, x: 0, y: 0, color: TOGO_COLOR }))
+    ]
+    setAssignedGroups(updatedAssigned)
+    setGroups([...groups, ...rest])
   }
 
   function addGroup() {
     const size = parseInt(newGroupSize) || 0
     if (size > 0) {
       const name = newGroupName || `Familie ${groups.length + 1}`
-      setGroups([...groups, { name, size }])
+      const group = { name, size, time: newGroupTime || undefined, toGo: newGroupToGo }
+      if (group.toGo) {
+        const updatedAssigned = ensureToGoBucket({ ...assignedGroups })
+        updatedAssigned['TOGO'] = [...(updatedAssigned['TOGO'] || []), { group, rotation: 0, locked: false, x: 0, y: 0, color: TOGO_COLOR }]
+        setAssignedGroups(updatedAssigned)
+      } else {
+        setGroups([...groups, group])
+      }
       setNewGroupName('')
       setNewGroupSize('4')
+      setNewGroupTime('')
+      setNewGroupToGo(false)
       setShowModal(false)
     }
   }
 
   function autoAssign() {
     if (!room) return
-    const result = bestFitAssign(room.tables, groups)
-    const newAssigned: Record<string, AssignedGroup[]> = {}
-    const remaining: Group[] = []
+    const tables = room.tables
 
-    for (const table of room.tables) {
-      const { placed, unplaced } = placeGroupsOnTable(table, result[table.id] || [])
-      newAssigned[table.id] = placed
-      remaining.push(...unplaced)
+    const availableMovable = groups.filter(g => !g.toGo)
+    const toGoAvail = groups.filter(g => g.toGo)
+
+    const existingToGo = assignedGroups['TOGO'] || []
+
+    const lockedByTable: Record<string, AssignedGroup[]> = {}
+    const previouslyPlaced: AssignedGroup[] = []
+    for (const t of tables) {
+      const ags = assignedGroups[t.id] || []
+      lockedByTable[t.id] = ags.filter(a => a.locked)
+      previouslyPlaced.push(...ags.filter(a => !a.locked && !a.group.toGo))
     }
 
-    setAssignedGroups(newAssigned)
-    setGroups(remaining)
+    const prevKeys = new Set(previouslyPlaced.map(ag => groupKey(ag.group)))
+    const movable = [...availableMovable, ...previouslyPlaced.map(ag => ag.group)]
+    const { nextByTable: proposal, placedKeys, notPlaced } = greedyReLayout(tables, lockedByTable, movable)
+    const lostSomePrev = [...prevKeys].some(k => !placedKeys.has(k))
+
+    let finalAssigned: Record<string, AssignedGroup[]>
+    let finalAvailable: Group[]
+
+    if (!lostSomePrev) {
+      finalAssigned = proposal
+      finalAvailable = notPlaced
+    } else {
+      const keepByTable: Record<string, AssignedGroup[]> = {}
+      for (const t of tables) keepByTable[t.id] = [...(assignedGroups[t.id] || [])]
+      const { nextByTable, notPlaced: remaining } = fillOnly(tables, keepByTable, availableMovable)
+      finalAssigned = nextByTable
+      finalAvailable = remaining
+    }
+
+    const togoEntries: AssignedGroup[] = []
+    const seen = new Set<string>()
+    function pushToGo(g: Group) {
+      const k = groupKey(g)
+      if (seen.has(k)) return
+      seen.add(k)
+      togoEntries.push({ group: g, rotation: 0, locked: false, x: 0, y: 0, color: TOGO_COLOR })
+    }
+    for (const ag of existingToGo) pushToGo(ag.group)
+    for (const g of toGoAvail) pushToGo(g)
+    for (const t of tables) {
+      for (const ag of (assignedGroups[t.id] || [])) if (ag.group.toGo) pushToGo(ag.group)
+    }
+
+    const nextAssigned: Record<string, AssignedGroup[]> = {}
+    for (const t of tables) nextAssigned[t.id] = finalAssigned[t.id] || []
+    nextAssigned['TOGO'] = togoEntries
+
+    setAssignedGroups(nextAssigned)
+    setGroups(finalAvailable.filter(g => !g.toGo))
+    setHasAutoAssigned(true)
   }
 
   const preview = useMemo(() => {
@@ -445,8 +628,8 @@ export default function Room() {
         <div className="sidebar">
           <button onClick={() => setShowModal(true)}>Familie anlegen</button>
           <div className="controls">
-            <button onClick={autoAssign} disabled={groups.length === 0}>
-              Auto Assign (Best-Fit)
+            <button onClick={autoAssign}>
+              {hasAutoAssigned ? 'Re-Assign (Best-Fit)' : 'Auto Assign (Best-Fit)'}
             </button>
           </div>
           <h3>Verfügbare Familien ({groups.length})</h3>
@@ -455,9 +638,10 @@ export default function Room() {
               <div
                 key={i}
                 className="group-item"
-                style={{ background: UNASSIGNED_COLOR, color: '#000' }}
-                draggable
+                style={{ background: g.toGo ? TOGO_COLOR : UNASSIGNED_COLOR, color: '#000', opacity: g.toGo ? 0.9 : 1 }}
+                draggable={!g.toGo}
                 onDragStart={e => {
+                  if (g.toGo) return
                   e.dataTransfer.setData('text/plain', JSON.stringify({ index: i, ...g }))
                   setDraggingGroup({ group: g, rotation: 0 })
                   setDraggingMeta(null)
@@ -467,7 +651,7 @@ export default function Room() {
                   setContextMenu({ x: e.clientX, y: e.clientY, tableId: '', agIdx: -1, isList: true, listIdx: i })
                 }}
               >
-                {g.name} — {g.size}
+                {g.name} — {g.size}{g.time ? ` | ${g.time}` : ''}{g.toGo ? ' | ToGo' : ''}
               </div>
             ))}
           </div>
@@ -479,7 +663,7 @@ export default function Room() {
                   key={`${tableId}-${idx}`}
                   className="assigned-item"
                   style={{
-                    background: assignedColors[tableId]?.[idx],
+                    background: tableId === 'TOGO' ? TOGO_COLOR : assignedColors[tableId]?.[idx],
                     padding: '8px',
                     borderRadius: '4px',
                     marginBottom: '4px',
@@ -490,7 +674,7 @@ export default function Room() {
                     setContextMenu({ x: e.clientX, y: e.clientY, tableId, agIdx: idx, isList: false, isAssignedList: true })
                   }}
                 >
-                  {ag.group.name} ({ag.group.size}) - Tisch {tableId.slice(1)}
+                  {ag.group.name} ({ag.group.size}){ag.group.time ? ` | ${ag.group.time}` : ''}{ag.group.toGo ? ' | ToGo' : ''} - {tableId === 'TOGO' ? 'ToGo' : `Tisch ${tableId.slice(1)}`}
                 </div>
               ))
             )}
@@ -552,7 +736,14 @@ export default function Room() {
                 }
               } else {
                 // New group from list
-                const group = { name: data.name, size: data.size }
+                if (data.toGo) {
+                  setDragOverPosition(null)
+                  setDraggingGroup(null)
+                  setDraggingMeta(null)
+                  setPreviewRotation(0)
+                  return
+                }
+                const group = { name: data.name, size: data.size, time: data.time, toGo: data.toGo }
                 const current = assignedGroups[table.id] || []
                 const totalOccupied = current.reduce((sum, a) => sum + a.group.size, 0) + group.size
                 if (totalOccupied <= table.capacity && isValidPosition(table, group, previewRotation, relX, relY, assignedGroups)) {
@@ -661,7 +852,7 @@ export default function Room() {
                       })
                     }}
                   >
-                    {pidx === 0 ? (ag.locked ? '🔒 ' : '') + ag.group.name + ' (' + ag.group.size + ')' : ''}
+                    {pidx === 0 ? `${ag.locked ? '🔒 ' : ''}${ag.group.name} (${ag.group.size})${ag.group.time ? ` | ${ag.group.time}` : ''}${ag.group.toGo ? ' | ToGo' : ''}` : ''}
                   </div>
                 ))
               })
@@ -705,6 +896,8 @@ export default function Room() {
                 setEditModal({ tableId: '', agIdx: -1, isList: true, listIdx: contextMenu.listIdx })
                 setEditName(groups[contextMenu.listIdx!].name)
                 setEditSize(groups[contextMenu.listIdx!].size.toString())
+                setEditTime(groups[contextMenu.listIdx!].time || '')
+                setEditToGo(Boolean(groups[contextMenu.listIdx!].toGo))
                 setContextMenu(null)
               }}>Bearbeiten</div>
               <div onClick={() => {
@@ -728,6 +921,8 @@ export default function Room() {
                 const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
                 setEditName(ag.group.name)
                 setEditSize(ag.group.size.toString())
+                setEditTime(ag.group.time || '')
+                setEditToGo(Boolean(ag.group.toGo))
                 setContextMenu(null)
               }}>Bearbeiten</div>
               <div onClick={() => {
@@ -779,6 +974,8 @@ export default function Room() {
                 const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
                 setEditName(ag.group.name)
                 setEditSize(ag.group.size.toString())
+                setEditTime(ag.group.time || '')
+                setEditToGo(Boolean(ag.group.toGo))
                 setContextMenu(null)
               }}>Bearbeiten</div>
               <div onClick={() => {
@@ -797,19 +994,20 @@ export default function Room() {
           <div className="modal-content">
             <h3>Tisch auswählen für {tableSelectModal.group.name}</h3>
             <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-              {room?.tables.map(table => (
-                <div key={table.id} onClick={() => {
-                  const current = assignedGroups[table.id] || []
-                  setAssignedGroups({
-                    ...assignedGroups,
-                    [table.id]: [...current, { group: tableSelectModal.group, rotation: 0, locked: false, x: 0, y: 0, color: PALETTE[0] }]
-                  })
-                  setGroups(groups.filter((_, i) => i !== tableSelectModal.index))
-                  setTableSelectModal(null)
-                }} style={{ padding: '10px', border: '1px solid #ccc', margin: '5px', cursor: 'pointer' }}>
-                  Tisch {table.id} (Kapazität: {table.capacity})
-                </div>
-              ))}
+                    {room?.tables.map(table => (
+                      <div key={table.id} onClick={() => {
+                        if (tableSelectModal.group.toGo) return
+                        const current = assignedGroups[table.id] || []
+                        setAssignedGroups({
+                          ...assignedGroups,
+                          [table.id]: [...current, { group: tableSelectModal.group, rotation: 0, locked: false, x: 0, y: 0, color: PALETTE[0] }]
+                        })
+                        setGroups(groups.filter((_, i) => i !== tableSelectModal.index))
+                        setTableSelectModal(null)
+                      }} style={{ padding: '10px', border: '1px solid #ccc', margin: '5px', cursor: 'pointer' }}>
+                        Tisch {table.id} (Kapazität: {table.capacity})
+                      </div>
+                    ))}
             </div>
             <button onClick={() => setTableSelectModal(null)}>Abbrechen</button>
           </div>
@@ -831,6 +1029,20 @@ export default function Room() {
               value={newGroupSize}
               onChange={e => setNewGroupSize(e.target.value)}
             />
+            <input
+              type="time"
+              placeholder="Zeit (optional)"
+              value={newGroupTime}
+              onChange={e => setNewGroupTime(e.target.value)}
+            />
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <input
+                type="checkbox"
+                checked={newGroupToGo}
+                onChange={e => setNewGroupToGo(e.target.checked)}
+              />
+              ToGo
+            </label>
             <button onClick={addGroup}>Hinzufügen</button>
             <button onClick={() => setShowModal(false)}>Abbrechen</button>
           </div>
@@ -852,14 +1064,28 @@ export default function Room() {
               value={editSize}
               onChange={e => setEditSize(e.target.value)}
             />
+            <input
+              type="time"
+              placeholder="Zeit"
+              value={editTime}
+              onChange={e => setEditTime(e.target.value)}
+            />
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <input
+                type="checkbox"
+                checked={editToGo}
+                onChange={e => setEditToGo(e.target.checked)}
+              />
+              ToGo
+            </label>
             <button onClick={() => {
               const size = parseInt(editSize) || 1
               if (editModal.isList) {
-                setGroups(groups.map((g, i) => i === editModal.listIdx ? { name: editName || `Familie ${i + 1}`, size } : g))
+                setGroups(groups.map((g, i) => i === editModal.listIdx ? { name: editName || `Familie ${i + 1}`, size, time: editTime || undefined, toGo: editToGo } : g))
               } else {
                 setAssignedGroups({
                   ...assignedGroups,
-                  [editModal.tableId]: assignedGroups[editModal.tableId].map((ag, i) => i === editModal.agIdx ? { ...ag, group: { ...ag.group, name: editName || ag.group.name, size } } : ag)
+                  [editModal.tableId]: assignedGroups[editModal.tableId].map((ag, i) => i === editModal.agIdx ? { ...ag, group: { ...ag.group, name: editName || ag.group.name, size, time: editTime || undefined, toGo: editToGo } } : ag)
                 })
               }
               setEditModal(null)
@@ -897,4 +1123,9 @@ export default function Room() {
       )}
     </div>
   )
+}
+
+function ensureToGoBucket(map: Record<string, AssignedGroup[]>): Record<string, AssignedGroup[]> {
+  if (!map['TOGO']) map['TOGO'] = []
+  return map
 }

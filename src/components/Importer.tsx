@@ -1,7 +1,7 @@
 import React from 'react'
 import Papa from 'papaparse'
 
-export type Group = { name: string; size: number }
+export type Group = { name: string; size: number; time?: string; toGo?: boolean }
 
 export default function Importer({ onImport }: { onImport: (g: Group[]) => void }) {
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -17,7 +17,9 @@ export default function Importer({ onImport }: { onImport: (g: Group[]) => void 
             const name = r.family || r.group || r.name || Object.values(r)[0]
             const sizeRaw = r.count ?? r.size ?? Object.values(r)[1]
             const size = Number(sizeRaw) || 0
-            return name ? { name: String(name).trim(), size } : null
+            const timeVal = r.time ?? r.zeit ?? r.slot ?? ''
+            const toGoVal = r.toGo ?? r.togo ?? r.takeaway ?? r.takeAway ?? r.to_go
+            return name ? { name: String(name).trim(), size, time: timeVal ? String(timeVal).trim() : undefined, toGo: Boolean(toGoVal) } : null
           })
           .filter(Boolean) as Group[]
         onImport(groups)
@@ -36,7 +38,9 @@ export default function Importer({ onImport }: { onImport: (g: Group[]) => void 
             const name = r.family || r.group || r.name || Object.values(r)[0]
             const sizeRaw = r.count ?? r.size ?? Object.values(r)[1]
             const size = Number(sizeRaw) || 0
-            return name ? { name: String(name).trim(), size } : null
+            const timeVal = r.time ?? r.zeit ?? r.slot ?? ''
+            const toGoVal = r.toGo ?? r.togo ?? r.takeaway ?? r.takeAway ?? r.to_go
+            return name ? { name: String(name).trim(), size, time: timeVal ? String(timeVal).trim() : undefined, toGo: Boolean(toGoVal) } : null
           })
           .filter(Boolean) as Group[]
         onImport(groups)
