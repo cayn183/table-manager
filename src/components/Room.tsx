@@ -250,7 +250,7 @@ function placeGroupsOnTable(table: Table, groups: Group[], seedPlaced: AssignedG
 
 // Stable identity for a group across runs
 function groupKey(g: Group) {
-  return `${g.name}|${g.time ?? ''}|${g.size}|${g.toGo ? '1' : '0'}`
+  return `${g.salutation || 'Fam'}|${g.name}|${g.time ?? ''}|${g.size}|${g.toGo ? '1' : '0'}`
 }
 
 // Build occupied cell-set for a table from given placements
@@ -381,10 +381,13 @@ export default function Room() {
   const [lastSaveTime, setLastSaveTime] = useState<string | null>(null)
   const [timeInterval, setTimeInterval] = useState(15) // 5, 10, 15 Min
   const [viewMode, setViewMode] = useState<'map' | 'timeline'>('map')
+  const [sortAvailable, setSortAvailable] = useState<'name' | 'time' | 'size'>('name')
+  const [sortAssigned, setSortAssigned] = useState<'name' | 'time' | 'table'>('table')
 
   // State: UI and interaction
   const [showModal, setShowModal] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
+  const [newGroupSalutation, setNewGroupSalutation] = useState<'Fam' | 'Frau' | 'Herr'>('Fam')
   const [newGroupSize, setNewGroupSize] = useState('4')
   const [newGroupTime, setNewGroupTime] = useState('')
   const [newGroupToGo, setNewGroupToGo] = useState(false)
@@ -398,10 +401,12 @@ export default function Room() {
   const [draggingMeta, setDraggingMeta] = useState<DraggingMeta>(null)
   const [previewRotation, setPreviewRotation] = useState<number>(0)
   const [editName, setEditName] = useState('')
+  const [editSalutation, setEditSalutation] = useState<'Fam' | 'Frau' | 'Herr'>('Fam')
   const [editSize, setEditSize] = useState('')
   const [editTime, setEditTime] = useState('')
   const [editToGo, setEditToGo] = useState(false)
   const [hasAutoAssigned, setHasAutoAssigned] = useState(false)
+  const [assignedPage, setAssignedPage] = useState(0)
 
 
   // Get colors by recalculating on each render based on current positions
@@ -450,9 +455,11 @@ export default function Room() {
     return result
   }, [assignedGroups, room])
 
-  // Track dirty state: when groups or assignedGroups change, mark as dirty
+  // Track dirty state: when groups or assignedGroups change, mark as dirty and clamp pagination
   useEffect(() => {
     setIsDirty(true)
+    const totalPages = Math.max(1, Math.ceil(Object.values(assignedGroups).flat().length / 20))
+    setAssignedPage(prev => Math.min(prev, totalPages - 1))
   }, [groups, assignedGroups])
 
   function updatePreviewPosition(coords: { clientX: number; clientY: number }) {
@@ -504,10 +511,15 @@ export default function Room() {
         if (currentEvent) {
           const event = JSON.parse(currentEvent)
           if (event.groups && Array.isArray(event.groups)) {
-            setGroups(event.groups)
+            const normalizedGroups = event.groups.map((g: Group) => ({ ...g, salutation: g.salutation || 'Fam' }))
+            setGroups(normalizedGroups)
           }
           if (event.assignedGroups && typeof event.assignedGroups === 'object') {
-            setAssignedGroups(event.assignedGroups)
+            const normalizedAssigned: Record<string, AssignedGroup[]> = {}
+            Object.entries(event.assignedGroups).forEach(([tid, ags]) => {
+              normalizedAssigned[tid] = (ags as AssignedGroup[]).map(ag => ({ ...ag, group: { ...ag.group, salutation: ag.group.salutation || 'Fam' } }))
+            })
+            setAssignedGroups(normalizedAssigned)
           }
           if (event.lastModified) {
             setLastSaveTime(event.lastModified)
@@ -540,8 +552,9 @@ export default function Room() {
 
   // Data actions
   function handleImport(parsed: Group[]) {
-    const toGo = parsed.filter(g => g.toGo)
-    const rest = parsed.filter(g => !g.toGo)
+    const enriched = parsed.map(g => ({ ...g, salutation: g.salutation || 'Fam' }))
+    const toGo = enriched.filter(g => g.toGo)
+    const rest = enriched.filter(g => !g.toGo)
     const updatedAssigned = ensureToGoBucket({ ...assignedGroups })
     updatedAssigned['TOGO'] = [
       ...(updatedAssigned['TOGO'] || []),
@@ -552,23 +565,30 @@ export default function Room() {
   }
 
   function addGroup() {
+    const name = newGroupName.trim()
     const size = parseInt(newGroupSize) || 0
-    if (size > 0) {
-      const name = newGroupName || `Familie ${groups.length + 1}`
-      const group = { name, size, time: newGroupTime || undefined, toGo: newGroupToGo }
-      if (group.toGo) {
-        const updatedAssigned = ensureToGoBucket({ ...assignedGroups })
-        updatedAssigned['TOGO'] = [...(updatedAssigned['TOGO'] || []), { group, rotation: 0, locked: false, x: 0, y: 0, color: TOGO_COLOR }]
-        setAssignedGroups(updatedAssigned)
-      } else {
-        setGroups([...groups, group])
-      }
-      setNewGroupName('')
-      setNewGroupSize('4')
-      setNewGroupTime('')
-      setNewGroupToGo(false)
-      setShowModal(false)
+    if (!name) {
+      alert('Name ist erforderlich')
+      return
     }
+    if (size <= 0) {
+      alert('Personenzahl muss größer als 0 sein')
+      return
+    }
+    const group = { name, size, time: newGroupTime || undefined, toGo: newGroupToGo, salutation: newGroupSalutation }
+    if (group.toGo) {
+      const updatedAssigned = ensureToGoBucket({ ...assignedGroups })
+      updatedAssigned['TOGO'] = [...(updatedAssigned['TOGO'] || []), { group, rotation: 0, locked: false, x: 0, y: 0, color: TOGO_COLOR }]
+      setAssignedGroups(updatedAssigned)
+    } else {
+      setGroups([...groups, group])
+    }
+    setNewGroupName('')
+    setNewGroupSalutation('Fam')
+    setNewGroupSize('4')
+    setNewGroupTime('')
+    setNewGroupToGo(false)
+    setShowModal(false)
   }
 
   function handleSaveEvent() {
@@ -638,7 +658,7 @@ export default function Room() {
       const k = groupKey(g)
       if (seen.has(k)) return
       seen.add(k)
-      togoEntries.push({ group: g, rotation: 0, locked: false, x: 0, y: 0, color: TOGO_COLOR })
+      togoEntries.push({ group: { ...g, salutation: g.salutation || 'Fam' }, rotation: 0, locked: false, x: 0, y: 0, color: TOGO_COLOR })
     }
     for (const ag of existingToGo) pushToGo(ag.group)
     for (const g of toGoAvail) pushToGo(g)
@@ -678,7 +698,7 @@ export default function Room() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', background: '#f8fafc' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', width: '100%', background: '#f8fafc' }}>
       {/* Header */}
       <div style={{ 
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
@@ -735,19 +755,19 @@ export default function Room() {
       </div>
       
       {/* Main Content */}
-      <div className="room-content" style={{ flex: 1, overflow: 'auto', display: 'flex' }}>
+      <div className="room-content" style={{ flex: 1, display: 'flex', overflowX: 'hidden', overflowY: 'auto' }}>
         {/* Sidebar - always visible */}
         <div className="sidebar" style={{ 
-          flex: '0 0 360px', 
-          minWidth: '320px', 
-          maxWidth: '500px', 
-          overflowY: 'auto', 
+          flex: '0 0 580px', 
+          minWidth: '500px', 
+          maxWidth: '680px', 
           background: 'white',
           boxShadow: '2px 0 12px rgba(0,0,0,0.05)',
           padding: '20px',
           display: 'flex',
           flexDirection: 'column',
-          gap: '16px'
+          gap: '16px',
+          minHeight: 0
         }}>
           <button 
             onClick={() => setShowModal(true)}
@@ -785,83 +805,316 @@ export default function Room() {
             {hasAutoAssigned ? '🔄 Re-Assign' : '✨ Auto Assign'}
           </button>
           <div style={{ marginTop: '8px' }}>
-            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ background: '#e0e7ff', padding: '4px 12px', borderRadius: '12px', fontSize: '14px' }}>{groups.length}</span>
-              Verfügbare Familien
-            </h3>
-          <div className="groups-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {groups.map((g, i) => (
-              <div
-                key={i}
-                className="group-item"
-                style={{ 
-                  background: g.toGo ? '#fef3c7' : '#f1f5f9', 
-                  color: '#1e293b', 
-                  padding: '12px',
-                  borderRadius: '8px',
-                  border: '1px solid ' + (g.toGo ? '#fbbf24' : '#e2e8f0'),
-                  cursor: g.toGo ? 'default' : 'move',
-                  transition: 'all 0.2s',
-                  fontWeight: '500',
-                  fontSize: '13px'
-                }}
-                onMouseOver={e => !g.toGo && (e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)')}
-                onMouseOut={e => e.currentTarget.style.boxShadow = 'none'}
-                draggable={!g.toGo}
-                onDragStart={e => {
-                  if (g.toGo) return
-                  e.dataTransfer.setData('text/plain', JSON.stringify({ index: i, ...g }))
-                  setDraggingGroup({ group: g, rotation: 0 })
-                  setDraggingMeta(null)
-                }}
-                onContextMenu={e => {
-                  e.preventDefault()
-                  setContextMenu({ x: e.clientX, y: e.clientY, tableId: '', agIdx: -1, isList: true, listIdx: i })
-                }}
-              >
-                {g.name} — {g.size}{g.time ? ` | ${g.time}` : ''}{g.toGo ? ' | ToGo' : ''}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <h3 style={{ margin: '0', fontSize: '16px', fontWeight: '600', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ background: '#e0e7ff', padding: '4px 12px', borderRadius: '12px', fontSize: '14px' }}>{groups.length}</span>
+                Verfügbare Familien
+              </h3>
+              <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '6px' }}>
+                <button
+                  onClick={() => setSortAvailable('name')}
+                  style={{
+                    padding: '4px 8px',
+                    background: sortAvailable === 'name' ? '#667eea' : 'transparent',
+                    color: sortAvailable === 'name' ? 'white' : '#64748b',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    transition: 'all 0.2s'
+                  }}
+                  title="Nach Name sortieren"
+                >A-Z</button>
+                <button
+                  onClick={() => setSortAvailable('time')}
+                  style={{
+                    padding: '4px 8px',
+                    background: sortAvailable === 'time' ? '#667eea' : 'transparent',
+                    color: sortAvailable === 'time' ? 'white' : '#64748b',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    transition: 'all 0.2s'
+                  }}
+                  title="Nach Uhrzeit sortieren"
+                >🕐</button>
+                <button
+                  onClick={() => setSortAvailable('size')}
+                  style={{
+                    padding: '4px 8px',
+                    background: sortAvailable === 'size' ? '#667eea' : 'transparent',
+                    color: sortAvailable === 'size' ? 'white' : '#64748b',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    transition: 'all 0.2s'
+                  }}
+                  title="Nach Personenzahl sortieren"
+                >#</button>
               </div>
-            ))}
+            </div>
+          <div className="groups-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+            {[...groups].sort((a, b) => {
+              if (sortAvailable === 'name') {
+                return a.name.localeCompare(b.name)
+              } else if (sortAvailable === 'time') {
+                if (!a.time && !b.time) return 0
+                if (!a.time) return 1
+                if (!b.time) return -1
+                return a.time.localeCompare(b.time)
+              } else {
+                return b.size - a.size
+              }
+            }).map((g, i) => {
+              const salutation = g.salutation || 'Fam'
+              const displaySalutation = salutation === 'Fam' ? 'Fam.' : salutation
+              const displayName = `${displaySalutation} ${g.name}`
+              return (
+                <div
+                  key={i}
+                  className="group-item"
+                  style={{ 
+                    background: g.toGo ? '#fef3c7' : '#f1f5f9', 
+                    color: '#1e293b', 
+                    padding: '10px',
+                    borderRadius: '8px',
+                    border: '1px solid ' + (g.toGo ? '#fbbf24' : '#e2e8f0'),
+                    cursor: g.toGo ? 'default' : 'move',
+                    transition: 'all 0.2s',
+                    fontSize: '13px'
+                  }}
+                  onMouseOver={e => !g.toGo && (e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)')}
+                  onMouseOut={e => e.currentTarget.style.boxShadow = 'none'}
+                  draggable={!g.toGo}
+                  onDragStart={e => {
+                    if (g.toGo) return
+                    e.dataTransfer.setData('text/plain', JSON.stringify({ index: i, ...g }))
+                    setDraggingGroup({ group: g, rotation: 0 })
+                    setDraggingMeta(null)
+                  }}
+                  onContextMenu={e => {
+                    e.preventDefault()
+                    setContextMenu({ x: e.clientX, y: e.clientY, tableId: '', agIdx: -1, isList: true, listIdx: i })
+                  }}
+                >
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
+                    <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: '14px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
+                    </div>
+                    <div style={{ gridColumn: '2 / 3', gridRow: '1 / 2', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '4px', alignItems: 'center' }}>
+                      <span aria-hidden style={{ fontSize: '13px' }}>🕐</span>
+                      <span>{g.time ? `Uhrzeit: ${g.time}` : 'Uhrzeit: offen'}</span>
+                    </div>
+                    <div style={{ gridColumn: '1 / 2', gridRow: '2 / 3', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span aria-hidden style={{ fontSize: '13px' }}>👥</span>
+                      <span>Personen: {g.size}</span>
+                    </div>
+                    <div style={{ gridColumn: '2 / 3', gridRow: '2 / 3', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
+                      <span aria-hidden style={{ fontSize: '13px' }}>{g.toGo ? '🥘' : '🪑'}</span>
+                      <span>{g.toGo ? 'ToGo' : 'Tisch: offen'}</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
           </div>
           <div style={{ marginTop: '8px' }}>
-            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ background: '#dbeafe', padding: '4px 12px', borderRadius: '12px', fontSize: '14px' }}>{Object.values(assignedGroups).flat().length}</span>
-              Zugewiesene Familien
-            </h3>
-          <div className="assigned-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {Object.entries(assignedGroups).map(([tableId, ags]) =>
-              ags.map((ag, idx) => (
-                <div
-                  key={`${tableId}-${idx}`}
-                  className="assigned-item"
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <h3 style={{ margin: '0', fontSize: '16px', fontWeight: '600', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ background: '#dbeafe', padding: '4px 12px', borderRadius: '12px', fontSize: '14px' }}>{Object.values(assignedGroups).flat().length}</span>
+                Zugewiesene Familien
+              </h3>
+              <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '6px' }}>
+                <button
+                  onClick={() => setSortAssigned('name')}
                   style={{
-                    background: tableId === 'TOGO' ? '#fef3c7' : (assignedColors[tableId]?.[idx] || '#e0e7ff'),
-                    padding: '12px',
-                    borderRadius: '8px',
-                    border: '1px solid ' + (tableId === 'TOGO' ? '#fbbf24' : '#c7d2fe'),
+                    padding: '4px 8px',
+                    background: sortAssigned === 'name' ? '#667eea' : 'transparent',
+                    color: sortAssigned === 'name' ? 'white' : '#64748b',
+                    border: 'none',
+                    borderRadius: '4px',
                     cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    fontWeight: '500',
-                    fontSize: '13px'
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    transition: 'all 0.2s'
                   }}
-                  onMouseOver={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'}
-                  onMouseOut={e => e.currentTarget.style.boxShadow = 'none'}
-                  onContextMenu={e => {
-                    e.preventDefault()
-                    setContextMenu({ x: e.clientX, y: e.clientY, tableId, agIdx: idx, isList: false, isAssignedList: true })
+                  title="Nach Name sortieren"
+                >A-Z</button>
+                <button
+                  onClick={() => setSortAssigned('time')}
+                  style={{
+                    padding: '4px 8px',
+                    background: sortAssigned === 'time' ? '#667eea' : 'transparent',
+                    color: sortAssigned === 'time' ? 'white' : '#64748b',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    transition: 'all 0.2s'
                   }}
-                >
-                  {ag.group.name} ({ag.group.size}){ag.group.time ? ` | ${ag.group.time}` : ''}{ag.group.toGo ? ' | ToGo' : ''} - {tableId === 'TOGO' ? 'ToGo' : `Tisch ${tableId.slice(1)}`}
-                </div>
-              ))
-            )}
+                  title="Nach Uhrzeit sortieren"
+                >🕐</button>
+                <button
+                  onClick={() => setSortAssigned('table')}
+                  style={{
+                    padding: '4px 8px',
+                    background: sortAssigned === 'table' ? '#667eea' : 'transparent',
+                    color: sortAssigned === 'table' ? 'white' : '#64748b',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    transition: 'all 0.2s'
+                  }}
+                  title="Nach Tischnummer sortieren"
+                >🪑</button>
+              </div>
+            </div>
+          <div className="assigned-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+            {(() => {
+              const assignedItems = Object.entries(assignedGroups)
+                .flatMap(([tableId, ags]) => ags.map((ag, idx) => ({ tableId, ag, idx })))
+                .sort((a, b) => {
+                  if (sortAssigned === 'name') {
+                    return a.ag.group.name.localeCompare(b.ag.group.name)
+                  } else if (sortAssigned === 'time') {
+                    const timeA = a.ag.group.time || ''
+                    const timeB = b.ag.group.time || ''
+                    if (!timeA && !timeB) return 0
+                    if (!timeA) return 1
+                    if (!timeB) return -1
+                    return timeA.localeCompare(timeB)
+                  } else {
+                    if (a.tableId === 'TOGO' && b.tableId !== 'TOGO') return 1
+                    if (a.tableId !== 'TOGO' && b.tableId === 'TOGO') return -1
+                    if (a.tableId === 'TOGO' && b.tableId === 'TOGO') return 0
+                    const numA = parseInt(a.tableId.slice(1))
+                    const numB = parseInt(b.tableId.slice(1))
+                    return numA - numB
+                  }
+                })
+
+              const totalPages = Math.max(1, Math.ceil(assignedItems.length / 20))
+              const currentPage = Math.min(assignedPage, totalPages - 1)
+              const pageItems = assignedItems.slice(currentPage * 20, currentPage * 20 + 20)
+
+              return pageItems.map(({ tableId, ag, idx }) => {
+                const salutation = ag.group.salutation || 'Fam'
+                const displaySalutation = salutation === 'Fam' ? 'Fam.' : salutation
+                const displayName = `${displaySalutation} ${ag.group.name}`
+                const isToGo = tableId === 'TOGO'
+                return (
+                  <div
+                    key={`${tableId}-${idx}`}
+                    className="assigned-item"
+                    style={{
+                      background: isToGo ? '#fef3c7' : (assignedColors[tableId]?.[idx] || '#e0e7ff'),
+                      padding: '10px',
+                      borderRadius: '8px',
+                      border: '1px solid ' + (isToGo ? '#fbbf24' : '#c7d2fe'),
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      fontSize: '13px'
+                    }}
+                    onMouseOver={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'}
+                    onMouseOut={e => e.currentTarget.style.boxShadow = 'none'}
+                    onContextMenu={e => {
+                      e.preventDefault()
+                      setContextMenu({ x: e.clientX, y: e.clientY, tableId, agIdx: idx, isList: false, isAssignedList: true })
+                    }}
+                  >
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
+                      <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: '14px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
+                      </div>
+                      <div style={{ gridColumn: '2 / 3', gridRow: '1 / 2', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '4px', alignItems: 'center' }}>
+                        <span aria-hidden style={{ fontSize: '13px' }}>🕐</span>
+                        <span>{ag.group.time ? `Uhrzeit: ${ag.group.time}` : 'Uhrzeit: offen'}</span>
+                      </div>
+                      <div style={{ gridColumn: '1 / 2', gridRow: '2 / 3', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span aria-hidden style={{ fontSize: '13px' }}>👥</span>
+                        <span>Personen: {ag.group.size}</span>
+                      </div>
+                      <div style={{ gridColumn: '2 / 3', gridRow: '2 / 3', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
+                        <span aria-hidden style={{ fontSize: '13px' }}>{isToGo ? '🥘' : '🪑'}</span>
+                        <span>{isToGo ? 'ToGo' : `Tisch: ${tableId.slice(1)}`}</span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })
+            })()}
           </div>
+          {(() => {
+            const totalItems = Object.values(assignedGroups).flat().length
+            const totalPages = Math.max(1, Math.ceil(totalItems / 20))
+            const currentPage = Math.min(assignedPage, totalPages - 1)
+            return (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
+                <button
+                  onClick={() => setAssignedPage(p => Math.max(0, p - 1))}
+                  disabled={currentPage === 0}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: '20px',
+                    border: '1px solid #e2e8f0',
+                    background: currentPage === 0 ? '#f8fafc' : 'white',
+                    color: currentPage === 0 ? '#cbd5e1' : '#0f172a',
+                    cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    minWidth: '60px'
+                  }}
+                >Zurück</button>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  {Array.from({ length: totalPages }).map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setAssignedPage(i)}
+                      style={{
+                        width: '10px',
+                        height: '10px',
+                        borderRadius: '50%',
+                        border: '1px solid #cbd5e1',
+                        background: i === currentPage ? '#667eea' : 'white',
+                        cursor: 'pointer',
+                        padding: 0
+                      }}
+                      aria-label={`Seite ${i + 1}`}
+                    />
+                  ))}
+                </div>
+                <button
+                  onClick={() => setAssignedPage(p => Math.min(totalPages - 1, p + 1))}
+                  disabled={currentPage >= totalPages - 1}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: '20px',
+                    border: '1px solid #e2e8f0',
+                    background: currentPage >= totalPages - 1 ? '#f8fafc' : 'white',
+                    color: currentPage >= totalPages - 1 ? '#cbd5e1' : '#0f172a',
+                    cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    minWidth: '60px'
+                  }}
+                >Weiter</button>
+              </div>
+            )
+          })()}
           </div>
         </div>
 
         {/* Main area - switches between map and timeline */}
-        <div className="room-layout" style={{ flex: 1, overflowX: 'auto', overflowY: 'auto', padding: '12px', position: 'relative' }}>
+        <div className="room-layout" style={{ flex: 1, overflowX: 'auto', overflowY: 'visible', padding: '12px', position: 'relative', minWidth: 0, minHeight: 0 }}>
           {/* View Toggle Bar - positioned over the content */}
           <div style={{
             position: 'absolute',
@@ -1006,7 +1259,7 @@ export default function Room() {
                   setPreviewRotation(0)
                   return
                 }
-                const group = { name: data.name, size: data.size, time: data.time, toGo: data.toGo }
+                const group = { name: data.name, size: data.size, time: data.time, toGo: data.toGo, salutation: data.salutation || 'Fam' }
                 const current = assignedGroups[table.id] || []
                 const totalOccupied = current.reduce((sum, a) => sum + a.group.size, 0) + group.size
                 if (totalOccupied <= table.capacity && isValidPosition(table, group, previewRotation, relX, relY, assignedGroups)) {
@@ -1064,13 +1317,13 @@ export default function Room() {
                     top: '-31px',
                     left: '50%',
                     transform: 'translateX(-50%)',
-                    width: '65px',
-                    maxHeight: '40px',
+                    width: 'fit-content',
                     textAlign: 'center',
                     lineHeight: '1.2',
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    whiteSpace: 'nowrap'
                   }}>
-                    Tisch {table.id.slice(1)}<br />{occupied}/{table.capacity}
+                    🪑 Tisch {table.id.slice(1)} • {occupied}/{table.capacity}
                   </div>
                 </div>
               )
@@ -1103,10 +1356,12 @@ export default function Room() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: '10px',
+                      fontSize: '9px',
                       cursor: ag.locked ? 'default' : 'move',
                       zIndex: 10,
-                      border: '1px solid rgba(0,0,0,0.2)'
+                      border: '1px solid rgba(0,0,0,0.2)',
+                      padding: '2px',
+                      textAlign: 'center'
                     }}
                     onDoubleClick={() => {
                       setAssignedGroups({
@@ -1115,7 +1370,14 @@ export default function Room() {
                       })
                     }}
                   >
-                    {pidx === 0 ? `${ag.locked ? '🔒 ' : ''}${ag.group.name} (${ag.group.size})${ag.group.time ? ` | ${ag.group.time}` : ''}${ag.group.toGo ? ' | ToGo' : ''}` : ''}
+                    {pidx === 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', width: '100%', height: '100%', textAlign: 'center' }}>
+                        <div style={{ fontSize: '8px', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ag.locked ? '🔒 ' : ''}{ag.group.name}</div>
+                        {ag.group.time && <div style={{ fontSize: '8px' }}>Uhrzeit: {ag.group.time.slice(0, 5)}</div>}
+                        <div style={{ fontSize: '8px' }}>Personen: {ag.group.size}</div>
+                        <div style={{ fontSize: '8px' }}>{tableId === 'TOGO' ? 'ToGo' : `Tisch: ${tableId.slice(1)}`}</div>
+                      </div>
+                    ) : ''}
                   </div>
                 ))
               })
@@ -1149,259 +1411,865 @@ export default function Room() {
       {contextMenu && (
         <div
           className="context-menu"
-          style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, background: 'white', border: '1px solid black', zIndex: 1000 }}
-          onClick={() => setContextMenu(null)}
+          style={{
+            position: 'fixed',
+            left: contextMenu.x,
+            top: contextMenu.y,
+            background: 'white',
+            border: '1px solid #e2e8f0',
+            borderRadius: '8px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+            zIndex: 9999,
+            overflow: 'hidden',
+            backdropFilter: 'blur(10px)'
+          }}
+          onMouseLeave={() => setContextMenu(null)}
         >
           {contextMenu.isList ? (
             <>
-              <div onClick={() => {
-                const group = groups[contextMenu.listIdx!]
-                setTableSelectModal({ group, index: contextMenu.listIdx! })
-                setContextMenu(null)
-              }}>Zuweisen</div>
-              <div onClick={() => {
-                setEditModal({ tableId: '', agIdx: -1, isList: true, listIdx: contextMenu.listIdx })
-                setEditName(groups[contextMenu.listIdx!].name)
-                setEditSize(groups[contextMenu.listIdx!].size.toString())
-                setEditTime(groups[contextMenu.listIdx!].time || '')
-                setEditToGo(Boolean(groups[contextMenu.listIdx!].toGo))
-                setContextMenu(null)
-              }}>Bearbeiten</div>
-              <div onClick={() => {
-                setGroups(groups.filter((_, i) => i !== contextMenu.listIdx))
-                setContextMenu(null)
-              }}>Löschen</div>
+              <button
+                onClick={() => {
+                  const group = groups[contextMenu.listIdx!]
+                  setTableSelectModal({ group, index: contextMenu.listIdx! })
+                  setContextMenu(null)
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  background: 'transparent',
+                  color: '#1e293b',
+                  border: 'none',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  borderBottom: '1px solid #f1f5f9'
+                }}
+                onMouseOver={e => e.currentTarget.style.background = '#f8fafc'}
+                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+              >
+                📌 Zuweisen
+              </button>
+              <button
+                onClick={() => {
+                  setEditModal({ tableId: '', agIdx: -1, isList: true, listIdx: contextMenu.listIdx })
+                  setEditName(groups[contextMenu.listIdx!].name)
+                  setEditSalutation((groups[contextMenu.listIdx!].salutation as 'Fam' | 'Frau' | 'Herr') || 'Fam')
+                  setEditSize(groups[contextMenu.listIdx!].size.toString())
+                  setEditTime(groups[contextMenu.listIdx!].time || '')
+                  setEditToGo(Boolean(groups[contextMenu.listIdx!].toGo))
+                  setContextMenu(null)
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  background: 'transparent',
+                  color: '#1e293b',
+                  border: 'none',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  borderBottom: '1px solid #f1f5f9'
+                }}
+                onMouseOver={e => e.currentTarget.style.background = '#f8fafc'}
+                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+              >
+                ✏️ Bearbeiten
+              </button>
+              <button
+                onClick={() => {
+                  setGroups(groups.filter((_, i) => i !== contextMenu.listIdx))
+                  setContextMenu(null)
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  background: 'transparent',
+                  color: '#ef4444',
+                  border: 'none',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={e => e.currentTarget.style.background = '#fee2e2'}
+                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+              >
+                🗑️ Löschen
+              </button>
             </>
           ) : contextMenu.isAssignedList ? (
             <>
-              <div onClick={() => {
-                const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
-                setGroups([...groups, ag.group])
-                setAssignedGroups({
-                  ...assignedGroups,
-                  [contextMenu.tableId]: assignedGroups[contextMenu.tableId].filter((_, i) => i !== contextMenu.agIdx)
-                })
-                setContextMenu(null)
-              }}>Entfernen</div>
-              <div onClick={() => {
-                setEditModal({ tableId: contextMenu.tableId, agIdx: contextMenu.agIdx, isList: false })
-                const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
-                setEditName(ag.group.name)
-                setEditSize(ag.group.size.toString())
-                setEditTime(ag.group.time || '')
-                setEditToGo(Boolean(ag.group.toGo))
-                setContextMenu(null)
-              }}>Bearbeiten</div>
-              <div onClick={() => {
-                setAssignedGroups({
-                  ...assignedGroups,
-                  [contextMenu.tableId]: assignedGroups[contextMenu.tableId].filter((_, i) => i !== contextMenu.agIdx)
-                })
-                setContextMenu(null)
-              }}>Löschen</div>
+              <button
+                onClick={() => {
+                  const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
+                  setGroups([...groups, ag.group])
+                  setAssignedGroups({
+                    ...assignedGroups,
+                    [contextMenu.tableId]: assignedGroups[contextMenu.tableId].filter((_, i) => i !== contextMenu.agIdx)
+                  })
+                  setContextMenu(null)
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  background: 'transparent',
+                  color: '#1e293b',
+                  border: 'none',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  borderBottom: '1px solid #f1f5f9'
+                }}
+                onMouseOver={e => e.currentTarget.style.background = '#f8fafc'}
+                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+              >
+                ↩️ Entfernen
+              </button>
+              <button
+                onClick={() => {
+                  setEditModal({ tableId: contextMenu.tableId, agIdx: contextMenu.agIdx, isList: false })
+                  const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
+                  setEditName(ag.group.name)
+                  setEditSalutation((ag.group.salutation as 'Fam' | 'Frau' | 'Herr') || 'Fam')
+                  setEditSize(ag.group.size.toString())
+                  setEditTime(ag.group.time || '')
+                  setEditToGo(Boolean(ag.group.toGo))
+                  setContextMenu(null)
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  background: 'transparent',
+                  color: '#1e293b',
+                  border: 'none',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  borderBottom: '1px solid #f1f5f9'
+                }}
+                onMouseOver={e => e.currentTarget.style.background = '#f8fafc'}
+                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+              >
+                ✏️ Bearbeiten
+              </button>
+              <button
+                onClick={() => {
+                  setAssignedGroups({
+                    ...assignedGroups,
+                    [contextMenu.tableId]: assignedGroups[contextMenu.tableId].filter((_, i) => i !== contextMenu.agIdx)
+                  })
+                  setContextMenu(null)
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  background: 'transparent',
+                  color: '#ef4444',
+                  border: 'none',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={e => e.currentTarget.style.background = '#fee2e2'}
+                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+              >
+                🗑️ Löschen
+              </button>
             </>
           ) : (
             <>
-              <div onClick={() => {
-                const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
-                setGroups([...groups, ag.group])
-                setAssignedGroups({
-                  ...assignedGroups,
-                  [contextMenu.tableId]: assignedGroups[contextMenu.tableId].filter((_, i) => i !== contextMenu.agIdx)
-                })
-                setContextMenu(null)
-              }}>Zuweisen / Entfernen</div>
-              <div onClick={() => {
-                const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
-                setAssignedGroups({
-                  ...assignedGroups,
-                  [contextMenu.tableId]: assignedGroups[contextMenu.tableId].map(a => a === ag ? { ...a, locked: !a.locked } : a)
-                })
-                setContextMenu(null)
-              }}>Sperren / Entsperren</div>
-              <div onClick={() => {
-                const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
-                setAssignedGroups({
-                  ...assignedGroups,
-                  [contextMenu.tableId]: assignedGroups[contextMenu.tableId].map(a => a === ag ? { ...a, rotation: (a.rotation + 1) % 4 } : a)
-                })
-                setContextMenu(null)
-              }}>Rotieren</div>
-              <div onClick={() => {
-                const table = room.tables.find(t => t.id === contextMenu.tableId)
-                if (!table) return
-                const occupied = assignedGroups[contextMenu.tableId].reduce((sum, a, i) => i === contextMenu.agIdx ? sum : sum + a.group.size, 0)
-                const available = table.capacity - occupied
-                setResizeModal({ tableId: contextMenu.tableId, agIdx: contextMenu.agIdx, maxSize: available })
-                setResizeValue(available.toString())
-                setContextMenu(null)
-              }}>Größe anpassen</div>
-              <div onClick={() => {
-                setEditModal({ tableId: contextMenu.tableId, agIdx: contextMenu.agIdx, isList: false })
-                const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
-                setEditName(ag.group.name)
-                setEditSize(ag.group.size.toString())
-                setEditTime(ag.group.time || '')
-                setEditToGo(Boolean(ag.group.toGo))
-                setContextMenu(null)
-              }}>Bearbeiten</div>
-              <div onClick={() => {
-                setAssignedGroups({
-                  ...assignedGroups,
-                  [contextMenu.tableId]: assignedGroups[contextMenu.tableId].filter((_, i) => i !== contextMenu.agIdx)
-                })
-                setContextMenu(null)
-              }}>Löschen</div>
+              <button
+                onClick={() => {
+                  const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
+                  setGroups([...groups, ag.group])
+                  setAssignedGroups({
+                    ...assignedGroups,
+                    [contextMenu.tableId]: assignedGroups[contextMenu.tableId].filter((_, i) => i !== contextMenu.agIdx)
+                  })
+                  setContextMenu(null)
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  background: 'transparent',
+                  color: '#1e293b',
+                  border: 'none',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  borderBottom: '1px solid #f1f5f9'
+                }}
+                onMouseOver={e => e.currentTarget.style.background = '#f8fafc'}
+                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+              >
+                ↩️ Entfernen
+              </button>
+              <button
+                onClick={() => {
+                  const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
+                  setAssignedGroups({
+                    ...assignedGroups,
+                    [contextMenu.tableId]: assignedGroups[contextMenu.tableId].map(a => a === ag ? { ...a, locked: !a.locked } : a)
+                  })
+                  setContextMenu(null)
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  background: 'transparent',
+                  color: '#1e293b',
+                  border: 'none',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  borderBottom: '1px solid #f1f5f9'
+                }}
+                onMouseOver={e => e.currentTarget.style.background = '#f8fafc'}
+                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+              >
+                {assignedGroups[contextMenu.tableId][contextMenu.agIdx].locked ? '🔓' : '🔒'} Sperren
+              </button>
+              <button
+                onClick={() => {
+                  const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
+                  setAssignedGroups({
+                    ...assignedGroups,
+                    [contextMenu.tableId]: assignedGroups[contextMenu.tableId].map(a => a === ag ? { ...a, rotation: (a.rotation + 1) % 4 } : a)
+                  })
+                  setContextMenu(null)
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  background: 'transparent',
+                  color: '#1e293b',
+                  border: 'none',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  borderBottom: '1px solid #f1f5f9'
+                }}
+                onMouseOver={e => e.currentTarget.style.background = '#f8fafc'}
+                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+              >
+                🔄 Rotieren
+              </button>
+              <button
+                onClick={() => {
+                  setEditModal({ tableId: contextMenu.tableId, agIdx: contextMenu.agIdx, isList: false })
+                  const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
+                  setEditName(ag.group.name)
+                  setEditSalutation((ag.group.salutation as 'Fam' | 'Frau' | 'Herr') || 'Fam')
+                  setEditSize(ag.group.size.toString())
+                  setEditTime(ag.group.time || '')
+                  setEditToGo(Boolean(ag.group.toGo))
+                  setContextMenu(null)
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  background: 'transparent',
+                  color: '#1e293b',
+                  border: 'none',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  borderBottom: '1px solid #f1f5f9'
+                }}
+                onMouseOver={e => e.currentTarget.style.background = '#f8fafc'}
+                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+              >
+                ✏️ Bearbeiten
+              </button>
+              <button
+                onClick={() => {
+                  setAssignedGroups({
+                    ...assignedGroups,
+                    [contextMenu.tableId]: assignedGroups[contextMenu.tableId].filter((_, i) => i !== contextMenu.agIdx)
+                  })
+                  setContextMenu(null)
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  background: 'transparent',
+                  color: '#ef4444',
+                  border: 'none',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={e => e.currentTarget.style.background = '#fee2e2'}
+                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+              >
+                🗑️ Löschen
+              </button>
             </>
           )}
         </div>
       )}
       {tableSelectModal && (
         <div className="modal">
-          <div className="modal-content">
-            <h3>Tisch auswählen für {tableSelectModal.group.name}</h3>
-            <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                    {room?.tables.map(table => (
-                      <div key={table.id} onClick={() => {
-                        if (tableSelectModal.group.toGo) return
-                        const current = assignedGroups[table.id] || []
-                        setAssignedGroups({
-                          ...assignedGroups,
-                          [table.id]: [...current, { group: tableSelectModal.group, rotation: 0, locked: false, x: 0, y: 0, color: PALETTE[0] }]
-                        })
-                        setGroups(groups.filter((_, i) => i !== tableSelectModal.index))
-                        setTableSelectModal(null)
-                      }} style={{ padding: '10px', border: '1px solid #ccc', margin: '5px', cursor: 'pointer' }}>
-                        Tisch {table.id} (Kapazität: {table.capacity})
-                      </div>
-                    ))}
+          <div className="modal-content" style={{ minWidth: 400 }}>
+            <h3 style={{ margin: '0 0 20px 0', fontSize: '20px', fontWeight: '600', color: '#1e293b' }}>Tisch auswählen</h3>
+            <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: '#64748b' }}>Wähle einen Tisch für <strong>{tableSelectModal.group.name}</strong> ({tableSelectModal.group.size} Personen)</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', maxHeight: '300px', overflowY: 'auto', marginBottom: '16px' }}>
+              {room?.tables.map(table => {
+                const current = assignedGroups[table.id] || []
+                const occupied = current.reduce((sum, a) => sum + a.group.size, 0)
+                const available = table.capacity - occupied
+                const canFit = available >= tableSelectModal.group.size
+                return (
+                  <button
+                    key={table.id}
+                    onClick={() => {
+                      if (tableSelectModal.group.toGo || !canFit) return
+                      setAssignedGroups({
+                        ...assignedGroups,
+                        [table.id]: [...current, { group: tableSelectModal.group, rotation: 0, locked: false, x: 0, y: 0, color: PALETTE[0] }]
+                      })
+                      setGroups(groups.filter((_, i) => i !== tableSelectModal.index))
+                      setTableSelectModal(null)
+                    }}
+                    style={{
+                      padding: '12px',
+                      background: canFit ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#e2e8f0',
+                      color: canFit ? 'white' : '#94a3b8',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: canFit ? 'pointer' : 'not-allowed',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                    onMouseOver={e => {
+                      if (canFit) e.currentTarget.style.transform = 'translateY(-2px)'
+                    }}
+                    onMouseOut={e => {
+                      e.currentTarget.style.transform = 'translateY(0)'
+                    }}
+                  >
+                    Tisch {table.id.slice(1)}
+                    <span style={{ fontSize: '11px', opacity: 0.8 }}>{occupied}/{table.capacity} Plätze</span>
+                  </button>
+                )
+              })}
             </div>
-            <button onClick={() => setTableSelectModal(null)}>Abbrechen</button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => setTableSelectModal(null)}
+                style={{
+                  flex: 1,
+                  padding: '10px 16px',
+                  background: 'white',
+                  color: '#667eea',
+                  border: '2px solid #667eea',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={e => e.currentTarget.style.background = '#f1f5f9'}
+                onMouseOut={e => e.currentTarget.style.background = 'white'}
+              >
+                Abbrechen
+              </button>
+            </div>
           </div>
         </div>
       )}
       {showModal && (
         <div className="modal">
-          <div className="modal-content">
-            <h3>Familie anlegen</h3>
-            <input
-              type="text"
-              placeholder="Name (optional)"
-              value={newGroupName}
-              onChange={e => setNewGroupName(e.target.value)}
-            />
-            <input
-              type="number"
-              placeholder="Anzahl Personen"
-              value={newGroupSize}
-              onChange={e => setNewGroupSize(e.target.value)}
-            />
-            <input
-              type="time"
-              placeholder="Zeit (optional)"
-              value={newGroupTime}
-              onChange={e => setNewGroupTime(e.target.value)}
-            />
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <input
-                type="checkbox"
-                checked={newGroupToGo}
-                onChange={e => setNewGroupToGo(e.target.checked)}
-              />
-              ToGo
-            </label>
-            <button onClick={addGroup}>Hinzufügen</button>
-            <button onClick={() => setShowModal(false)}>Abbrechen</button>
+          <div className="modal-content" style={{ minWidth: 400 }}>
+            <h3 style={{ margin: '0 0 24px 0', fontSize: '20px', fontWeight: '600', color: '#1e293b' }}>Familie anlegen</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#475569', marginBottom: '6px' }}>Name *</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <select
+                    value={newGroupSalutation}
+                    onChange={e => setNewGroupSalutation(e.target.value as 'Fam' | 'Frau' | 'Herr')}
+                    style={{
+                      minWidth: '90px',
+                      padding: '10px 8px',
+                      fontSize: '13px',
+                      border: '2px solid #e2e8f0',
+                      borderRadius: '6px',
+                      outline: 'none',
+                      background: 'white',
+                      fontWeight: '600',
+                      color: '#475569'
+                    }}
+                  >
+                    <option value="Fam">Fam.</option>
+                    <option value="Frau">Frau</option>
+                    <option value="Herr">Herr</option>
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="z.B. Müller"
+                    value={newGroupName}
+                    onChange={e => setNewGroupName(e.target.value)}
+                    onKeyPress={e => e.key === 'Enter' && addGroup()}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      fontSize: '14px',
+                      border: `2px solid ${newGroupName.trim() ? '#667eea' : '#e2e8f0'}`,
+                      borderRadius: '6px',
+                      outline: 'none',
+                      transition: 'all 0.2s',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#475569', marginBottom: '6px' }}>Personenzahl *</label>
+                <input
+                  type="number"
+                  placeholder="z.B. 4"
+                  value={newGroupSize}
+                  onChange={e => setNewGroupSize(e.target.value)}
+                  min="1"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    fontSize: '14px',
+                    border: '2px solid #e2e8f0',
+                    borderRadius: '6px',
+                    outline: 'none',
+                    transition: 'all 0.2s',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#475569', marginBottom: '6px' }}>Uhrzeit (optional)</label>
+                <input
+                  type="time"
+                  value={newGroupTime}
+                  onChange={e => setNewGroupTime(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    fontSize: '14px',
+                    border: '2px solid #e2e8f0',
+                    borderRadius: '6px',
+                    outline: 'none',
+                    transition: 'all 0.2s',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: '#f1f5f9', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s' }}>
+                <input
+                  type="checkbox"
+                  checked={newGroupToGo}
+                  onChange={e => setNewGroupToGo(e.target.checked)}
+                  style={{ cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '14px', fontWeight: '500', color: '#475569' }}>ToGo (kein Tisch)</span>
+              </label>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                <button
+                  onClick={addGroup}
+                  disabled={!newGroupName.trim() || parseInt(newGroupSize) <= 0}
+                  style={{
+                    flex: 1,
+                    padding: '10px 16px',
+                    background: newGroupName.trim() && parseInt(newGroupSize) > 0 ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#cbd5e1',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: newGroupName.trim() && parseInt(newGroupSize) > 0 ? 'pointer' : 'not-allowed',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseOver={e => {
+                    if (newGroupName.trim() && parseInt(newGroupSize) > 0) {
+                      e.currentTarget.style.transform = 'translateY(-2px)'
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(102,126,234,0.3)'
+                    }
+                  }}
+                  onMouseOut={e => {
+                    e.currentTarget.style.transform = 'translateY(0)'
+                    e.currentTarget.style.boxShadow = 'none'
+                  }}
+                >
+                  ✓ Hinzufügen
+                </button>
+                <button
+                  onClick={() => setShowModal(false)}
+                  style={{
+                    flex: 1,
+                    padding: '10px 16px',
+                    background: 'white',
+                    color: '#667eea',
+                    border: '2px solid #667eea',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseOver={e => {
+                    e.currentTarget.style.background = '#f1f5f9'
+                  }}
+                  onMouseOut={e => {
+                    e.currentTarget.style.background = 'white'
+                  }}
+                >
+                  Abbrechen
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
       {editModal && (
         <div className="modal">
-          <div className="modal-content">
-            <h3>Bearbeiten</h3>
-            <input
-              type="text"
-              placeholder="Name"
-              value={editName}
-              onChange={e => setEditName(e.target.value)}
-            />
-            <input
-              type="number"
-              placeholder="Anzahl Personen"
-              value={editSize}
-              onChange={e => setEditSize(e.target.value)}
-            />
-            <input
-              type="time"
-              placeholder="Zeit"
-              value={editTime}
-              onChange={e => setEditTime(e.target.value)}
-            />
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <input
-                type="checkbox"
-                checked={editToGo}
-                onChange={e => setEditToGo(e.target.checked)}
-              />
-              ToGo
-            </label>
-            <button onClick={() => {
-              const size = parseInt(editSize) || 1
-              if (editModal.isList) {
-                setGroups(groups.map((g, i) => i === editModal.listIdx ? { name: editName || `Familie ${i + 1}`, size, time: editTime || undefined, toGo: editToGo } : g))
-              } else {
-                setAssignedGroups({
-                  ...assignedGroups,
-                  [editModal.tableId]: assignedGroups[editModal.tableId].map((ag, i) => i === editModal.agIdx ? { ...ag, group: { ...ag.group, name: editName || ag.group.name, size, time: editTime || undefined, toGo: editToGo } } : ag)
-                })
-              }
-              setEditModal(null)
-            }}>Speichern</button>
-            <button onClick={() => setEditModal(null)}>Abbrechen</button>
+          <div className="modal-content" style={{ minWidth: 400 }}>
+            <h3 style={{ margin: '0 0 24px 0', fontSize: '20px', fontWeight: '600', color: '#1e293b' }}>Bearbeiten</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#475569', marginBottom: '6px' }}>Name</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <select
+                    value={editSalutation}
+                    onChange={e => setEditSalutation(e.target.value as 'Fam' | 'Frau' | 'Herr')}
+                    style={{
+                      minWidth: '90px',
+                      padding: '10px 8px',
+                      fontSize: '13px',
+                      border: '2px solid #e2e8f0',
+                      borderRadius: '6px',
+                      outline: 'none',
+                      background: 'white',
+                      fontWeight: '600',
+                      color: '#475569'
+                    }}
+                  >
+                    <option value="Fam">Fam.</option>
+                    <option value="Frau">Frau</option>
+                    <option value="Herr">Herr</option>
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="z.B. Müller"
+                    value={editName}
+                    onChange={e => setEditName(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      fontSize: '14px',
+                      border: '2px solid #e2e8f0',
+                      borderRadius: '6px',
+                      outline: 'none',
+                      transition: 'all 0.2s',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#475569', marginBottom: '6px' }}>Personenzahl</label>
+                <input
+                  type="number"
+                  placeholder="z.B. 4"
+                  value={editSize}
+                  onChange={e => setEditSize(e.target.value)}
+                  min="1"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    fontSize: '14px',
+                    border: '2px solid #e2e8f0',
+                    borderRadius: '6px',
+                    outline: 'none',
+                    transition: 'all 0.2s',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#475569', marginBottom: '6px' }}>Uhrzeit (optional)</label>
+                <input
+                  type="time"
+                  value={editTime}
+                  onChange={e => setEditTime(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    fontSize: '14px',
+                    border: '2px solid #e2e8f0',
+                    borderRadius: '6px',
+                    outline: 'none',
+                    transition: 'all 0.2s',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: '#f1f5f9', borderRadius: '6px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={editToGo}
+                  onChange={e => setEditToGo(e.target.checked)}
+                  style={{ cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '14px', fontWeight: '500', color: '#475569' }}>ToGo (kein Tisch)</span>
+              </label>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                <button
+                  onClick={() => {
+                    const size = parseInt(editSize) || 1
+                    if (editModal.isList) {
+                      setGroups(groups.map((g, i) => i === editModal.listIdx ? { name: editName || `Familie ${i + 1}`, size, time: editTime || undefined, toGo: editToGo, salutation: editSalutation || 'Fam' } : g))
+                    } else {
+                      setAssignedGroups({
+                        ...assignedGroups,
+                        [editModal.tableId]: assignedGroups[editModal.tableId].map((ag, i) => i === editModal.agIdx ? { ...ag, group: { ...ag.group, name: editName || ag.group.name, size, time: editTime || undefined, toGo: editToGo, salutation: editSalutation || 'Fam' } } : ag)
+                      })
+                    }
+                    setEditModal(null)
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '10px 16px',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseOver={e => {
+                    e.currentTarget.style.transform = 'translateY(-2px)'
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(102,126,234,0.3)'
+                  }}
+                  onMouseOut={e => {
+                    e.currentTarget.style.transform = 'translateY(0)'
+                    e.currentTarget.style.boxShadow = 'none'
+                  }}
+                >
+                  ✓ Speichern
+                </button>
+                <button
+                  onClick={() => setEditModal(null)}
+                  style={{
+                    flex: 1,
+                    padding: '10px 16px',
+                    background: 'white',
+                    color: '#667eea',
+                    border: '2px solid #667eea',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseOver={e => e.currentTarget.style.background = '#f1f5f9'}
+                  onMouseOut={e => e.currentTarget.style.background = 'white'}
+                >
+                  Abbrechen
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
       {resizeModal && (
         <div className="modal">
-          <div className="modal-content">
-            <h3>Familiengr\u00f6\u00dfe anpassen</h3>
-            <p>Verf\u00fcgbare Pl\u00e4tze am Tisch: {resizeModal.maxSize}</p>
-            <input
-              type="number"
-              placeholder="Neue Gr\u00f6\u00dfe"
-              value={resizeValue}
-              onChange={e => setResizeValue(e.target.value)}
-              min="1"
-              max={resizeModal.maxSize}
-            />
-            <button onClick={() => {
-              const size = Math.min(Math.max(parseInt(resizeValue) || 1, 1), resizeModal.maxSize)
-              setAssignedGroups({
-                ...assignedGroups,
-                [resizeModal.tableId]: assignedGroups[resizeModal.tableId].map((ag, i) => 
-                  i === resizeModal.agIdx ? { ...ag, group: { ...ag.group, size } } : ag
-                )
-              })
-              setResizeModal(null)
-            }}>Anpassen</button>
-            <button onClick={() => setResizeModal(null)}>Abbrechen</button>
+          <div className="modal-content" style={{ minWidth: 400 }}>
+            <h3 style={{ margin: '0 0 20px 0', fontSize: '20px', fontWeight: '600', color: '#1e293b' }}>Familiengröße anpassen</h3>
+            <div style={{ background: '#e0e7ff', padding: '12px 16px', borderRadius: '6px', marginBottom: '16px' }}>
+              <p style={{ margin: '0', fontSize: '14px', color: '#4f46e5', fontWeight: '500' }}>Verfügbare Plätze am Tisch: <strong>{resizeModal.maxSize}</strong></p>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#475569', marginBottom: '6px' }}>Neue Größe</label>
+                <input
+                  type="number"
+                  placeholder="z.B. 4"
+                  value={resizeValue}
+                  onChange={e => setResizeValue(e.target.value)}
+                  min="1"
+                  max={resizeModal.maxSize}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    fontSize: '14px',
+                    border: '2px solid #e2e8f0',
+                    borderRadius: '6px',
+                    outline: 'none',
+                    transition: 'all 0.2s',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={() => {
+                    const size = Math.min(Math.max(parseInt(resizeValue) || 1, 1), resizeModal.maxSize)
+                    setAssignedGroups({
+                      ...assignedGroups,
+                      [resizeModal.tableId]: assignedGroups[resizeModal.tableId].map((ag, i) => 
+                        i === resizeModal.agIdx ? { ...ag, group: { ...ag.group, size } } : ag
+                      )
+                    })
+                    setResizeModal(null)
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '10px 16px',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseOver={e => {
+                    e.currentTarget.style.transform = 'translateY(-2px)'
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(102,126,234,0.3)'
+                  }}
+                  onMouseOut={e => {
+                    e.currentTarget.style.transform = 'translateY(0)'
+                    e.currentTarget.style.boxShadow = 'none'
+                  }}
+                >
+                  ✓ Anpassen
+                </button>
+                <button
+                  onClick={() => setResizeModal(null)}
+                  style={{
+                    flex: 1,
+                    padding: '10px 16px',
+                    background: 'white',
+                    color: '#667eea',
+                    border: '2px solid #667eea',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseOver={e => e.currentTarget.style.background = '#f1f5f9'}
+                  onMouseOut={e => e.currentTarget.style.background = 'white'}
+                >
+                  Abbrechen
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
       {showEventSaveModal && (
         <div className="modal">
-          <div className="modal-content" style={{ minWidth: 360 }}>
-            <h3>Event speichern</h3>
-            <input
-              type="text"
-              value={eventSaveName}
-              onChange={e => setEventSaveName(e.target.value)}
-              placeholder="Eventname"
-            />
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button onClick={() => confirmSaveEvent(eventSaveName)}>Speichern</button>
-              <button onClick={() => setShowEventSaveModal(false)}>Abbrechen</button>
+          <div className="modal-content" style={{ minWidth: 400 }}>
+            <h3 style={{ margin: '0 0 20px 0', fontSize: '20px', fontWeight: '600', color: '#1e293b' }}>Event speichern</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#475569', marginBottom: '6px' }}>Event-Name</label>
+                <input
+                  type="text"
+                  value={eventSaveName}
+                  onChange={e => setEventSaveName(e.target.value)}
+                  placeholder="z.B. Sommerfest 2026"
+                  onKeyPress={e => e.key === 'Enter' && confirmSaveEvent(eventSaveName)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    fontSize: '14px',
+                    border: `2px solid ${eventSaveName.trim() ? '#667eea' : '#e2e8f0'}`,
+                    borderRadius: '6px',
+                    outline: 'none',
+                    transition: 'all 0.2s',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={() => confirmSaveEvent(eventSaveName)}
+                  disabled={!eventSaveName.trim()}
+                  style={{
+                    flex: 1,
+                    padding: '10px 16px',
+                    background: eventSaveName.trim() ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#cbd5e1',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: eventSaveName.trim() ? 'pointer' : 'not-allowed',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseOver={e => {
+                    if (eventSaveName.trim()) {
+                      e.currentTarget.style.transform = 'translateY(-2px)'
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(102,126,234,0.3)'
+                    }
+                  }}
+                  onMouseOut={e => {
+                    e.currentTarget.style.transform = 'translateY(0)'
+                    e.currentTarget.style.boxShadow = 'none'
+                  }}
+                >
+                  💾 Speichern
+                </button>
+                <button
+                  onClick={() => setShowEventSaveModal(false)}
+                  style={{
+                    flex: 1,
+                    padding: '10px 16px',
+                    background: 'white',
+                    color: '#667eea',
+                    border: '2px solid #667eea',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseOver={e => e.currentTarget.style.background = '#f1f5f9'}
+                  onMouseOut={e => e.currentTarget.style.background = 'white'}
+                >
+                  Abbrechen
+                </button>
+              </div>
             </div>
           </div>
         </div>

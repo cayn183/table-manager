@@ -1,7 +1,7 @@
 import React from 'react'
 import Papa from 'papaparse'
 
-export type Group = { name: string; size: number; time?: string; toGo?: boolean }
+export type Group = { name: string; size: number; time?: string; toGo?: boolean; salutation?: 'Fam' | 'Frau' | 'Herr' | string }
 
 export default function Importer({ onImport }: { onImport: (g: Group[]) => void }) {
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -18,8 +18,9 @@ export default function Importer({ onImport }: { onImport: (g: Group[]) => void 
             const sizeRaw = r.count ?? r.size ?? Object.values(r)[1]
             const size = Number(sizeRaw) || 0
             const timeVal = r.time ?? r.zeit ?? r.slot ?? ''
+            const salutationVal = r.salutation ?? r.title ?? r.anrede ?? 'Fam'
             const toGoVal = r.toGo ?? r.togo ?? r.takeaway ?? r.takeAway ?? r.to_go
-            return name ? { name: String(name).trim(), size, time: timeVal ? String(timeVal).trim() : undefined, toGo: Boolean(toGoVal) } : null
+            return name ? { name: String(name).trim(), size, time: timeVal ? String(timeVal).trim() : undefined, toGo: Boolean(toGoVal), salutation: String(salutationVal || 'Fam').trim() || 'Fam' } : null
           })
           .filter(Boolean) as Group[]
         onImport(groups)
@@ -39,8 +40,9 @@ export default function Importer({ onImport }: { onImport: (g: Group[]) => void 
             const sizeRaw = r.count ?? r.size ?? Object.values(r)[1]
             const size = Number(sizeRaw) || 0
             const timeVal = r.time ?? r.zeit ?? r.slot ?? ''
+            const salutationVal = r.salutation ?? r.title ?? r.anrede ?? 'Fam'
             const toGoVal = r.toGo ?? r.togo ?? r.takeaway ?? r.takeAway ?? r.to_go
-            return name ? { name: String(name).trim(), size, time: timeVal ? String(timeVal).trim() : undefined, toGo: Boolean(toGoVal) } : null
+            return name ? { name: String(name).trim(), size, time: timeVal ? String(timeVal).trim() : undefined, toGo: Boolean(toGoVal), salutation: String(salutationVal || 'Fam').trim() || 'Fam' } : null
           })
           .filter(Boolean) as Group[]
         onImport(groups)
