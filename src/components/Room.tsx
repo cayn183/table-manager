@@ -118,8 +118,16 @@ function getPositionsForSize(size: number, rotation: number, tableWidth?: number
     }
   }
 
-  const rotated = positions.map(pos => {
-    switch (rotation % 4) {
+  // Spiegelung: rotation >= 4 bedeutet gespiegelt
+  const mirrored = rotation >= 4
+  const actualRotation = rotation % 4
+  
+  // Spiegeln entlang der Y-Achse (horizontal spiegeln)
+  let transformed = mirrored ? positions.map(pos => ({ x: -pos.x, y: pos.y })) : positions
+  
+  // Dann rotieren
+  const rotated = transformed.map(pos => {
+    switch (actualRotation) {
       case 1: return { x: pos.y, y: -pos.x }
       case 2: return { x: -pos.x, y: -pos.y }
       case 3: return { x: -pos.y, y: pos.x }
@@ -619,8 +627,9 @@ export default function Room() {
 
     let bestRotation = draggingGroup.rotation
     if (!isValidPosition(table, draggingGroup.group, bestRotation, relX, relY, assignedGroups, skipAg)) {
-      for (let rot = 1; rot < 4; rot++) {
-        const candidate = (draggingGroup.rotation + rot) % 4
+      // Versuche alle 8 Varianten (4 Rotationen + 4 gespiegelte Rotationen)
+      for (let rot = 1; rot < 8; rot++) {
+        const candidate = (draggingGroup.rotation + rot) % 8
         if (isValidPosition(table, draggingGroup.group, candidate, relX, relY, assignedGroups, skipAg)) { bestRotation = candidate; break }
       }
     }
@@ -797,9 +806,9 @@ export default function Room() {
     }
 
     const handleContextMenu = (e: MouseEvent) => {
-      // Rechtsklick während Drag rotiert die Vorschau
+      // Rechtsklick während Drag: 0-3 = normale Rotation, 4-7 = gespiegelt + rotiert
       e.preventDefault()
-      setPreviewRotation(prev => (prev + 1) % 4)
+      setPreviewRotation(prev => (prev + 1) % 8)
     }
 
     const handleMouseUp = (e: MouseEvent) => {
