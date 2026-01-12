@@ -20,4 +20,4 @@ RUN npm run build
 EXPOSE 5173
 
 # Production Server starten
-CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0"]
+CMD ["npm", "run", "start"]
