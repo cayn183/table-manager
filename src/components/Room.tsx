@@ -796,10 +796,99 @@ export default function Room() {
       updatePreviewPosition({ clientX: e.clientX, clientY: e.clientY })
     }
 
+    const handleContextMenu = (e: MouseEvent) => {
+      // Rechtsklick während Drag rotiert die Vorschau
+      e.preventDefault()
+      setPreviewRotation(prev => (prev + 1) % 4)
+    }
+
+    const handleMouseUp = (e: MouseEvent) => {
+      // Globaler Drop-Handler: Wenn losgelassen wird und Position gültig ist (grün), dann platzieren
+      if (!dragOverPosition || !room) {
+        setDraggingGroup(null)
+        setDragOverPosition(null)
+        setDraggingMeta(null)
+        setPreviewRotation(0)
+        return
+      }
+
+      const table = room.tables.find(t => t.id === dragOverPosition.tableId)
+      if (!table) {
+        setDraggingGroup(null)
+        setDragOverPosition(null)
+        setDraggingMeta(null)
+        setPreviewRotation(0)
+        return
+      }
+
+      const relX = dragOverPosition.x
+      const relY = dragOverPosition.y
+
+      if (draggingMeta?.tableId) {
+        // Bewegung von existierender Gruppe
+        const sourceAg = assignedGroups[draggingMeta.tableId]?.[draggingMeta.agIdx ?? -1]
+        if (sourceAg && isValidPosition(table, draggingGroup.group, previewRotation, relX, relY, assignedGroups, sourceAg)) {
+          if (draggingMeta.tableId === table.id) {
+            // Gleicher Tisch, nur Position ändern
+            setAssignedGroups({
+              ...assignedGroups,
+              [table.id]: assignedGroups[table.id].map((a, i) => i === draggingMeta.agIdx ? { ...a, x: relX, y: relY, rotation: previewRotation } : a)
+            })
+          } else {
+            // Anderer Tisch
+            const newSourceList = [...(assignedGroups[draggingMeta.tableId] || [])]
+            newSourceList.splice(draggingMeta.agIdx ?? -1, 1)
+            const current = assignedGroups[table.id] || []
+            setAssignedGroups({
+              ...assignedGroups,
+              [draggingMeta.tableId]: newSourceList,
+              [table.id]: [...current, { ...sourceAg, rotation: previewRotation, x: relX, y: relY }]
+            })
+          }
+        }
+      } else {
+        // Neue Gruppe von der Liste
+        const group = draggingGroup.group
+        if (group.toGo) {
+          setDraggingGroup(null)
+          setDragOverPosition(null)
+          setDraggingMeta(null)
+          setPreviewRotation(0)
+          return
+        }
+        const current = assignedGroups[table.id] || []
+        const totalOccupied = current.reduce((sum, a) => sum + a.group.size, 0) + group.size
+        if (totalOccupied <= table.capacity && isValidPosition(table, group, previewRotation, relX, relY, assignedGroups)) {
+          setAssignedGroups({
+            ...assignedGroups,
+            [table.id]: [...current, { group, rotation: previewRotation, locked: false, x: relX, y: relY, color: PALETTE[0] }]
+          })
+          // Entferne Gruppe aus der verfügbaren Liste
+          const groupIndex = groups.findIndex(g => g.name === group.name && g.size === group.size)
+          if (groupIndex !== -1) {
+            setGroups(groups.filter((_, idx) => idx !== groupIndex))
+          }
+        }
+      }
+
+      setDragOverPosition(null)
+      setDraggingGroup(null)
+      setDraggingMeta(null)
+      setPreviewRotation(0)
+    }
+
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('dragover', handleGlobalDragOver)
-    return () => document.removeEventListener('mousemove', handleMouseMove)
-  }, [draggingGroup, draggingMeta, room, assignedGroups])
+    document.addEventListener('contextmenu', handleContextMenu)
+    document.addEventListener('mouseup', handleMouseUp)
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('dragover', handleGlobalDragOver)
+      document.removeEventListener('contextmenu', handleContextMenu)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [draggingGroup, draggingMeta, room, assignedGroups, dragOverPosition, previewRotation, groups])
 
   // Data actions
   function handleImport(parsed: Group[]) {
