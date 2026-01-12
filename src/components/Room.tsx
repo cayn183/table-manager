@@ -797,21 +797,31 @@ export default function Room() {
   useEffect(() => {
     if (!draggingGroup) return
 
+    let lastMouseButtons = 0
+
     const handleMouseMove = (e: MouseEvent) => {
       updatePreviewPosition({ clientX: e.clientX, clientY: e.clientY })
+      
+      // Prüfe auf Rechtsklick während Drag (Button 2)
+      if ((e.buttons & 2) && !(lastMouseButtons & 2)) {
+        // Rechte Maustaste wurde gerade gedrückt
+        setPreviewRotation(prev => (prev + 1) % 8)
+      }
+      lastMouseButtons = e.buttons
     }
 
     const handleGlobalDragOver = (e: DragEvent) => {
+      e.preventDefault()
       updatePreviewPosition({ clientX: e.clientX, clientY: e.clientY })
     }
 
     const handleContextMenu = (e: MouseEvent) => {
-      // Rechtsklick während Drag: 0-3 = normale Rotation, 4-7 = gespiegelt + rotiert
+      // Verhindere Kontextmenü während Drag
       e.preventDefault()
-      setPreviewRotation(prev => (prev + 1) % 8)
+      e.stopPropagation()
     }
 
-    const handleMouseUp = (e: MouseEvent) => {
+    const handleDragEnd = (e: DragEvent) => {
       // Globaler Drop-Handler: Wenn losgelassen wird und Position gültig ist (grün), dann platzieren
       if (!dragOverPosition || !room) {
         setDraggingGroup(null)
@@ -888,14 +898,14 @@ export default function Room() {
 
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('dragover', handleGlobalDragOver)
-    document.addEventListener('contextmenu', handleContextMenu)
-    document.addEventListener('mouseup', handleMouseUp)
+    document.addEventListener('contextmenu', handleContextMenu, true)
+    document.addEventListener('dragend', handleDragEnd)
     
     return () => {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('dragover', handleGlobalDragOver)
-      document.removeEventListener('contextmenu', handleContextMenu)
-      document.removeEventListener('mouseup', handleMouseUp)
+      document.removeEventListener('contextmenu', handleContextMenu, true)
+      document.removeEventListener('dragend', handleDragEnd)
     }
   }, [draggingGroup, draggingMeta, room, assignedGroups, dragOverPosition, previewRotation, groups])
 
