@@ -8,13 +8,16 @@ WORKDIR /app
 COPY package*.json ./
 
 # Dependencies installieren
-RUN npm install
+RUN npm ci --only=production
 
 # Quellcode kopieren
 COPY . .
 
-# Port für Vite Dev Server freigeben
+# Build erstellen
+RUN npm run build
+
+# Port für Vite Preview Server freigeben
 EXPOSE 5173
 
-# Dev-Server starten
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+# Production Server starten
+CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0"]

@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  table-manager:
+    image: ghcr.io/cayn183/table-manager:latest
+    container_name: table-manager
+    ports:
+      - "5173:5173"
+    volumes:
+      - /mnt/user/appdata/table-manager:/app/data
+    restart: unless-stopped

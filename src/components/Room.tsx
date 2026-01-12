@@ -1500,9 +1500,11 @@ export default function Room() {
                       fontSize: '9px',
                       cursor: ag.locked ? 'default' : 'move',
                       zIndex: 10,
-                      border: '1px solid rgba(0,0,0,0.2)',
-                      padding: '2px',
-                      textAlign: 'center'
+                      border: '1px solid rgba(0,0,0,0.15)',
+                      borderRadius: '6px',
+                      padding: '4px',
+                      textAlign: 'center',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.12)'
                     }}
                     onDoubleClick={() => {
                       setAssignedGroups({
@@ -1512,13 +1514,14 @@ export default function Room() {
                     }}
                   >
                     {pidx === 0 ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', width: '100%', height: '100%', textAlign: 'center' }}>
-                        <div style={{ fontSize: '8px', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ag.locked ? '🔒 ' : ''}{ag.group.name}</div>
-                        {ag.group.time && <div style={{ fontSize: '8px' }}>Uhrzeit: {ag.group.time.slice(0, 5)}</div>}
-                        <div style={{ fontSize: '8px' }}>Personen: {ag.group.size}</div>
-                        <div style={{ fontSize: '8px' }}>{tableId === 'TOGO' ? 'ToGo' : `Tisch: ${tableId.slice(1)}`}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', width: '100%', height: '100%', textAlign: 'center', overflow: 'hidden' }}>
+                        <div style={{ fontSize: '7px', fontWeight: '700', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'normal', maxWidth: '100%', letterSpacing: '0.2px', wordBreak: 'break-word', lineHeight: '1.1' }}>{ag.locked ? '🔒 ' : ''}{ag.group.name}</div>
+                        {ag.group.time && <div style={{ fontSize: '6px', opacity: 0.9, lineHeight: '1' }}>🕐 {ag.group.time.slice(0, 5)}</div>}
+                        <div style={{ fontSize: '7px', fontWeight: '600' }}>👥 {ag.group.size}</div>
                       </div>
-                    ) : ''}
+                    ) : ''
+}
+
                   </div>
                 ))
               })
