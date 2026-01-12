@@ -629,11 +629,12 @@ export default function Room() {
     let relY = y - table.y
     const skipAg = draggingMeta?.tableId ? assignedGroups[draggingMeta.tableId]?.[draggingMeta.agIdx ?? -1] : undefined
 
-    let bestRotation = draggingGroup.rotation
+    // Start from current previewRotation so R-key changes are respected
+    let bestRotation = previewRotation
     if (!isValidPosition(table, draggingGroup.group, bestRotation, relX, relY, assignedGroups, skipAg)) {
-      // Versuche alle 8 Varianten (4 Rotationen + 4 gespiegelte Rotationen)
+      // Try all 8 orientations starting from current previewRotation
       for (let rot = 1; rot < 8; rot++) {
-        const candidate = (draggingGroup.rotation + rot) % 8
+        const candidate = (previewRotation + rot) % 8
         if (isValidPosition(table, draggingGroup.group, candidate, relX, relY, assignedGroups, skipAg)) { bestRotation = candidate; break }
       }
     }
@@ -1064,13 +1065,23 @@ export default function Room() {
     alert('Event gespeichert!')
   }
 
-  // Autosave after 10 minutes of unsaved changes
+  // Autosave countdown + save after 10 minutes of unsaved changes
+  const [autosaveRemaining, setAutosaveRemaining] = useState<number | null>(null)
   useEffect(() => {
-    if (!isDirty) return
-    const timer = setTimeout(() => {
+    if (!isDirty) {
+      setAutosaveRemaining(null)
+      return
+    }
+    // Reset countdown to 10 minutes on any change while dirty
+    setAutosaveRemaining(10 * 60)
+    const interval = setInterval(() => {
+      setAutosaveRemaining(prev => (prev === null ? null : Math.max(0, prev - 1)))
+    }, 1000)
+    const timeout = setTimeout(() => {
       saveEventSilently()
+      setAutosaveRemaining(null)
     }, 10 * 60 * 1000)
-    return () => clearTimeout(timer)
+    return () => { clearInterval(interval); clearTimeout(timeout) }
   }, [isDirty, assignedGroups, groups])
 
   function autoAssign() {
@@ -1243,11 +1254,18 @@ export default function Room() {
           >
             💾 Event speichern
           </button>
-          {lastSaveTime && (
-            <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.9)', background: 'rgba(0,0,0,0.2)', padding: '4px 12px', borderRadius: '12px' }}>
-              {lastSaveType === 'auto' ? 'Auto gespeichert: ' : 'Zuletzt: '}{lastSaveTime}
-            </p>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {typeof autosaveRemaining === 'number' && (
+              <span style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.95)', background: 'rgba(0,0,0,0.25)', padding: '4px 10px', borderRadius: '10px' }}>
+                Auto in {String(Math.floor(autosaveRemaining / 60)).padStart(2, '0')}:{String(autosaveRemaining % 60).padStart(2, '0')}
+              </span>
+            )}
+            {lastSaveTime && (
+              <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.9)', background: 'rgba(0,0,0,0.2)', padding: '4px 12px', borderRadius: '12px' }}>
+                {lastSaveType === 'auto' ? 'Auto gespeichert: ' : 'Zuletzt: '}{lastSaveTime}
+              </p>
+            )}
+          </div>
         </div>
       </div>
       
@@ -1448,6 +1466,7 @@ export default function Room() {
                     e.dataTransfer.setData('text/plain', JSON.stringify({ index: i, ...g }))
                     setDraggingGroup({ group: g, rotation: 0 })
                     setDraggingMeta(null)
+                    setPreviewRotation(0)
                   }}
                   onTouchStart={e => handleTouchStart(e, g, i)}
                   onTouchMove={handleTouchMove}
@@ -1979,6 +1998,7 @@ export default function Room() {
                         e.dataTransfer.setData('text/plain', JSON.stringify({ tableId, agIdx: idx, ...ag.group }))
                         setDraggingGroup({ group: ag.group, rotation: ag.rotation })
                         setDraggingMeta({ tableId, agIdx: idx })
+                        setPreviewRotation(ag.rotation)
                       }
                     }}
                     onTouchStart={e => !ag.locked && handleAssignedTouchStart(e, tableId, idx)}
