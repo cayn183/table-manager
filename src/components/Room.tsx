@@ -409,8 +409,9 @@ export default function Room() {
   const [resizeModal, setResizeModal] = useState<{ tableId: string; agIdx: number; maxSize: number } | null>(null)
   const [resizeValue, setResizeValue] = useState('1')
   const [tableSelectModal, setTableSelectModal] = useState<{ group: Group; index: number } | null>(null)
-    const [showCsvImportModal, setShowCsvImportModal] = useState(false)
-    const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [showCsvImportModal, setShowCsvImportModal] = useState(false)
+  const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [csvPreview, setCsvPreview] = useState<Group[]>([])
   const [dragOverPosition, setDragOverPosition] = useState<{ tableId: string; x: number; y: number } | null>(null)
   const [draggingGroup, setDraggingGroup] = useState<{ group: Group; rotation: number } | null>(null)
   const [draggingMeta, setDraggingMeta] = useState<DraggingMeta>(null)
@@ -428,6 +429,7 @@ export default function Room() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null)
   const [uiScale, setUiScale] = useState(1)
+  const draggingGroupRef = useRef<{ group: Group; rotation: number } | null>(null)
 
 
   // Calculate bounding box for tables or explicit view frame
@@ -811,14 +813,6 @@ export default function Room() {
       updatePreviewPosition({ clientX: e.clientX, clientY: e.clientY })
     }
 
-      const handleKeyDown = (e: KeyboardEvent) => {
-        // Taste 'R' rotiert/spiegelt während Drag
-        if (e.key === 'r' || e.key === 'R') {
-          e.preventDefault()
-          setPreviewRotation(prev => (prev + 1) % 8)
-        }
-      }
-
     const handleContextMenu = (e: MouseEvent) => {
       // Verhindere Kontextmenü während Drag
       e.preventDefault()
@@ -902,18 +896,33 @@ export default function Room() {
 
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('dragover', handleGlobalDragOver)
-      document.addEventListener('keydown', handleKeyDown)
     document.addEventListener('contextmenu', handleContextMenu, true)
     document.addEventListener('dragend', handleDragEnd)
     
     return () => {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('dragover', handleGlobalDragOver)
-        document.removeEventListener('keydown', handleKeyDown)
       document.removeEventListener('contextmenu', handleContextMenu, true)
       document.removeEventListener('dragend', handleDragEnd)
     }
   }, [draggingGroup, draggingMeta, room, assignedGroups, dragOverPosition, previewRotation, groups])
+
+  useEffect(() => {
+    draggingGroupRef.current = draggingGroup
+  }, [draggingGroup])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!draggingGroupRef.current) return
+      if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault()
+        setPreviewRotation(prev => (prev + 1) % 8)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown, true)
+    return () => window.removeEventListener('keydown', handleKeyDown, true)
+  }, [])
 
   // Data actions
   function handleImport(parsed: Group[]) {
@@ -986,63 +995,100 @@ export default function Room() {
     if (isDirty) {
       saveEventSilently()
     }
+    setCsvPreview([])
+    setCsvFile(null)
     setShowCsvImportModal(true)
   }
 
-    function handleCsvFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-      if (e.target.files && e.target.files[0]) {
-        setCsvFile(e.target.files[0])
-      }
+  function handleCsvFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (e.target.files && e.target.files[0]) {
+      setCsvFile(e.target.files[0])
+      setCsvPreview([])
+    }
+  }
+
+  function parseCsvPreview() {
+    if (!csvFile) {
+      alert('Bitte wähle eine CSV-Datei aus')
+      return
     }
 
-    function processCsvImport() {
-      if (!csvFile) {
-        alert('Bitte wähle eine CSV-Datei aus')
-        return
-      }
+    Papa.parse(csvFile, {
+      skipEmptyLines: true,
+      complete: (results: any) => {
+        const rows = results.data
+        const parsed: Group[] = []
+        const startIndex = rows[0] && (rows[0][0] === 'Name' || rows[0][0] === 'name') ? 1 : 0
 
-      Papa.parse(csvFile, {
-        complete: (results: any) => {
-          const rows = results.data
-          const newGroups: Group[] = []
-        
-          // Überspringe Header-Zeile falls vorhanden
-          const startIndex = rows[0] && (rows[0][0] === 'Name' || rows[0][0] === 'name') ? 1 : 0
-        
-          for (let i = startIndex; i < rows.length; i++) {
-            const row = rows[i]
-            if (!row || row.length < 3) continue
-          
-            const name = row[0]?.trim()
-            const time = row[1]?.trim()
-            const size = parseInt(row[2])
-          
-            if (name && size > 0) {
-              newGroups.push({
-                name,
-                size,
-                time: time || undefined,
-                toGo: false,
-                salutation: 'Fam'
-              })
-            }
+        for (let i = startIndex; i < rows.length; i++) {
+          const row = rows[i]
+          if (!row || row.length < 3) continue
+
+          const name = String(row[0] || '').trim()
+          const time = String(row[1] || '').trim()
+          const size = parseInt(row[2])
+
+          if (name && size > 0) {
+            parsed.push({
+              name,
+              size,
+              time: time || undefined,
+              toGo: false,
+              salutation: 'Fam'
+            })
           }
-        
-          if (newGroups.length > 0) {
-            setGroups([...groups, ...newGroups])
-            alert(`${newGroups.length} Familien erfolgreich importiert`)
-          } else {
-            alert('Keine gültigen Familien in der CSV-Datei gefunden')
-          }
-        
-          setShowCsvImportModal(false)
-          setCsvFile(null)
-        },
-        error: (error: any) => {
-          alert(`Fehler beim Lesen der CSV-Datei: ${error.message}`)
         }
-      })
+
+        if (parsed.length === 0) {
+          alert('Keine gültigen Familien in der CSV-Datei gefunden')
+          setCsvPreview([])
+          return
+        }
+
+        setCsvPreview(parsed)
+      },
+      error: (error: any) => {
+        alert(`Fehler beim Lesen der CSV-Datei: ${error.message}`)
+      }
+    })
+  }
+
+  function updateCsvPreview(idx: number, patch: Partial<Group>) {
+    setCsvPreview(prev => prev.map((g, i) => i === idx ? { ...g, ...patch, salutation: patch.salutation || g.salutation || 'Fam' } : g))
+  }
+
+  function removeCsvPreviewRow(idx: number) {
+    setCsvPreview(prev => prev.filter((_, i) => i !== idx))
+  }
+
+  function applyCsvPreview() {
+    if (csvPreview.length === 0) {
+      alert('Bitte zuerst "Einlesen" ausführen und Daten prüfen')
+      return
     }
+
+    const enriched = csvPreview.map(g => ({ ...g, salutation: g.salutation || 'Fam' }))
+    const toGo = enriched.filter(g => g.toGo)
+    const rest = enriched.filter(g => !g.toGo)
+    const updatedAssigned = ensureToGoBucket({ ...assignedGroups })
+
+    if (toGo.length) {
+      updatedAssigned['TOGO'] = [
+        ...(updatedAssigned['TOGO'] || []),
+        ...toGo.map(g => ({ group: g, rotation: 0, locked: false, x: 0, y: 0, color: TOGO_COLOR }))
+      ]
+    }
+
+    if (rest.length) {
+      setGroups([...groups, ...rest])
+    }
+
+    setAssignedGroups(updatedAssigned)
+    setIsDirty(true)
+    setShowCsvImportModal(false)
+    setCsvFile(null)
+    setCsvPreview([])
+  }
 
   function confirmSaveEvent(name: string) {
     const event = JSON.parse(localStorage.getItem('currentEvent') || '{}')
@@ -2860,6 +2906,118 @@ export default function Room() {
         </div>
       )}
 
+      {showCsvImportModal && (
+        <div className="modal">
+          <div className="modal-content" style={{ minWidth: 520, maxWidth: 720 }}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '20px', fontWeight: '600', color: '#1e293b' }}>Familien aus CSV importieren</h3>
+            <p style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#475569' }}>Format: Name, Uhrzeit (optional), Personenanzahl. Header-Zeile wird ignoriert. Nach dem Einlesen kannst du die Einträge prüfen und anpassen.</p>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px' }}>
+              <input type="file" accept=".csv,text/csv" onChange={handleCsvFileChange} style={{ flex: 1 }} />
+              <button
+                onClick={parseCsvPreview}
+                style={{
+                  padding: '10px 14px',
+                  background: '#0ea5e9',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: '700'
+                }}
+              >Einlesen</button>
+            </div>
+            {csvFile && (
+              <div style={{ padding: '8px 12px', background: '#e0f2fe', borderRadius: '6px', marginBottom: '12px', color: '#0ea5e9', fontWeight: 600 }}>
+                Gewählt: {csvFile.name}
+              </div>
+            )}
+            {csvPreview.length > 0 ? (
+              <div style={{ maxHeight: '320px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px', marginBottom: '12px', background: '#f8fafc' }}>
+                {csvPreview.map((row, idx) => (
+                  <div key={`csv-row-${idx}`} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 0.8fr 0.8fr auto', gap: '8px', alignItems: 'center', padding: '6px', borderBottom: '1px solid #e2e8f0' }}>
+                    <input
+                      value={row.name}
+                      onChange={e => updateCsvPreview(idx, { name: e.target.value })}
+                      placeholder="Name"
+                      style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }}
+                    />
+                    <input
+                      type="time"
+                      value={row.time || ''}
+                      onChange={e => updateCsvPreview(idx, { time: e.target.value })}
+                      style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }}
+                    />
+                    <input
+                      type="number"
+                      min={1}
+                      value={row.size}
+                      onChange={e => updateCsvPreview(idx, { size: Math.max(1, parseInt(e.target.value) || 1) })}
+                      style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px', width: '100%' }}
+                    />
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#0f172a', paddingLeft: '6px' }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(row.toGo)}
+                        onChange={e => updateCsvPreview(idx, { toGo: e.target.checked })}
+                      />
+                      ToGo
+                    </label>
+                    <button
+                      onClick={() => removeCsvPreviewRow(idx)}
+                      style={{
+                        padding: '8px 10px',
+                        background: 'white',
+                        color: '#ef4444',
+                        border: '1px solid #ef4444',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontWeight: 600
+                      }}
+                    >✕</button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ padding: '10px 12px', background: '#f1f5f9', borderRadius: '8px', color: '#475569', marginBottom: '12px' }}>
+                Noch keine Vorschau. Datei wählen und "Einlesen" klicken, dann erscheinen die Zeilen hier.
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', gap: '8px' }}>
+              <span style={{ fontSize: '13px', color: '#475569' }}>{csvPreview.length} Zeilen bereit</span>
+              <div style={{ display: 'flex', gap: '8px', flex: 1, justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => { setShowCsvImportModal(false); setCsvFile(null); setCsvPreview([]) }}
+                  style={{
+                    padding: '10px 14px',
+                    background: 'white',
+                    color: '#0ea5e9',
+                    border: '2px solid #0ea5e9',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: 600
+                  }}
+                >Abbrechen</button>
+                <button
+                  onClick={applyCsvPreview}
+                  disabled={csvPreview.length === 0}
+                  style={{
+                    padding: '10px 16px',
+                    background: csvPreview.length === 0 ? '#cbd5e1' : '#0ea5e9',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: csvPreview.length === 0 ? 'not-allowed' : 'pointer',
+                    fontWeight: 700,
+                    minWidth: '160px'
+                  }}
+                >In Liste übernehmen</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showEventSaveModal && (
         <div className="modal">
           <div className="modal-content" style={{ minWidth: 400 }}>
@@ -2956,6 +3114,115 @@ function TimelineView({
   assignedGroups: Record<string, AssignedGroup[]>
   timeInterval: number
 }) {
+  const allGroupsWithTime = groups.map(g => ({ group: g, tableId: null as string | null }))
+  const assignedGroupsList: Array<{ group: Group; tableId: string }> = []
+  
+  Object.entries(assignedGroups).forEach(([tableId, ags]) => {
+    ags.forEach(ag => {
+      assignedGroupsList.push({ group: ag.group, tableId })
+    })
+  })
+
+  const unassignedNoTime = allGroupsWithTime.filter(g => !g.group.time)
+  const unassignedWithTime = allGroupsWithTime.filter(g => g.group.time)
+  const assignedNoTime = assignedGroupsList.filter(g => !g.group.time)
+  const assignedWithTime = assignedGroupsList.filter(g => g.group.time)
+
+  const allWithTime = [...unassignedWithTime.map(g => ({ ...g, isAssigned: false })), ...assignedWithTime.map(g => ({ ...g, isAssigned: true }))]
+  const sorted = allWithTime.sort((a, b) => (a.group.time || '').localeCompare(b.group.time || ''))
+  
+  const timeSlots = new Map<string, Array<{ group: Group; tableId: string | null; isAssigned: boolean }>>()
+  
+  sorted.forEach(item => {
+    if (!item.group.time) return
+    
+    const [hours, minutes] = item.group.time.split(':').map(Number)
+    const slotMinutes = Math.floor(minutes / timeInterval) * timeInterval
+    const slotTime = `${String(hours).padStart(2, '0')}:${String(slotMinutes).padStart(2, '0')}`
+    const endMinutes = (slotMinutes + timeInterval) % 60
+    const endHours = hours + (slotMinutes + timeInterval >= 60 ? 1 : 0)
+    const endTime = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`
+    const slotKey = `${slotTime} - ${endTime}`
+    
+    if (!timeSlots.has(slotKey)) {
+      timeSlots.set(slotKey, [])
+    }
+    timeSlots.get(slotKey)!.push(item)
+  })
+
+  const slotEntries = Array.from(timeSlots.entries())
+
+  const columns: Array<Array<[string, typeof slotEntries[0][1]]>> = [[], [], []]
+  let currentColumn = 0
+  let currentColumnFamilies = 0
+
+  slotEntries.forEach(([slotKey, items]) => {
+    const familyCount = items.length
+    if (currentColumnFamilies + familyCount > 20 && currentColumn < 2) {
+      currentColumn++
+      currentColumnFamilies = 0
+    }
+    columns[currentColumn].push([slotKey, items])
+    currentColumnFamilies += familyCount
+  })
+
+  return (
+    <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '20px', height: '100%', overflowY: 'auto' }}>
+      {[...unassignedNoTime, ...assignedNoTime].length > 0 && (
+        <div style={{ marginBottom: '8px' }}>
+          <h3 style={{ borderBottom: '2px solid #cbd5e1', paddingBottom: '12px', margin: '0 0 12px 0', fontSize: '16px', fontWeight: '700', color: '#1e293b' }}>Unzugeordnete Familien</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {unassignedNoTime.map((item, i) => (
+              <div key={`unassigned-${i}`} style={{ padding: '10px 12px', background: '#f1f5f9', borderLeft: '3px solid #94a3b8', borderRadius: '6px', fontSize: '14px' }}>
+                {item.group.name} ({item.group.size} {item.group.toGo ? '| ToGo' : ''})
+              </div>
+            ))}
+            {assignedNoTime.map((item, i) => (
+              <div key={`assigned-notime-${i}`} style={{ padding: '10px 12px', background: '#f1f5f9', borderLeft: '3px solid #94a3b8', borderRadius: '6px', fontSize: '14px' }}>
+                {item.group.name} ({item.group.size}) - {item.tableId === 'TOGO' ? 'ToGo' : `Tisch ${item.tableId?.slice(1)}`}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', alignItems: 'start', width: '100%' }}>
+        {columns.map((columnSlots, colIdx) => (
+          <div key={`column-${colIdx}`} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {columnSlots.map(([slotKey, items]) => {
+              const totalPeople = items.reduce((sum, item) => sum + item.group.size, 0)
+              const familyCount = items.length
+              return (
+                <div key={slotKey} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.08)', overflow: 'hidden' }}>
+                  <div style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', padding: '12px 14px', fontSize: '14px', fontWeight: '700' }}>
+                    🕐 {slotKey}
+                  </div>
+                  <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600', marginBottom: '4px' }}>
+                      {familyCount} Familien • {totalPeople} Personen
+                    </div>
+                    {items.map((item, i) => (
+                      <div key={`${slotKey}-${i}`} style={{ padding: '10px 12px', background: '#f8fafc', borderRadius: '8px', fontSize: '13px', fontWeight: '500', color: '#1e293b', borderLeft: '4px solid #2196F3', lineHeight: '1.4' }}>
+                        <div>{item.group.name}</div>
+                        <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                          👥 {item.group.size} {item.isAssigned && item.tableId !== 'TOGO' ? `| Tisch ${item.tableId?.slice(1)}` : item.isAssigned && item.tableId === 'TOGO' ? '| ToGo' : ''}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}: { 
+  groups: Group[]
+  assignedGroups: Record<string, AssignedGroup[]>
+  timeInterval: number
+}) {
   // Sammle alle Familien (unzugeordnet + zugeordnet) mit ihren Zeiten
   const allGroupsWithTime = groups.map(g => ({ group: g, tableId: null as string | null }))
   const assignedGroupsList: Array<{ group: Group; tableId: string }> = []
@@ -2998,8 +3265,28 @@ function TimelineView({
     timeSlots.get(slotKey)!.push(item)
   })
 
+  const slotEntries = Array.from(timeSlots.entries())
+
+  // Group slots into max 3 columns, max 20 families per column, break between time slots
+  const columns: Array<Array<[string, typeof slotEntries[0][1]]>> = [[], [], []]
+  let currentColumn = 0
+  let currentColumnFamilies = 0
+
+  slotEntries.forEach(([slotKey, items]) => {
+    const familyCount = items.length
+
+    // If adding this slot would exceed 20 families and we're not in the last column, move to next
+    if (currentColumnFamilies + familyCount > 20 && currentColumn < 2) {
+      currentColumn++
+      currentColumnFamilies = 0
+    }
+
+    columns[currentColumn].push([slotKey, items])
+    currentColumnFamilies += familyCount
+  })
+
   return (
-    <div style={{ padding: '12px', overflowY: 'auto' }}>
+    <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '16px', height: '100%', overflowY: 'auto' }}>
       {/* Unzugeordnete ohne Zeit */}
       {[...unassignedNoTime, ...assignedNoTime].length > 0 && (
         <div style={{ marginBottom: '20px' }}>
@@ -3017,43 +3304,47 @@ function TimelineView({
         </div>
       )}
 
-      {/* Zeitslots */}
-      {Array.from(timeSlots.entries()).map(([slotKey, items]) => {
-        const totalPeople = items.reduce((sum, item) => sum + item.group.size, 0)
-        const familyCount = items.length
-        
-        return (
-          <div key={slotKey} style={{ marginBottom: '16px' }}>
-            <h4 style={{ 
-              background: '#e3f2fd', 
-              padding: '8px', 
-              borderRadius: '4px',
-              margin: '0 0 8px 0',
-              fontSize: '14px',
-              fontWeight: '600'
-            }}>
-              {slotKey} ({familyCount} Familien, {totalPeople} Personen)
-            </h4>
-            <div style={{ paddingLeft: '12px' }}>
-              {items.map((item, i) => (
-                <div 
-                  key={`${slotKey}-${i}`} 
-                  style={{ 
-                    padding: '6px 8px', 
-                    background: '#f5f5f5', 
-                    marginBottom: '4px',
-                    borderRadius: '3px',
-                    fontSize: '13px',
-                    borderLeft: '3px solid #2196F3'
-                  }}
-                >
-                  {item.group.name} ({item.group.size}) {item.isAssigned && item.tableId !== 'TOGO' ? `- Tisch ${item.tableId?.slice(1)}` : item.isAssigned && item.tableId === 'TOGO' ? '- ToGo' : ''}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', alignItems: 'start', width: '100%' }}>
+        {columns.map((columnSlots, colIdx) => (
+          <div key={`column-${colIdx}`} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {columnSlots.map(([slotKey, items]) => {
+              const totalPeople = items.reduce((sum, item) => sum + item.group.size, 0)
+              const familyCount = items.length
+
+              return (
+                <div key={slotKey} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)', padding: '10px' }}>
+                  <h4 style={{ 
+                    background: '#e3f2fd', 
+                    padding: '8px', 
+                    borderRadius: '6px',
+                    margin: '0 0 8px 0',
+                    fontSize: '14px',
+                    fontWeight: '700'
+                  }}>
+                    {slotKey} ({familyCount} Familien, {totalPeople} Personen)
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {items.map((item, i) => (
+                      <div 
+                        key={`${slotKey}-${i}`} 
+                        style={{ 
+                          padding: '8px 10px', 
+                          background: '#f5f5f5', 
+                          borderRadius: '6px',
+                          fontSize: '13px',
+                          borderLeft: '3px solid #2196F3'
+                        }}
+                      >
+                        {item.group.name} ({item.group.size}) {item.isAssigned && item.tableId !== 'TOGO' ? `- Tisch ${item.tableId?.slice(1)}` : item.isAssigned && item.tableId === 'TOGO' ? '- ToGo' : ''}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
-            </div>
+              )
+            })}
           </div>
-        )
-      })}
+        ))}
+      </div>
     </div>
   )
 }
