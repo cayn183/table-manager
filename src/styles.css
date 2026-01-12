@@ -24,6 +24,108 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
 .assigned-list{max-height:200px;overflow-y:auto}
 .assigned-item{background:#e0ffe0;padding:6px;margin:2px;border-radius:4px;font-size:12px}
 
+/* Responsive Design */
+@media (max-width: 1400px) {
+  .sidebar {
+    flex: 0 0 480px !important;
+    min-width: 400px !important;
+    max-width: 580px !important;
+  }
+}
+
+@media (max-width: 1200px) {
+  body { padding: 16px; }
+  .sidebar {
+    flex: 0 0 420px !important;
+    min-width: 360px !important;
+  }
+  .groups-list { max-height: 180px !important; }
+  .assigned-list { max-height: 180px !important; }
+}
+
+@media (max-width: 1024px) {
+  body { padding: 12px; }
+  .room-content {
+    flex-direction: column !important;
+  }
+  .sidebar {
+    flex: 1 !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+    max-height: none !important;
+    order: 2;
+  }
+  .room-layout {
+    order: 1;
+    min-height: 50vh;
+    margin: 12px 0 !important;
+  }
+  .editor-controls {
+    flex-wrap: wrap;
+    gap: 8px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  body { padding: 8px; }
+  .sidebar {
+    padding: 12px !important;
+    gap: 12px !important;
+  }
+  .groups-list { max-height: 140px !important; }
+  .assigned-list { max-height: 140px !important; }
+  .modal-content {
+    min-width: 90vw !important;
+    max-width: 90vw !important;
+    padding: 16px !important;
+  }
+  .home-options {
+    flex-direction: column;
+    gap: 8px !important;
+  }
+  button {
+    font-size: 13px !important;
+    padding: 10px 16px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .room-layout {
+    min-height: 40vh;
+  }
+  .group-item {
+    font-size: 13px;
+    padding: 10px 8px !important;
+  }
+  .assigned-item {
+    font-size: 11px;
+    padding: 6px 4px !important;
+  }
+}
+
+/* Touch-friendly elements */
+@media (hover: none) and (pointer: coarse) {
+  button, .group-item, .assigned-item, .context-menu div {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px !important;
+  }
+  .group-item, .assigned-item {
+    cursor: grab;
+    touch-action: none;
+    padding: 12px 10px !important;
+  }
+  .group-item:active, .assigned-item:active {
+    cursor: grabbing;
+    opacity: 0.8;
+  }
+  input, textarea, select {
+    font-size: 16px !important; /* Verhindert Zoom auf iOS */
+  }
+}
+
 /* Print Styles */
 @media print {
   @page {
