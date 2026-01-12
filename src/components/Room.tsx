@@ -415,8 +415,7 @@ export default function Room() {
   const [isMobile, setIsMobile] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null)
-  const [manualZoomEnabled, setManualZoomEnabled] = useState(false)
-  const [manualZoom, setManualZoom] = useState(100)
+  const [uiScale, setUiScale] = useState(1)
 
 
   // Calculate bounding box for tables or explicit view frame
@@ -470,8 +469,6 @@ export default function Room() {
   // Auto-zoom: fit the content bounds (viewFrame or padded bbox) inside the viewport
   useEffect(() => {
     function recalcScale() {
-      if (manualZoomEnabled) return // Skip auto-zoom wenn manueller Zoom aktiv
-      
       const el = mapContainerRef.current
       if (!el) return
 
@@ -494,20 +491,12 @@ export default function Room() {
       const scale = Math.min(maxScale, Math.max(0.3, Math.min(scaleX, scaleY)))
 
       setMapScale(scale)
-      setManualZoom(Math.round(scale * 100))
     }
 
     recalcScale()
     window.addEventListener('resize', recalcScale)
     return () => window.removeEventListener('resize', recalcScale)
-  }, [gridBounds, room, manualZoomEnabled])
-
-  // Apply manual zoom
-  useEffect(() => {
-    if (manualZoomEnabled) {
-      setMapScale(manualZoom / 100)
-    }
-  }, [manualZoom, manualZoomEnabled])
+  }, [gridBounds, room])
 
   // Detect mobile device
   useEffect(() => {
@@ -520,6 +509,44 @@ export default function Room() {
     checkMobile()
     window.addEventListener('resize', checkMobile)
     return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
+  // DPI-basierte intelligente Skalierung
+  useEffect(() => {
+    const checkEffectiveSize = () => {
+      const dpr = window.devicePixelRatio || 1
+      const effectiveWidth = window.innerWidth * dpr
+      const effectiveHeight = window.innerHeight * dpr
+      
+      // Erkenne physikalische Gerätegröße, nicht logische Pixel
+      let scale = 1
+      
+      // iPad an Monitor: großer Bildschirm, aber hoher DPI
+      // Desktop: großer Bildschirm, niedriger DPI
+      if (effectiveWidth > 2560 || effectiveHeight > 1600) {
+        // 4K oder Ultra-Wide: vergrößern
+        scale = 1.15
+      } else if (effectiveWidth > 1920 && effectiveHeight > 1080) {
+        // Full HD und größer: normal
+        scale = 1
+      } else if (effectiveWidth < 800) {
+        // Echtes Smartphone: klein
+        scale = 1
+      } else {
+        // Tablet oder iPad: normal
+        scale = 1
+      }
+      
+      setUiScale(scale)
+    }
+    
+    checkEffectiveSize()
+    window.addEventListener('resize', checkEffectiveSize)
+    window.addEventListener('orientationchange', checkEffectiveSize)
+    return () => {
+      window.removeEventListener('resize', checkEffectiveSize)
+      window.removeEventListener('orientationchange', checkEffectiveSize)
+    }
   }, [])
 
   // Get colors by recalculating on each render based on current positions
@@ -922,7 +949,16 @@ export default function Room() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', width: '100%', background: '#f8fafc' }}>
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      minHeight: '100vh', 
+      width: '100%', 
+      background: '#f8fafc',
+      transformOrigin: 'top left',
+      transform: `scale(${uiScale})`,
+      ...(uiScale !== 1 && { width: `${100 / uiScale}%`, height: `${100 / uiScale}%` })
+    }}>
       {/* Header */}
       <div style={{ 
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
@@ -1002,47 +1038,6 @@ export default function Room() {
             💾 Event speichern
           </button>
           {lastSaveTime && <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.9)', background: 'rgba(0,0,0,0.2)', padding: '4px 12px', borderRadius: '12px' }}>Zuletzt: {lastSaveTime}</p>}
-          
-          {/* Zoom Control */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.15)', padding: '8px 12px', borderRadius: '8px' }}>
-            <span style={{ fontSize: '12px', color: 'white', fontWeight: '600', minWidth: '80px' }}>🔍 Zoom: {manualZoom}%</span>
-            <input
-              type="range"
-              min="30"
-              max="200"
-              value={manualZoom}
-              onChange={e => {
-                setManualZoomEnabled(true)
-                setManualZoom(parseInt(e.target.value))
-              }}
-              style={{ 
-                flex: 1,
-                height: '4px',
-                borderRadius: '2px',
-                outline: 'none',
-                background: `linear-gradient(to right, white 0%, white ${(manualZoom - 30) / 1.7}%, rgba(255,255,255,0.3) ${(manualZoom - 30) / 1.7}%, rgba(255,255,255,0.3) 100%)`,
-                appearance: 'none',
-                WebkitAppearance: 'none',
-                cursor: 'pointer'
-              }}
-            />
-            <button
-              onClick={() => {
-                setManualZoomEnabled(false)
-              }}
-              style={{
-                padding: '4px 8px',
-                background: 'rgba(255,255,255,0.2)',
-                color: 'white',
-                border: '1px solid rgba(255,255,255,0.3)',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '11px',
-                fontWeight: '600'
-              }}
-              title="Automatischen Zoom aktivieren"
-            >Auto</button>
-          </div>
         </div>
       </div>
       

@@ -27,13 +27,42 @@ export default function RoomEditor() {
   const touchStartTimeRef = useRef<number>(0)
   const [draggingTable, setDraggingTable] = useState<Table | null>(null)
   const [dragPreviewPos, setDragPreviewPos] = useState<{ x: number; y: number } | null>(null)
-  const [manualZoom, setManualZoom] = useState(100)
+  const [uiScale, setUiScale] = useState(1)
   const gridRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
 
   const gridSize = 20
-  const baseCellSize = 40
-  const cellSize = (baseCellSize * manualZoom) / 100
+  const cellSize = 40
+
+  // DPI-basierte intelligente Skalierung
+  useEffect(() => {
+    const checkEffectiveSize = () => {
+      const dpr = window.devicePixelRatio || 1
+      const effectiveWidth = window.innerWidth * dpr
+      const effectiveHeight = window.innerHeight * dpr
+      
+      let scale = 1
+      if (effectiveWidth > 2560 || effectiveHeight > 1600) {
+        scale = 1.15
+      } else if (effectiveWidth > 1920 && effectiveHeight > 1080) {
+        scale = 1
+      } else if (effectiveWidth < 800) {
+        scale = 1
+      } else {
+        scale = 1
+      }
+      
+      setUiScale(scale)
+    }
+    
+    checkEffectiveSize()
+    window.addEventListener('resize', checkEffectiveSize)
+    window.addEventListener('orientationchange', checkEffectiveSize)
+    return () => {
+      window.removeEventListener('resize', checkEffectiveSize)
+      window.removeEventListener('orientationchange', checkEffectiveSize)
+    }
+  }, [])
 
   useEffect(() => {
     const currentRoom = localStorage.getItem('currentRoom')
@@ -171,7 +200,15 @@ export default function RoomEditor() {
   }, [frameDragStart])
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ 
+      minHeight: '100vh', 
+      background: '#f8fafc', 
+      display: 'flex', 
+      flexDirection: 'column',
+      transformOrigin: 'top left',
+      transform: `scale(${uiScale})`,
+      ...(uiScale !== 1 && { width: `${100 / uiScale}%`, height: `${100 / uiScale}%` })
+    }}>
       {/* Header */}
       <div style={{ 
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
@@ -230,51 +267,6 @@ export default function RoomEditor() {
             onClick={addTable}
             style={{ padding: '12px 16px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 700, boxShadow: '0 2px 8px rgba(102,126,234,0.3)' }}
           >+ Tisch hinzufügen</button>
-          
-          {/* Zoom Slider */}
-          <div style={{ marginTop: '8px' }}>
-            <label style={{ fontSize: 12, color: '#64748b', fontWeight: 600, display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <span>🔍 Zoom</span>
-              <span>{manualZoom}%</span>
-            </label>
-            <input
-              type="range"
-              min="50"
-              max="150"
-              value={manualZoom}
-              onChange={e => setManualZoom(parseInt(e.target.value))}
-              style={{ 
-                width: '100%',
-                height: '6px',
-                borderRadius: '3px',
-                outline: 'none',
-                background: `linear-gradient(to right, #667eea 0%, #667eea ${manualZoom - 50}%, #e2e8f0 ${manualZoom - 50}%, #e2e8f0 100%)`,
-                appearance: 'none',
-                WebkitAppearance: 'none',
-                cursor: 'pointer'
-              }}
-            />
-            <style>{`
-              input[type="range"]::-webkit-slider-thumb {
-                appearance: none;
-                width: 18px;
-                height: 18px;
-                border-radius: 50%;
-                background: #667eea;
-                cursor: pointer;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-              }
-              input[type="range"]::-moz-range-thumb {
-                width: 18px;
-                height: 18px;
-                border-radius: 50%;
-                background: #667eea;
-                cursor: pointer;
-                border: none;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-              }
-            `}</style>
-          </div>
           
           <div style={{ display: 'flex', gap: 8 }}>
             <button
