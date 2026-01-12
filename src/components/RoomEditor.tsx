@@ -10,6 +10,8 @@ type Table = {
   height: number
 }
 
+type ViewFrame = { x: number; y: number; width: number; height: number }
+
 export default function RoomEditor() {
   const [tables, setTables] = useState<Table[]>([])
   const [nextId, setNextId] = useState(1)
@@ -18,6 +20,9 @@ export default function RoomEditor() {
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [saveRoomName, setSaveRoomName] = useState('Neuer Raum')
   const [isEditingExisting, setIsEditingExisting] = useState(false)
+  const [viewFrame, setViewFrame] = useState<ViewFrame | null>(null)
+  const [frameDragStart, setFrameDragStart] = useState<{ x: number; y: number } | null>(null)
+  const [defineViewMode, setDefineViewMode] = useState(false)
   const gridRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
 
@@ -36,6 +41,9 @@ export default function RoomEditor() {
           setIsEditingExisting(true)
           setRoomName('Bearbeiteter Raum')
           setSaveRoomName('Bearbeiteter Raum')
+          if (room.viewFrame) {
+            setViewFrame(room.viewFrame)
+          }
         }
       } catch (e) {
         console.error('Fehler beim Laden des Raums', e)
@@ -79,7 +87,7 @@ export default function RoomEditor() {
   }
 
   function confirmSaveRoom(name: string) {
-    const room = { tables }
+    const room = { tables, viewFrame: viewFrame || undefined }
     localStorage.setItem('currentRoom', JSON.stringify(room))
     const list = JSON.parse(localStorage.getItem('rooms') || '[]')
     const entry = { id: `r-${Date.now()}`, name: name || `Raum ${list.length + 1}`, createdAt: new Date().toLocaleDateString(), data: room }
@@ -87,6 +95,59 @@ export default function RoomEditor() {
     setShowSaveModal(false)
     navigate('/room')
   }
+
+  function eventToCell(e: MouseEvent | React.MouseEvent): { x: number; y: number } | null {
+    if (!gridRef.current) return null
+    const rect = gridRef.current.getBoundingClientRect()
+    const x = Math.floor(((e as any).clientX - rect.left) / cellSize)
+    const y = Math.floor(((e as any).clientY - rect.top) / cellSize)
+    if (x < 0 || y < 0 || x >= gridSize || y >= gridSize) return null
+    return { x, y }
+  }
+
+  function startFrame(e: React.MouseEvent) {
+    if (!defineViewMode) return
+    if ((e.target as HTMLElement).closest('[data-table="true"]')) return
+    const cell = eventToCell(e)
+    if (!cell) return
+    setFrameDragStart(cell)
+    setViewFrame({ x: cell.x, y: cell.y, width: 1, height: 1 })
+  }
+
+  useEffect(() => {
+    function onMove(ev: MouseEvent) {
+      if (!frameDragStart) return
+      const cell = eventToCell(ev)
+      if (!cell) return
+      const minX = Math.min(frameDragStart.x, cell.x)
+      const minY = Math.min(frameDragStart.y, cell.y)
+      const maxX = Math.max(frameDragStart.x, cell.x)
+      const maxY = Math.max(frameDragStart.y, cell.y)
+      setViewFrame({ x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 })
+    }
+
+    function onUp(ev: MouseEvent) {
+      if (!frameDragStart) return
+      const cell = eventToCell(ev)
+      if (!cell) {
+        setFrameDragStart(null)
+        return
+      }
+      const minX = Math.min(frameDragStart.x, cell.x)
+      const minY = Math.min(frameDragStart.y, cell.y)
+      const maxX = Math.max(frameDragStart.x, cell.x)
+      const maxY = Math.max(frameDragStart.y, cell.y)
+      setViewFrame({ x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 })
+      setFrameDragStart(null)
+    }
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [frameDragStart])
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column' }}>
@@ -108,99 +169,149 @@ export default function RoomEditor() {
         <h1 style={{ margin: '0', fontSize: '24px', fontWeight: '600', color: 'white' }}>🏗️ {isEditingExisting ? 'Raum bearbeiten' : 'Raum anlegen'}</h1>
       </div>
       
-      {/* Controls */}
-      <div style={{ background: 'white', padding: '20px 24px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <input
-          type="text"
-          value={roomName}
-          onChange={e => setRoomName(e.target.value)}
-          placeholder="Raumname"
-          style={{ flex: '1 1 200px', padding: '10px 16px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', fontWeight: '500', outline: 'none' }}
-          onFocus={e => e.target.style.borderColor = '#667eea'}
-          onBlur={e => e.target.style.borderColor = '#e2e8f0'}
-        />
-        <input
-          type="number"
-          value={capacityInput}
-          onChange={e => setCapacityInput(e.target.value)}
-          placeholder="Plätze"
-          style={{ flex: '0 0 100px', padding: '10px 16px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', fontWeight: '500', outline: 'none' }}
-          onFocus={e => e.target.style.borderColor = '#667eea'}
-          onBlur={e => e.target.style.borderColor = '#e2e8f0'}
-        />
-        <button 
-          onClick={addTable}
-          style={{ padding: '10px 20px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', boxShadow: '0 2px 8px rgba(102,126,234,0.3)', transition: 'all 0.2s' }}
-          onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'}
-          onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
-        >+ Tisch anlegen</button>
-        <button 
-          onClick={() => { setSaveRoomName(roomName); setShowSaveModal(true); }} 
-          disabled={tables.length === 0}
-          style={{ padding: '10px 20px', background: tables.length === 0 ? '#e2e8f0' : '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: tables.length === 0 ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: '600', boxShadow: tables.length === 0 ? 'none' : '0 2px 8px rgba(16,185,129,0.3)', transition: 'all 0.2s', opacity: tables.length === 0 ? 0.5 : 1 }}
-          onMouseOver={e => tables.length > 0 && (e.currentTarget.style.transform = 'translateY(-2px)')}
-          onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
-        >💾 Speichern</button>
-      </div>
-      
-      {/* Grid Container */}
-      <div style={{ flex: 1, padding: '24px', overflow: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
-      <div
-        className="grid"
-        ref={gridRef}
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        style={{
-          display: 'grid',
-          gridTemplateColumns: `repeat(${gridSize}, ${cellSize}px)`,
-          gridTemplateRows: `repeat(${gridSize}, ${cellSize}px)`,
-          border: '2px solid #e2e8f0',
-          borderRadius: '12px',
-          width: gridSize * cellSize + 'px',
-          height: gridSize * cellSize + 'px',
-          position: 'relative',
+      {/* Main Content: Sidebar + Grid */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* Sidebar */}
+        <div style={{
+          flex: '0 0 320px',
+          maxWidth: '360px',
           background: 'white',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
-          backgroundImage: `
-            linear-gradient(to right, #f1f5f9 1px, transparent 1px),
-            linear-gradient(to bottom, #f1f5f9 1px, transparent 1px)
-          `,
-          backgroundSize: `${cellSize}px ${cellSize}px`
-        }}
-      >
-        {tables.map(table => (
-          <div
-            key={table.id}
-            draggable
-            onDragStart={e => handleDragStart(e, table.id)}
-            onContextMenu={e => {
-              e.preventDefault()
-              setTables(tables.map(t => t.id === table.id ? { ...t, width: t.height, height: t.width } : t))
-            }}
-            style={{
-              gridColumn: `${table.x + 1} / span ${table.width}`,
-              gridRow: `${table.y + 1} / span ${table.height}`,
-              background: 'linear-gradient(135deg, #a5b4fc 0%, #818cf8 100%)',
-              border: '2px solid #6366f1',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'move',
-              fontWeight: '600',
-              fontSize: '14px',
-              color: 'white',
-              boxShadow: '0 2px 8px rgba(99,102,241,0.3)',
-              transition: 'all 0.2s'
-            }}
-            onMouseOver={e => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.zIndex = '10'; }}
-            onMouseOut={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.zIndex = '1'; }}
-            title="Rechtsklick zum Rotieren"
-          >
-            {table.id} ({table.capacity})
+          boxShadow: '2px 0 12px rgba(0,0,0,0.05)',
+          padding: '20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+          overflowY: 'auto'
+        }}>
+          {/* Room name (read-only display) */}
+          <div style={{
+            background: '#f1f5f9',
+            border: '1px solid #e2e8f0',
+            borderRadius: '10px',
+            padding: '10px 12px',
+            fontSize: '14px',
+            fontWeight: 600,
+            color: '#334155'
+          }} title="Raumname wird beim Speichern geändert">
+            🏷️ {roomName}
           </div>
-        ))}
-      </div>
+          <label style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>Personenzahl pro Tisch</label>
+          <input
+            type="number"
+            value={capacityInput}
+            onChange={e => setCapacityInput(e.target.value)}
+            placeholder="z. B. 4"
+            style={{ padding: '10px 12px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', fontWeight: 500, outline: 'none' }}
+            onFocus={e => (e.currentTarget.style.borderColor = '#667eea')}
+            onBlur={e => (e.currentTarget.style.borderColor = '#e2e8f0')}
+          />
+          <button
+            onClick={addTable}
+            style={{ padding: '12px 16px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 700, boxShadow: '0 2px 8px rgba(102,126,234,0.3)' }}
+          >+ Tisch hinzufügen</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => setDefineViewMode(prev => !prev)}
+              style={{ flex: 1, padding: '10px 12px', background: '#fff', color: '#0f172a', border: '2px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}
+            >Ansicht definieren</button>
+            <button
+              onClick={() => setViewFrame(null)}
+              style={{ flex: 1, padding: '10px 12px', background: '#fff', color: '#64748b', border: '2px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}
+            >Zurücksetzen</button>
+          </div>
+          <button
+            onClick={() => { setSaveRoomName(roomName); setShowSaveModal(true); }}
+            disabled={tables.length === 0}
+            style={{ padding: '12px 16px', background: tables.length === 0 ? '#e2e8f0' : '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: tables.length === 0 ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: 700, opacity: tables.length === 0 ? 0.6 : 1 }}
+          >💾 Speichern</button>
+          {viewFrame && (
+            <div style={{ marginTop: 8, fontSize: 12, color: '#64748b' }}>
+              Aktueller Rahmen: x:{viewFrame.x}, y:{viewFrame.y}, w:{viewFrame.width}, h:{viewFrame.height}
+            </div>
+          )}
+        </div>
+
+        {/* Grid Container */}
+        <div style={{ flex: 1, padding: '24px', overflow: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
+          <div
+            className="grid"
+            ref={gridRef}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onMouseDown={startFrame}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: `repeat(${gridSize}, ${cellSize}px)`,
+              gridTemplateRows: `repeat(${gridSize}, ${cellSize}px)`,
+              border: '2px solid #e2e8f0',
+              borderRadius: '12px',
+              width: gridSize * cellSize + 'px',
+              height: gridSize * cellSize + 'px',
+              position: 'relative',
+              background: 'white',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+              backgroundImage: `
+                linear-gradient(to right, #f1f5f9 1px, transparent 1px),
+                linear-gradient(to bottom, #f1f5f9 1px, transparent 1px)
+              `,
+              backgroundSize: `${cellSize}px ${cellSize}px`
+            }}
+          >
+            {defineViewMode && (
+              <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(99,102,241,0.1)', color: '#3730a3', border: '1px solid #a5b4fc', padding: '6px 8px', borderRadius: 6, fontSize: 12, pointerEvents: 'none' }}>
+                Ansicht: Ziehen, um Rahmen aufzuziehen
+              </div>
+            )}
+            {viewFrame && (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: viewFrame.x * cellSize,
+                  top: viewFrame.y * cellSize,
+                  width: viewFrame.width * cellSize,
+                  height: viewFrame.height * cellSize,
+                  border: '2px dashed #3b82f6',
+                  boxShadow: '0 0 0 2px rgba(59,130,246,0.2) inset',
+                  pointerEvents: 'none',
+                  borderRadius: '6px'
+                }}
+              />
+            )}
+            {tables.map(table => (
+              <div
+                key={table.id}
+                draggable
+                data-table="true"
+                onDragStart={e => handleDragStart(e, table.id)}
+                onContextMenu={e => {
+                  e.preventDefault()
+                  setTables(tables.map(t => t.id === table.id ? { ...t, width: t.height, height: t.width } : t))
+                }}
+                style={{
+                  gridColumn: `${table.x + 1} / span ${table.width}`,
+                  gridRow: `${table.y + 1} / span ${table.height}`,
+                  background: 'linear-gradient(135deg, #a5b4fc 0%, #818cf8 100%)',
+                  border: '2px solid #6366f1',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'move',
+                  fontWeight: '600',
+                  fontSize: '14px',
+                  color: 'white',
+                  boxShadow: '0 2px 8px rgba(99,102,241,0.3)',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={e => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.zIndex = '10'; }}
+                onMouseOut={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.zIndex = '1'; }}
+                title="Rechtsklick zum Rotieren"
+              >
+                {table.id} ({table.capacity})
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       {showSaveModal && (

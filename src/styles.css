@@ -23,3 +23,76 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
 .context-menu div:hover{background:#f0f0f0}
 .assigned-list{max-height:200px;overflow-y:auto}
 .assigned-item{background:#e0ffe0;padding:6px;margin:2px;border-radius:4px;font-size:12px}
+
+/* Print Styles */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  body {
+    background: white;
+    padding: 0;
+  }
+
+  /* Hide UI elements */
+  .no-print,
+  .sidebar,
+  button,
+  .modal,
+  .context-menu,
+  header,
+  nav {
+    display: none !important;
+  }
+
+  /* Full width for content */
+  .room-layout {
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .room-content {
+    display: block !important;
+    overflow: visible !important;
+  }
+
+  /* Grid optimizations */
+  .grid {
+    page-break-inside: avoid;
+    box-shadow: none !important;
+    border: 2px solid #333 !important;
+    border-radius: 12px !important;
+  }
+
+  /* Preserve scale wrapper in print */
+  .room-layout > div > div {
+    transform: scale(0.85) !important;
+    transform-origin: center center;
+  }
+
+  /* Center grid on page */
+  .room-layout > div {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+  }
+
+  /* Ensure colors are visible in print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Timeline specific */
+  .timeline-container {
+    page-break-inside: avoid;
+  }
+
+  /* Table cells for timeline */
+  .timeline-row {
+    page-break-inside: avoid;
+  }
+}

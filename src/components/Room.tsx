@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Importer, { Group } from './Importer'
 import { bestFitAssign } from '../utils/placement'
@@ -12,8 +12,11 @@ type Table = {
   height: number
 }
 
+type ViewFrame = { x: number; y: number; width: number; height: number }
+
 type Room = {
   tables: Table[]
+  viewFrame?: ViewFrame
 }
 
 type AssignedGroup = {
@@ -407,7 +410,87 @@ export default function Room() {
   const [editToGo, setEditToGo] = useState(false)
   const [hasAutoAssigned, setHasAutoAssigned] = useState(false)
   const [assignedPage, setAssignedPage] = useState(0)
+  const [mapScale, setMapScale] = useState(1)
+  const mapContainerRef = useRef<HTMLDivElement | null>(null)
 
+
+  // Calculate bounding box for tables or explicit view frame
+  const gridBounds = useMemo(() => {
+    if (!room) {
+      return { minX: 0, minY: 0, maxX: GRID_SIZE, maxY: GRID_SIZE, width: GRID_SIZE, height: GRID_SIZE }
+    }
+
+    // If a custom view frame exists, honor it directly (clamped to grid)
+    if (room.viewFrame) {
+      const vf = room.viewFrame
+      const minX = Math.max(0, vf.x)
+      const minY = Math.max(0, vf.y)
+      const maxX = Math.min(GRID_SIZE, vf.x + vf.width)
+      const maxY = Math.min(GRID_SIZE, vf.y + vf.height)
+      const width = Math.max(1, maxX - minX)
+      const height = Math.max(1, maxY - minY)
+      return { minX, minY, maxX, maxY, width, height }
+    }
+
+    if (room.tables.length === 0) {
+      return { minX: 0, minY: 0, maxX: GRID_SIZE, maxY: GRID_SIZE, width: GRID_SIZE, height: GRID_SIZE }
+    }
+    
+    const minX = Math.min(...room.tables.map(t => t.x))
+    const minY = Math.min(...room.tables.map(t => t.y))
+    const maxX = Math.max(...room.tables.map(t => t.x + t.width))
+    const maxY = Math.max(...room.tables.map(t => t.y + t.height))
+    
+    const width = maxX - minX
+    const height = maxY - minY
+    
+    // Add padding (1 cell on each side)
+    const paddedMinX = Math.max(0, minX - 1)
+    const paddedMinY = Math.max(0, minY - 1)
+    const paddedMaxX = Math.min(GRID_SIZE, maxX + 1)
+    const paddedMaxY = Math.min(GRID_SIZE, maxY + 1)
+    const paddedWidth = paddedMaxX - paddedMinX
+    const paddedHeight = paddedMaxY - paddedMinY
+
+    return { 
+      minX: paddedMinX, 
+      minY: paddedMinY, 
+      maxX: paddedMaxX, 
+      maxY: paddedMaxY, 
+      width: paddedWidth, 
+      height: paddedHeight
+    }
+  }, [room])
+
+  // Auto-zoom: fit the content bounds (viewFrame or padded bbox) inside the viewport
+  useEffect(() => {
+    function recalcScale() {
+      const el = mapContainerRef.current
+      if (!el) return
+
+      // Slight padding to avoid touching edges; smaller when a viewFrame exists
+      const paddingPx = room?.viewFrame ? 16 : 40
+      const availableW = Math.max(200, el.clientWidth - paddingPx)
+      const availableH = Math.max(200, el.clientHeight - paddingPx)
+
+      const contentW = gridBounds.width * CELL_SIZE
+      const contentH = gridBounds.height * CELL_SIZE
+
+      if (contentW === 0 || contentH === 0) return
+
+      const scaleX = availableW / contentW
+      const scaleY = availableH / contentH
+      // Zoom inside the viewport; allow deeper zoom if a viewFrame is defined
+      const maxScale = room?.viewFrame ? 4 : 1.6
+      const scale = Math.min(maxScale, Math.max(0.5, Math.min(scaleX, scaleY)))
+
+      setMapScale(scale)
+    }
+
+    recalcScale()
+    window.addEventListener('resize', recalcScale)
+    return () => window.removeEventListener('resize', recalcScale)
+  }, [gridBounds])
 
   // Get colors by recalculating on each render based on current positions
   const assignedColors = useMemo(() => {
@@ -468,8 +551,8 @@ export default function Room() {
     if (!gridElement) return
 
     const rect = gridElement.getBoundingClientRect()
-    const x = Math.floor((coords.clientX - rect.left) / CELL_SIZE)
-    const y = Math.floor((coords.clientY - rect.top) / CELL_SIZE)
+    const x = Math.floor((coords.clientX - rect.left) / (CELL_SIZE * mapScale))
+    const y = Math.floor((coords.clientY - rect.top) / (CELL_SIZE * mapScale))
     const table = room.tables.find(t => x >= t.x && x < t.x + t.width && y >= t.y && y < t.y + t.height)
     if (!table) { setDragOverPosition(null); return }
 
@@ -767,7 +850,9 @@ export default function Room() {
           display: 'flex',
           flexDirection: 'column',
           gap: '16px',
-          minHeight: 0
+          minHeight: 0,
+          maxHeight: 'calc(100vh - 140px)',
+          overflowY: 'auto'
         }}>
           <button 
             onClick={() => setShowModal(true)}
@@ -1114,7 +1199,7 @@ export default function Room() {
         </div>
 
         {/* Main area - switches between map and timeline */}
-        <div className="room-layout" style={{ flex: 1, overflowX: 'auto', overflowY: 'visible', padding: '12px', position: 'relative', minWidth: 0, minHeight: 0 }}>
+        <div className="room-layout" style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', padding: '12px', position: 'relative', minWidth: 0, minHeight: 0 }}>
           {/* View Toggle Bar - positioned over the content */}
           <div style={{
             position: 'absolute',
@@ -1192,32 +1277,83 @@ export default function Room() {
                 </select>
               </label>
             )}
+
+            {/* Print Button */}
+            <button
+              className="no-print"
+              onClick={() => window.print()}
+              style={{
+                marginLeft: 'auto',
+                padding: '8px 16px',
+                background: 'white',
+                color: '#667eea',
+                border: '2px solid #667eea',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '13px',
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+              onMouseOver={e => { e.currentTarget.style.background = '#667eea'; e.currentTarget.style.color = 'white'; }}
+              onMouseOut={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = '#667eea'; }}
+              title="Drucken oder als PDF speichern"
+            >
+              🖨️ Drucken / PDF
+            </button>
           </div>
 
           {/* Content area with top padding to avoid toggle overlap */}
-          <div style={{ paddingTop: '60px' }}>
-            {viewMode === 'map' ? (
-            <div
-              className="grid"
+          <div
+            ref={mapContainerRef}
             style={{
-              display: 'grid',
-              gridTemplateColumns: `repeat(${GRID_SIZE}, ${CELL_SIZE}px)`,
-              gridTemplateRows: `repeat(${GRID_SIZE}, ${CELL_SIZE}px)`,
-              border: '1px solid #ccc',
-              width: GRID_SIZE * CELL_SIZE + 'px',
-              height: GRID_SIZE * CELL_SIZE + 'px',
-              position: 'relative',
-              backgroundImage: `
-                linear-gradient(to right, #ddd 1px, transparent 1px),
-                linear-gradient(to bottom, #ddd 1px, transparent 1px)
-              `,
-              backgroundSize: `${CELL_SIZE}px ${CELL_SIZE}px`
+              paddingTop: '60px',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'flex-start',
+              padding: '40px 12px 12px',
+              width: '100%',
+              overflow: 'hidden',
+              maxHeight: 'calc(100vh - 180px)'
             }}
-            onDrop={e => {
+          >
+            {viewMode === 'map' ? (
+              <div style={{ 
+                transform: `scale(${mapScale})`,
+                transformOrigin: 'top center',
+                transition: 'transform 0.3s ease'
+              }}>
+                {/* Viewport crops to the content bounds (frame or bbox) */}
+                <div style={{ width: gridBounds.width * CELL_SIZE, height: gridBounds.height * CELL_SIZE, overflow: 'hidden', position: 'relative' }}>
+                  <div style={{ position: 'absolute', left: -gridBounds.minX * CELL_SIZE, top: -gridBounds.minY * CELL_SIZE }}>
+                    <div
+                      className="grid"
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: `repeat(${GRID_SIZE}, ${CELL_SIZE}px)`,
+                      gridTemplateRows: `repeat(${GRID_SIZE}, ${CELL_SIZE}px)`,
+                      border: '2px solid #cbd5e1',
+                      width: GRID_SIZE * CELL_SIZE + 'px',
+                      height: GRID_SIZE * CELL_SIZE + 'px',
+                      position: 'relative',
+                      borderRadius: '12px',
+                      overflow: 'hidden',
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+                      background: 'white',
+                      backgroundImage: `
+                        linear-gradient(to right, #e2e8f0 1px, transparent 1px),
+                        linear-gradient(to bottom, #e2e8f0 1px, transparent 1px)
+                      `,
+                      backgroundSize: `${CELL_SIZE}px ${CELL_SIZE}px`,
+                      backgroundOrigin: 'content-box'
+                    }}
+                    onDrop={e => {
               e.preventDefault()
               const rect = e.currentTarget.getBoundingClientRect()
-              const x = Math.floor((e.clientX - rect.left) / CELL_SIZE)
-              const y = Math.floor((e.clientY - rect.top) / CELL_SIZE)
+              const x = Math.floor((e.clientX - rect.left) / (CELL_SIZE * mapScale))
+              const y = Math.floor((e.clientY - rect.top) / (CELL_SIZE * mapScale))
               // Find which table this position is in
               const table = room.tables.find(t => x >= t.x && x < t.x + t.width && y >= t.y && y < t.y + t.height)
               if (!table) return
@@ -1292,36 +1428,41 @@ export default function Room() {
                   style={{
                     gridColumn: `${table.x + 1} / span ${table.width}`,
                     gridRow: `${table.y + 1} / span ${table.height}`,
-                    background: '#f5f5f565',
-                    border: '2px solid #999',
+                    background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                    border: '2px solid #94a3b8',
                     display: 'flex',
                     flexDirection: 'column',
                     position: 'relative',
+                    borderRadius: '8px',
                     backgroundImage: `
-                      linear-gradient(to right, rgba(80,80,80,0.2) 1px, transparent 1px),
-                      linear-gradient(to bottom, rgba(80,80,80,0.2) 1px, transparent 1px)
+                      linear-gradient(to right, rgba(148,163,184,0.15) 1px, transparent 1px),
+                      linear-gradient(to bottom, rgba(148,163,184,0.15) 1px, transparent 1px)
                     `,
                     backgroundSize: `${CELL_SIZE}px ${CELL_SIZE}px`,
+                    backgroundOrigin: 'content-box',
+                    backgroundPosition: `${-table.x * CELL_SIZE - 2}px ${-table.y * CELL_SIZE - 2}px`,
                     justifyContent: 'flex-start',
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.08)'
                   }}
                 >
                   <div style={{
                     fontSize: '10px',
-                    background: 'rgba(80, 80, 80, 0.55)',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                     color: '#fff',
-                    padding: '3px 8px',
-                    borderRadius: '6px 6px 0 0',
-                    fontWeight: 'bold',
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    fontWeight: '700',
                     position: 'absolute',
-                    top: '-31px',
+                    top: '-28px',
                     left: '50%',
                     transform: 'translateX(-50%)',
-                    width: 'fit-content',
                     textAlign: 'center',
                     lineHeight: '1.2',
-                    overflow: 'hidden',
-                    whiteSpace: 'nowrap'
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 2px 8px rgba(102,126,234,0.3)',
+                    letterSpacing: '0.3px',
+                    zIndex: 5
                   }}>
                     🪑 Tisch {table.id.slice(1)} • {occupied}/{table.capacity}
                   </div>
@@ -1402,10 +1543,13 @@ export default function Room() {
               </div>
             ))}
           </div>
+          </div>
+          </div>
+          </div>
           ) : (
             <TimelineView groups={groups} assignedGroups={assignedGroups} timeInterval={timeInterval} />
           )}
-            </div>
+          </div>
         </div>
       </div>
       {contextMenu && (
