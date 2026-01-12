@@ -391,6 +391,7 @@ export default function Room() {
   const [eventSaveName, setEventSaveName] = useState('')
   const [isDirty, setIsDirty] = useState(false)
   const [lastSaveTime, setLastSaveTime] = useState<string | null>(null)
+  const [lastSaveType, setLastSaveType] = useState<'auto' | 'manual' | null>(null)
   const [timeInterval, setTimeInterval] = useState(15) // 5, 10, 15 Min
   const [viewMode, setViewMode] = useState<'map' | 'timeline'>('map')
   const [sortAvailable, setSortAvailable] = useState<'name' | 'time' | 'size'>('name')
@@ -959,15 +960,33 @@ export default function Room() {
     setShowEventSaveModal(true)
   }
 
-    function handleCsvImportClick() {
-      // Erst Event speichern
-      if (isDirty) {
-        const currentEvent = localStorage.getItem('currentEvent')
-        const eventName = currentEvent ? JSON.parse(currentEvent).name : 'Event'
-        confirmSaveEvent(eventName)
-      }
-      setShowCsvImportModal(true)
+  function saveEventSilently() {
+    const current = JSON.parse(localStorage.getItem('currentEvent') || '{}')
+    const name = current.name || `Event ${new Date().toLocaleDateString()}`
+    const event = { ...current }
+    event.name = name
+    if (!event.createdAt) event.createdAt = new Date().toLocaleDateString()
+    const now = new Date()
+    event.lastModified = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`
+    event.assignedGroups = assignedGroups
+    event.groups = groups
+    const list = JSON.parse(localStorage.getItem('events') || '[]')
+    const updated = list.map((e: any) => e.id === event.id ? event : e)
+    if (!updated.find((e: any) => e.id === event.id)) updated.push(event)
+    localStorage.setItem('events', JSON.stringify(updated))
+    localStorage.setItem('currentEvent', JSON.stringify(event))
+    setLastSaveTime(event.lastModified)
+    setLastSaveType('auto')
+    setIsDirty(false)
+  }
+
+  function handleCsvImportClick() {
+    // Erst Event still speichern, dann Import öffnen
+    if (isDirty) {
+      saveEventSilently()
     }
+    setShowCsvImportModal(true)
+  }
 
     function handleCsvFileChange(e: React.ChangeEvent<HTMLInputElement>) {
       if (e.target.files && e.target.files[0]) {
@@ -1040,9 +1059,19 @@ export default function Room() {
     setShowEventSaveModal(false)
     const timeStr = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`
     setLastSaveTime(timeStr)
+    setLastSaveType('manual')
     setIsDirty(false)
     alert('Event gespeichert!')
   }
+
+  // Autosave after 10 minutes of unsaved changes
+  useEffect(() => {
+    if (!isDirty) return
+    const timer = setTimeout(() => {
+      saveEventSilently()
+    }, 10 * 60 * 1000)
+    return () => clearTimeout(timer)
+  }, [isDirty, assignedGroups, groups])
 
   function autoAssign() {
     if (!room) return
@@ -1214,7 +1243,11 @@ export default function Room() {
           >
             💾 Event speichern
           </button>
-          {lastSaveTime && <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.9)', background: 'rgba(0,0,0,0.2)', padding: '4px 12px', borderRadius: '12px' }}>Zuletzt: {lastSaveTime}</p>}
+          {lastSaveTime && (
+            <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.9)', background: 'rgba(0,0,0,0.2)', padding: '4px 12px', borderRadius: '12px' }}>
+              {lastSaveType === 'auto' ? 'Auto gespeichert: ' : 'Zuletzt: '}{lastSaveTime}
+            </p>
+          )}
         </div>
       </div>
       

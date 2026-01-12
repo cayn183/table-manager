@@ -141,6 +141,20 @@ export default function RoomEditor() {
     setDragPreviewPos(null)
   }
 
+  // Rotate table with 'R' while dragging
+  useEffect(() => {
+    if (!draggingTable) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault()
+        setTables(prev => prev.map(t => t.id === draggingTable.id ? { ...t, width: t.height, height: t.width } : t))
+        setDraggingTable(prev => prev ? { ...prev, width: prev.height, height: prev.width } : prev)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [draggingTable])
+
   function updateDragPreview(e: React.DragEvent | React.MouseEvent) {
     if (!draggingTable || !gridRef.current) return
     const rect = gridRef.current.getBoundingClientRect()
