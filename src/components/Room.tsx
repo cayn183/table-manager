@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Importer, { Group } from './Importer'
+import Papa from 'papaparse'
 import { bestFitAssign } from '../utils/placement'
 
 type Table = {
@@ -407,6 +408,8 @@ export default function Room() {
   const [resizeModal, setResizeModal] = useState<{ tableId: string; agIdx: number; maxSize: number } | null>(null)
   const [resizeValue, setResizeValue] = useState('1')
   const [tableSelectModal, setTableSelectModal] = useState<{ group: Group; index: number } | null>(null)
+    const [showCsvImportModal, setShowCsvImportModal] = useState(false)
+    const [csvFile, setCsvFile] = useState<File | null>(null)
   const [dragOverPosition, setDragOverPosition] = useState<{ tableId: string; x: number; y: number } | null>(null)
   const [draggingGroup, setDraggingGroup] = useState<{ group: Group; rotation: number } | null>(null)
   const [draggingMeta, setDraggingMeta] = useState<DraggingMeta>(null)
@@ -468,7 +471,7 @@ export default function Room() {
       minX: paddedMinX, 
       minY: paddedMinY, 
       maxX: paddedMaxX, 
-      maxY: paddedMaxY, 
+      maxY: paddedMaxY,
       width: paddedWidth, 
       height: paddedHeight
     }
@@ -797,23 +800,22 @@ export default function Room() {
   useEffect(() => {
     if (!draggingGroup) return
 
-    let lastMouseButtons = 0
-
     const handleMouseMove = (e: MouseEvent) => {
       updatePreviewPosition({ clientX: e.clientX, clientY: e.clientY })
-      
-      // Prüfe auf Rechtsklick während Drag (Button 2)
-      if ((e.buttons & 2) && !(lastMouseButtons & 2)) {
-        // Rechte Maustaste wurde gerade gedrückt
-        setPreviewRotation(prev => (prev + 1) % 8)
-      }
-      lastMouseButtons = e.buttons
     }
 
     const handleGlobalDragOver = (e: DragEvent) => {
       e.preventDefault()
       updatePreviewPosition({ clientX: e.clientX, clientY: e.clientY })
     }
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+        // Taste 'R' rotiert/spiegelt während Drag
+        if (e.key === 'r' || e.key === 'R') {
+          e.preventDefault()
+          setPreviewRotation(prev => (prev + 1) % 8)
+        }
+      }
 
     const handleContextMenu = (e: MouseEvent) => {
       // Verhindere Kontextmenü während Drag
@@ -898,12 +900,14 @@ export default function Room() {
 
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('dragover', handleGlobalDragOver)
+      document.addEventListener('keydown', handleKeyDown)
     document.addEventListener('contextmenu', handleContextMenu, true)
     document.addEventListener('dragend', handleDragEnd)
     
     return () => {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('dragover', handleGlobalDragOver)
+        document.removeEventListener('keydown', handleKeyDown)
       document.removeEventListener('contextmenu', handleContextMenu, true)
       document.removeEventListener('dragend', handleDragEnd)
     }
@@ -954,6 +958,71 @@ export default function Room() {
     setEventSaveName(localStorage.getItem('currentEvent') ? JSON.parse(localStorage.getItem('currentEvent') || '{}').name : 'Event')
     setShowEventSaveModal(true)
   }
+
+    function handleCsvImportClick() {
+      // Erst Event speichern
+      if (isDirty) {
+        const currentEvent = localStorage.getItem('currentEvent')
+        const eventName = currentEvent ? JSON.parse(currentEvent).name : 'Event'
+        confirmSaveEvent(eventName)
+      }
+      setShowCsvImportModal(true)
+    }
+
+    function handleCsvFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+      if (e.target.files && e.target.files[0]) {
+        setCsvFile(e.target.files[0])
+      }
+    }
+
+    function processCsvImport() {
+      if (!csvFile) {
+        alert('Bitte wähle eine CSV-Datei aus')
+        return
+      }
+
+      Papa.parse(csvFile, {
+        complete: (results: any) => {
+          const rows = results.data
+          const newGroups: Group[] = []
+        
+          // Überspringe Header-Zeile falls vorhanden
+          const startIndex = rows[0] && (rows[0][0] === 'Name' || rows[0][0] === 'name') ? 1 : 0
+        
+          for (let i = startIndex; i < rows.length; i++) {
+            const row = rows[i]
+            if (!row || row.length < 3) continue
+          
+            const name = row[0]?.trim()
+            const time = row[1]?.trim()
+            const size = parseInt(row[2])
+          
+            if (name && size > 0) {
+              newGroups.push({
+                name,
+                size,
+                time: time || undefined,
+                toGo: false,
+                salutation: 'Fam'
+              })
+            }
+          }
+        
+          if (newGroups.length > 0) {
+            setGroups([...groups, ...newGroups])
+            alert(`${newGroups.length} Familien erfolgreich importiert`)
+          } else {
+            alert('Keine gültigen Familien in der CSV-Datei gefunden')
+          }
+        
+          setShowCsvImportModal(false)
+          setCsvFile(null)
+        },
+        error: (error: any) => {
+          alert(`Fehler beim Lesen der CSV-Datei: ${error.message}`)
+        }
+      })
+    }
 
   function confirmSaveEvent(name: string) {
     const event = JSON.parse(localStorage.getItem('currentEvent') || '{}')
@@ -1235,6 +1304,25 @@ export default function Room() {
           >
             {hasAutoAssigned ? '🔄 Re-Assign' : '✨ Auto Assign'}
           </button>
+            <button
+              onClick={handleCsvImportClick}
+              style={{
+                padding: '10px 16px',
+                background: 'white',
+                color: '#10b981',
+                border: '2px solid #10b981',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: '600',
+                transition: 'all 0.2s',
+                marginTop: '8px'
+              }}
+              onMouseOver={e => { e.currentTarget.style.background = '#10b981'; e.currentTarget.style.color = 'white'; }}
+              onMouseOut={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = '#10b981'; }}
+            >
+              📥 Import Familien (CSV)
+            </button>
           <div style={{ marginTop: '8px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <h3 style={{ margin: '0', fontSize: '16px', fontWeight: '600', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>

@@ -28,6 +28,9 @@ export default function RoomEditor() {
   const [draggingTable, setDraggingTable] = useState<Table | null>(null)
   const [dragPreviewPos, setDragPreviewPos] = useState<{ x: number; y: number } | null>(null)
   const [uiScale, setUiScale] = useState(1)
+  const [selectedTableId, setSelectedTableId] = useState<string | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tableId: string } | null>(null)
+  const [sizeModal, setSizeModal] = useState<{ tableId: string; capacity: string } | null>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
 
@@ -63,6 +66,23 @@ export default function RoomEditor() {
       window.removeEventListener('orientationchange', checkEffectiveSize)
     }
   }, [])
+
+  // Keyboard: rotate selected table with 'R', delete with 'Delete'
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!selectedTableId) return
+      if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault()
+        setTables(prev => prev.map(t => t.id === selectedTableId ? { ...t, width: t.height, height: t.width } : t))
+      } else if (e.key === 'Delete') {
+        e.preventDefault()
+        setTables(prev => prev.filter(t => t.id !== selectedTableId))
+        setSelectedTableId(null)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [selectedTableId])
 
   useEffect(() => {
     const currentRoom = localStorage.getItem('currentRoom')
@@ -321,7 +341,8 @@ export default function RoomEditor() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <div><strong>Desktop:</strong></div>
                 <div>• Tisch verschieben: Ziehen mit Maus</div>
-                <div>• Tisch drehen: <strong>Rechtsklick</strong> auf Tisch</div>
+                <div>• Tisch drehen: Taste <strong>R</strong> (Tisch vorher anklicken)</div>
+                <div>• Rechtsklick: Kontextmenü zum <strong>Größe ändern</strong> oder <strong>Löschen</strong></div>
                 <div style={{ marginTop: '6px' }}><strong>Tablet/Phone:</strong></div>
                 <div>• Tisch verschieben: Ziehen mit Finger</div>
                 <div>• Tisch drehen: <strong>Länger gedrückt halten</strong> (0.5s)</div>
@@ -413,8 +434,10 @@ export default function RoomEditor() {
                 onDragStart={e => handleDragStart(e, table.id)}
                 onContextMenu={e => {
                   e.preventDefault()
-                  setTables(tables.map(t => t.id === table.id ? { ...t, width: t.height, height: t.width } : t))
+                  setSelectedTableId(table.id)
+                  setContextMenu({ x: e.clientX, y: e.clientY, tableId: table.id })
                 }}
+                onClick={() => setSelectedTableId(table.id)}
                 onTouchStart={e => {
                   touchStartTimeRef.current = Date.now()
                 }}
@@ -429,7 +452,7 @@ export default function RoomEditor() {
                   gridColumn: `${table.x + 1} / span ${table.width}`,
                   gridRow: `${table.y + 1} / span ${table.height}`,
                   background: 'linear-gradient(135deg, #a5b4fc 0%, #818cf8 100%)',
-                  border: '2px solid #6366f1',
+                  border: selectedTableId === table.id ? '3px solid #22c55e' : '2px solid #6366f1',
                   borderRadius: '8px',
                   display: 'flex',
                   alignItems: 'center',
@@ -443,7 +466,7 @@ export default function RoomEditor() {
                 }}
                 onMouseOver={e => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.zIndex = '10'; }}
                 onMouseOut={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.zIndex = '1'; }}
-                title="Rechtsklick/Länger gedrückt halten zum Rotieren"
+                title="Tisch anklicken und R zum Rotieren; Rechtsklick öffnet Menü"
               >
                 {table.id} ({table.capacity})
               </div>
@@ -451,6 +474,48 @@ export default function RoomEditor() {
           </div>
         </div>
       </div>
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <div style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, background: 'white', border: '1px solid #cbd5e1', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', borderRadius: 8, zIndex: 2000, minWidth: 180 }}
+             onMouseLeave={() => setContextMenu(null)}>
+          <div style={{ padding: '8px 12px', fontWeight: 700, fontSize: 13, color: '#0f172a', borderBottom: '1px solid #e2e8f0' }}>🪑 {contextMenu.tableId}</div>
+          <button onClick={() => { setTables(prev => prev.map(t => t.id === contextMenu.tableId ? { ...t, width: t.height, height: t.width } : t)); setContextMenu(null) }}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', background: 'white', border: 'none', cursor: 'pointer', fontSize: 13 }}>
+            🔄 Rotieren (R)
+          </button>
+          <button onClick={() => { const t = tables.find(t => t.id === contextMenu.tableId); setSizeModal({ tableId: contextMenu.tableId, capacity: String(t?.capacity ?? 4) }); setContextMenu(null) }}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', background: 'white', border: 'none', cursor: 'pointer', fontSize: 13 }}>
+            📏 Größe ändern
+          </button>
+          <button onClick={() => { setTables(prev => prev.filter(t => t.id !== contextMenu.tableId)); setContextMenu(null); if (selectedTableId === contextMenu.tableId) setSelectedTableId(null) }}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', background: 'white', border: 'none', cursor: 'pointer', fontSize: 13, color: '#ef4444' }}>
+            🗑️ Tisch löschen
+          </button>
+        </div>
+      )}
+
+      {/* Size Change Modal */}
+      {sizeModal && (
+        <div className="modal" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2100 }} onClick={() => setSizeModal(null)}>
+          <div style={{ background: 'white', borderRadius: 12, padding: 20, minWidth: 360, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: 0, marginBottom: 12, fontSize: 18, fontWeight: 700, color: '#0f172a' }}>📏 Größe ändern – {sizeModal.tableId}</h3>
+            <label style={{ display: 'block', fontSize: 13, color: '#334155', fontWeight: 600, marginBottom: 6 }}>Personenzahl</label>
+            <input type="number" value={sizeModal.capacity} onChange={e => setSizeModal({ ...sizeModal, capacity: e.target.value })}
+                   style={{ width: '100%', padding: '10px 12px', border: '2px solid #e2e8f0', borderRadius: 8, fontSize: 14 }}/>
+            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+              <button onClick={() => setSizeModal(null)}
+                      style={{ flex: 1, padding: '10px 14px', background: 'white', color: '#64748b', border: '2px solid #e2e8f0', borderRadius: 8, cursor: 'pointer' }}>Abbrechen</button>
+              <button onClick={() => {
+                        const cap = Math.max(1, parseInt(sizeModal.capacity || '4'))
+                        setTables(prev => prev.map(t => t.id === sizeModal.tableId ? { ...t, capacity: cap, width: Math.ceil(cap / 2), height: 2 } : t))
+                        setSizeModal(null)
+                      }}
+                      style={{ flex: 1, padding: '10px 14px', background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700 }}>Speichern</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showSaveModal && (
         <div className="modal" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
