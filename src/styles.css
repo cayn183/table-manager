@@ -14,15 +14,27 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
 .room-layout{display:flex;justify-content:center;margin:24px 0}
 .room-content{display:flex;gap:24px}
 .sidebar{width:300px}
-.groups-list{max-height:200px;overflow-y:auto}
+.groups-list{max-height:400px;overflow-y:auto}
 .group-item{background:#f0f0f0;padding:8px;margin:4px;border-radius:4px;cursor:move}
 .modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999}
 .modal-content{background:#fff;padding:20px;border-radius:8px;min-width:300px;box-shadow:0 10px 40px rgba(0,0,0,0.3)}
 .context-menu{background:#fff;border:1px solid #ccc;padding:5px}
 .context-menu div{cursor:pointer;padding:5px}
 .context-menu div:hover{background:#f0f0f0}
-.assigned-list{max-height:200px;overflow-y:auto}
+.assigned-list{max-height:400px;overflow-y:auto}
 .assigned-item{background:#e0ffe0;padding:6px;margin:2px;border-radius:4px;font-size:12px}
+
+/* Animations */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 
 /* Responsive Design */
 @media (max-width: 1400px) {

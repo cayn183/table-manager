@@ -38,6 +38,10 @@ const PALETTE = ['#E91E63', '#FF9800', '#4CAF50', '#673AB7', '#FF5722']
 const UNASSIGNED_COLOR = '#80808080'
 const TOGO_COLOR = '#FFE082'
 
+// Fixed list height (no scrollbar)
+const LIST_FIXED_HEIGHT = 240
+const LIST_MAX_HEIGHT = LIST_FIXED_HEIGHT
+
 function paletteColor(hex: string): string {
   return hex + '70'
 }
@@ -423,6 +427,7 @@ export default function Room() {
   const [editToGo, setEditToGo] = useState(false)
   const [hasAutoAssigned, setHasAutoAssigned] = useState(false)
   const [assignedPage, setAssignedPage] = useState(0)
+  const [availablePage, setAvailablePage] = useState(0)
   const [mapScale, setMapScale] = useState(1)
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const [isMobile, setIsMobile] = useState(false)
@@ -1474,28 +1479,36 @@ export default function Room() {
                 >#</button>
               </div>
             </div>
-          <div className="groups-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-            {[...groups].sort((a, b) => {
-              if (sortAvailable === 'name') {
-                return a.name.localeCompare(b.name)
-              } else if (sortAvailable === 'time') {
-                if (!a.time && !b.time) return 0
-                if (!a.time) return 1
-                if (!b.time) return -1
-                return a.time.localeCompare(b.time)
-              } else {
-                return b.size - a.size
-              }
-            }).map((g, i) => {
+          <div style={{ maxHeight: '400px', overflow: 'hidden' }}>
+            <div className="groups-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+            {(() => {
+              const sortedGroups = [...groups].sort((a, b) => {
+                if (sortAvailable === 'name') {
+                  return a.name.localeCompare(b.name)
+                } else if (sortAvailable === 'time') {
+                  if (!a.time && !b.time) return 0
+                  if (!a.time) return 1
+                  if (!b.time) return -1
+                  return a.time.localeCompare(b.time)
+                } else {
+                  return b.size - a.size
+                }
+              })
+
+              const PAGE_SIZE = 10
+              const totalPages = Math.max(1, Math.ceil(sortedGroups.length / PAGE_SIZE))
+              const currentPage = Math.min(availablePage, totalPages - 1)
+              const pageItems = sortedGroups.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE)
+
+              return pageItems.map((g, i) => {
               const salutation = g.salutation || 'Fam'
               const displaySalutation = salutation === 'Fam' ? 'Fam.' : salutation
               const displayName = `${displaySalutation} ${g.name}`
               return (
                 <div
-                  key={i}
+                  key={`${currentPage}-${i}`}
                   className="group-item"
                   style={{ 
-                    background: g.toGo ? '#fef3c7' : '#f1f5f9', 
                     color: '#1e293b', 
                     padding: '10px',
                     borderRadius: '8px',
@@ -1541,9 +1554,79 @@ export default function Room() {
                   </div>
                 </div>
               )
-            })}
+              })
+            })()}
           </div>
           </div>
+          {(() => {
+            const sortedGroups = [...groups].sort((a, b) => {
+              if (sortAvailable === 'name') {
+                return a.name.localeCompare(b.name)
+              } else if (sortAvailable === 'time') {
+                if (!a.time && !b.time) return 0
+                if (!a.time) return 1
+                if (!b.time) return -1
+                return a.time.localeCompare(b.time)
+              } else {
+                return b.size - a.size
+              }
+            })
+            const PAGE_SIZE = 10
+            const totalPages = Math.max(1, Math.ceil(sortedGroups.length / PAGE_SIZE))
+            const currentPage = Math.min(availablePage, totalPages - 1)
+            return (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
+                <button
+                  onClick={() => setAvailablePage(p => Math.max(0, p - 1))}
+                  disabled={currentPage === 0}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: '20px',
+                    border: '1px solid #e2e8f0',
+                    background: currentPage === 0 ? '#f8fafc' : 'white',
+                    color: currentPage === 0 ? '#cbd5e1' : '#0f172a',
+                    cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    minWidth: '60px'
+                  }}
+                >Zurück</button>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  {Array.from({ length: totalPages }).map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setAvailablePage(i)}
+                      style={{
+                        width: '10px',
+                        height: '10px',
+                        borderRadius: '50%',
+                        border: '1px solid #cbd5e1',
+                        background: i === currentPage ? '#667eea' : 'white',
+                        cursor: 'pointer',
+                        padding: 0
+                      }}
+                      aria-label={`Seite ${i + 1}`}
+                    />
+                  ))}
+                </div>
+                <button
+                  onClick={() => setAvailablePage(p => Math.min(totalPages - 1, p + 1))}
+                  disabled={currentPage >= totalPages - 1}
+                  style={{
+                    padding: '6px 10px',
+                    borderRadius: '20px',
+                    border: '1px solid #e2e8f0',
+                    background: currentPage >= totalPages - 1 ? '#f8fafc' : 'white',
+                    color: currentPage >= totalPages - 1 ? '#cbd5e1' : '#0f172a',
+                    cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    minWidth: '60px'
+                  }}
+                >Weiter</button>
+              </div>
+            )
+          })()}
           <div style={{ marginTop: '8px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <h3 style={{ margin: '0', fontSize: '16px', fontWeight: '600', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1598,7 +1681,8 @@ export default function Room() {
                 >🪑</button>
               </div>
             </div>
-          <div className="assigned-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+          <div style={{ maxHeight: '400px', overflow: 'hidden' }}>
+            <div className="assigned-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
             {(() => {
               const assignedItems = Object.entries(assignedGroups)
                 .flatMap(([tableId, ags]) => ags.map((ag, idx) => ({ tableId, ag, idx })))
@@ -1622,9 +1706,10 @@ export default function Room() {
                   }
                 })
 
-              const totalPages = Math.max(1, Math.ceil(assignedItems.length / 20))
+              const PAGE_SIZE = 10
+              const totalPages = Math.max(1, Math.ceil(assignedItems.length / PAGE_SIZE))
               const currentPage = Math.min(assignedPage, totalPages - 1)
-              const pageItems = assignedItems.slice(currentPage * 20, currentPage * 20 + 20)
+              const pageItems = assignedItems.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE)
 
               return pageItems.map(({ tableId, ag, idx }) => {
                 const salutation = ag.group.salutation || 'Fam'
@@ -1675,10 +1760,13 @@ export default function Room() {
                 )
               })
             })()}
+            </div>
+          </div>
           </div>
           {(() => {
             const totalItems = Object.values(assignedGroups).flat().length
-            const totalPages = Math.max(1, Math.ceil(totalItems / 20))
+            const PAGE_SIZE = 10
+            const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE))
             const currentPage = Math.min(assignedPage, totalPages - 1)
             return (
               <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
