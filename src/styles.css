@@ -1,6 +1,7 @@
 :root{--bg:#f7f7fb;--panel:#fff;--muted:#666}
-body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;padding:24px}
-.container{max-width:900px;margin:0 auto}
+* { box-sizing: border-box; }
+body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;padding:0;overflow-x:hidden}
+.container{max-width:900px;margin:0 auto;padding:24px}
 .importer{display:flex;gap:12px;align-items:flex-start}
 .file-input input{display:block;margin-top:6px}
 .paste textarea{width:360px;height:120px}
@@ -38,6 +39,7 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
 
 /* Responsive Design */
 @media (max-width: 1400px) {
+  .container { padding: 16px; }
   .sidebar {
     flex: 0 0 480px !important;
     min-width: 400px !important;
@@ -46,7 +48,7 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
 }
 
 @media (max-width: 1200px) {
-  body { padding: 16px; }
+  .container { padding: 16px; }
   .sidebar {
     flex: 0 0 420px !important;
     min-width: 360px !important;
@@ -56,7 +58,7 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
 }
 
 @media (max-width: 1024px) {
-  body { padding: 12px; }
+  .container { padding: 12px; }
   .room-content {
     flex-direction: column !important;
   }
@@ -79,7 +81,7 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
 }
 
 @media (max-width: 768px) {
-  body { padding: 8px; }
+  .container { padding: 8px; }
   .sidebar {
     padding: 12px !important;
     gap: 12px !important;
