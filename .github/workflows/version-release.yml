@@ -133,13 +133,7 @@ jobs:
             echo "" >> $TEMP_FILE
           fi
           
-          # Store for release notes
-          CHANGELOG_CONTENT=$(cat $TEMP_FILE | tail -n +3)
-          CHANGELOG_CONTENT="${CHANGELOG_CONTENT//'%'/'%25'}"
-          CHANGELOG_CONTENT="${CHANGELOG_CONTENT//$'\n'/'%0A'}"
-          CHANGELOG_CONTENT="${CHANGELOG_CONTENT//$'\r'/'%0D'}"
-          echo "content=$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
-          
+          # Save file path for later use
           echo "entry_file=$TEMP_FILE" >> $GITHUB_OUTPUT
       
       - name: Update CHANGELOG.md
@@ -198,7 +192,7 @@ jobs:
         with:
           tag_name: v${{ steps.version.outputs.new_version }}
           name: Release ${{ steps.version.outputs.new_version }}
-          body: ${{ steps.changelog_entry.outputs.content }}
+          body_path: ${{ steps.changelog_entry.outputs.entry_file }}
           draft: false
           prerelease: false
         env:
