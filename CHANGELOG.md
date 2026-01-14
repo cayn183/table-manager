@@ -7,6 +7,17 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-01-14
+
+### Changed
+- Umfassendes deutsches README mit Features, Installation, Docker-Support
+- Verbesserte GitHub-Projektseite mit Badges und strukturierter Dokumentation
+
+### Added
+- Detaillierte Projektstruktur-Dokumentation
+- CSV-Format Beispiele
+- Docker und Docker Compose Anleitungen
+
 ## [0.5.0] - 2026-01-14
 
 ### Added

@@ -2,7 +2,7 @@ import React from 'react'
 import '../styles/footer.css'
 
 const VERSION_INFO = {
-  version: '0.5.0',
+  version: '0.5.2',
   creator: 'Cayn183',
   releaseDate: '2026-01-14'
 }
