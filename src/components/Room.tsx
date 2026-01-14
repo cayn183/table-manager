@@ -3246,7 +3246,7 @@ function TimelineView({
 
   slotEntries.forEach(([slotKey, items]) => {
     const familyCount = items.length
-    if (currentColumnFamilies + familyCount > 20 && currentColumn < 2) {
+    if (currentColumnFamilies + familyCount > 15 && currentColumn < 2) {
       currentColumn++
       currentColumnFamilies = 0
     }
@@ -3254,8 +3254,12 @@ function TimelineView({
     currentColumnFamilies += familyCount
   })
 
+  const filledColumns = columns.filter(col => col.length > 0)
+  const columnCount = Math.min(filledColumns.length, 4)
+  const columnGap = '12px'
+
   return (
-    <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '20px', height: '100%', overflowY: 'auto' }}>
+    <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
       {[...unassignedNoTime, ...assignedNoTime].length > 0 && (
         <div style={{ marginBottom: '8px' }}>
           <h3 style={{ borderBottom: '2px solid #cbd5e1', paddingBottom: '12px', margin: '0 0 12px 0', fontSize: '16px', fontWeight: '700', color: '#1e293b' }}>Unzugeordnete Familien</h3>
@@ -3274,7 +3278,7 @@ function TimelineView({
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', alignItems: 'start', width: '100%' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${columnCount}, 1fr)`, gap: columnGap, alignItems: 'start', width: '100%', overflow: 'hidden' }}>
         {columns.map((columnSlots, colIdx) => (
           <div key={`column-${colIdx}`} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             {columnSlots.map(([slotKey, items]) => {

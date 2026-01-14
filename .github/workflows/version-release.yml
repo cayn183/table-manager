@@ -1,0 +1,111 @@
+name: Version & Release Management
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'CHANGELOG.md'
+
+jobs:
+  version-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Get commit messages since last release
+        id: commits
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"%s" origin/main)
+          else
+            COMMITS=$(git log $LAST_TAG..HEAD --pretty=format:"%s")
+          fi
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Determine version bump
+        id: version
+        run: |
+          CURRENT_VERSION=$(grep '"version"' package.json | head -1 | sed 's/.*"version": "\(.*\)".*/\1/')
+          COMMITS="${{ steps.commits.outputs.commits }}"
+          
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+          
+          if echo "$COMMITS" | grep -qi "breaking\|^BREAKING"; then
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+          elif echo "$COMMITS" | grep -qi "feat\|feature"; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          else
+            PATCH=$((PATCH + 1))
+          fi
+          
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "old_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+      
+      - name: Update package.json
+        run: |
+          sed -i 's/"version": "[^"]*"/"version": "${{ steps.version.outputs.new_version }}"/' package.json
+      
+      - name: Update Footer component
+        run: |
+          RELEASE_DATE=$(date +%Y-%m-%d)
+          sed -i "s/version: '[^']*'/version: '${{ steps.version.outputs.new_version }}'/" src/components/Footer.tsx
+          sed -i "s/releaseDate: '[^']*'/releaseDate: '$RELEASE_DATE'/" src/components/Footer.tsx
+      
+      - name: Update CHANGELOG.md
+        run: |
+          RELEASE_DATE=$(date +%Y-%m-%d)
+          COMMITS="${{ steps.commits.outputs.commits }}"
+          
+          # Extract the changelog content between the header and first release
+          TEMP_CHANGELOG=$(mktemp)
+          
+          echo "# Changelog" > $TEMP_CHANGELOG
+          echo "" >> $TEMP_CHANGELOG
+          echo "Alle bemerkenswerten Änderungen an diesem Projekt werden in dieser Datei dokumentiert." >> $TEMP_CHANGELOG
+          echo "" >> $TEMP_CHANGELOG
+          echo "Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/)," >> $TEMP_CHANGELOG
+          echo "und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/)." >> $TEMP_CHANGELOG
+          echo "" >> $TEMP_CHANGELOG
+          echo "## [Unreleased]" >> $TEMP_CHANGELOG
+          echo "" >> $TEMP_CHANGELOG
+          echo "## [${{ steps.version.outputs.new_version }}] - $RELEASE_DATE" >> $TEMP_CHANGELOG
+          echo "" >> $TEMP_CHANGELOG
+          echo "### Changed" >> $TEMP_CHANGELOG
+          echo "$COMMITS" | grep -v '^$' | sed 's/^/- /' >> $TEMP_CHANGELOG || echo "- Release version ${{ steps.version.outputs.new_version }}" >> $TEMP_CHANGELOG
+          echo "" >> $TEMP_CHANGELOG
+          
+          # Append existing changelog content
+          tail -n +6 CHANGELOG.md >> $TEMP_CHANGELOG
+          mv $TEMP_CHANGELOG CHANGELOG.md
+      
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json src/components/Footer.tsx CHANGELOG.md
+          git commit -m "chore: bump version to ${{ steps.version.outputs.new_version }}"
+          git push
+      
+      - name: Create Release Tag
+        run: |
+          git tag -a "v${{ steps.version.outputs.new_version }}" -m "Release ${{ steps.version.outputs.new_version }}"
+          git push origin "v${{ steps.version.outputs.new_version }}"
