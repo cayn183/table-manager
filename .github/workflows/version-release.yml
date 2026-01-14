@@ -5,9 +5,9 @@ on:
     branches:
       - main
     paths-ignore:
-      - 'README.md'
-      - '.github/**'
       - 'docs/**'
+      - '**.md'
+      - '!CHANGELOG.md'
 
 jobs:
   version-release:
@@ -19,6 +19,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -30,13 +31,14 @@ jobs:
         run: |
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           if [ -z "$LAST_TAG" ]; then
-            COMMITS=$(git log --pretty=format:"%s" origin/main)
+            COMMITS=$(git log --pretty=format:"%s" --no-merges)
           else
-            COMMITS=$(git log $LAST_TAG..HEAD --pretty=format:"%s")
+            COMMITS=$(git log $LAST_TAG..HEAD --pretty=format:"%s" --no-merges)
           fi
           echo "commits<<EOF" >> $GITHUB_OUTPUT
           echo "$COMMITS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+          echo "last_tag=$LAST_TAG" >> $GITHUB_OUTPUT
       
       - name: Determine version bump
         id: version
@@ -50,16 +52,29 @@ jobs:
             MAJOR=$((MAJOR + 1))
             MINOR=0
             PATCH=0
-          elif echo "$COMMITS" | grep -qi "feat\|feature"; then
+            BUMP_TYPE="major"
+          elif echo "$COMMITS" | grep -qi "^feat:"; then
             MINOR=$((MINOR + 1))
             PATCH=0
+            BUMP_TYPE="minor"
           else
             PATCH=$((PATCH + 1))
+            BUMP_TYPE="patch"
           fi
           
           NEW_VERSION="$MAJOR.$MINOR.$PATCH"
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "old_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+          
+          echo "📦 Version bump: $CURRENT_VERSION → $NEW_VERSION ($BUMP_TYPE)"
+      
+      - name: Check if version already exists
+        run: |
+          if git rev-parse "v${{ steps.version.outputs.new_version }}" >/dev/null 2>&1; then
+            echo "⚠️ Tag v${{ steps.version.outputs.new_version }} already exists. Skipping release."
+            exit 0
+          fi
       
       - name: Update package.json
         run: |
@@ -71,14 +86,68 @@ jobs:
           sed -i "s/version: '[^']*'/version: '${{ steps.version.outputs.new_version }}'/" src/components/Footer.tsx
           sed -i "s/releaseDate: '[^']*'/releaseDate: '$RELEASE_DATE'/" src/components/Footer.tsx
       
-      - name: Update CHANGELOG.md
+      - name: Update README badge
+        run: |
+          sed -i "s/version-[0-9.]*-blue/version-${{ steps.version.outputs.new_version }}-blue/" README.md
+      
+      - name: Generate changelog entry
+        id: changelog_entry
         run: |
           RELEASE_DATE=$(date +%Y-%m-%d)
           COMMITS="${{ steps.commits.outputs.commits }}"
           
-          # Extract the changelog content between the header and first release
-          TEMP_CHANGELOG=$(mktemp)
+          # Categorize commits
+          TEMP_FILE=$(mktemp)
+          echo "## [${{ steps.version.outputs.new_version }}] - $RELEASE_DATE" > $TEMP_FILE
+          echo "" >> $TEMP_FILE
           
+          # Added features
+          FEATURES=$(echo "$COMMITS" | grep -i "^feat:" | sed 's/^feat: /- /' || true)
+          if [ -n "$FEATURES" ]; then
+            echo "### Added" >> $TEMP_FILE
+            echo "$FEATURES" >> $TEMP_FILE
+            echo "" >> $TEMP_FILE
+          fi
+          
+          # Fixed bugs
+          FIXES=$(echo "$COMMITS" | grep -i "^fix:" | sed 's/^fix: /- /' || true)
+          if [ -n "$FIXES" ]; then
+            echo "### Fixed" >> $TEMP_FILE
+            echo "$FIXES" >> $TEMP_FILE
+            echo "" >> $TEMP_FILE
+          fi
+          
+          # Documentation
+          DOCS=$(echo "$COMMITS" | grep -i "^docs:" | sed 's/^docs: /- /' || true)
+          if [ -n "$DOCS" ]; then
+            echo "### Changed" >> $TEMP_FILE
+            echo "$DOCS" >> $TEMP_FILE
+            echo "" >> $TEMP_FILE
+          fi
+          
+          # Other changes
+          OTHER=$(echo "$COMMITS" | grep -vi "^feat:\|^fix:\|^docs:\|^chore:\|\[skip ci\]" || true)
+          if [ -n "$OTHER" ]; then
+            echo "### Changed" >> $TEMP_FILE
+            echo "$OTHER" | sed 's/^/- /' >> $TEMP_FILE
+            echo "" >> $TEMP_FILE
+          fi
+          
+          # Store for release notes
+          CHANGELOG_CONTENT=$(cat $TEMP_FILE | tail -n +3)
+          CHANGELOG_CONTENT="${CHANGELOG_CONTENT//'%'/'%25'}"
+          CHANGELOG_CONTENT="${CHANGELOG_CONTENT//$'\n'/'%0A'}"
+          CHANGELOG_CONTENT="${CHANGELOG_CONTENT//$'\r'/'%0D'}"
+          echo "content=$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
+          
+          echo "entry_file=$TEMP_FILE" >> $GITHUB_OUTPUT
+      
+      - name: Update CHANGELOG.md
+        run: |
+          TEMP_CHANGELOG=$(mktemp)
+          ENTRY_FILE="${{ steps.changelog_entry.outputs.entry_file }}"
+          
+          # Write header
           echo "# Changelog" > $TEMP_CHANGELOG
           echo "" >> $TEMP_CHANGELOG
           echo "Alle bemerkenswerten Änderungen an diesem Projekt werden in dieser Datei dokumentiert." >> $TEMP_CHANGELOG
@@ -88,55 +157,48 @@ jobs:
           echo "" >> $TEMP_CHANGELOG
           echo "## [Unreleased]" >> $TEMP_CHANGELOG
           echo "" >> $TEMP_CHANGELOG
-          echo "## [${{ steps.version.outputs.new_version }}] - $RELEASE_DATE" >> $TEMP_CHANGELOG
-          echo "" >> $TEMP_CHANGELOG
-          echo "### Changed" >> $TEMP_CHANGELOG
-          echo "$COMMITS" | grep -v '^$' | sed 's/^/- /' >> $TEMP_CHANGELOG || echo "- Release version ${{ steps.version.outputs.new_version }}" >> $TEMP_CHANGELOG
-          echo "" >> $TEMP_CHANGELOG
           
-          # Append existing changelog content
-          tail -n +6 CHANGELOG.md >> $TEMP_CHANGELOG
+          # Add new release
+          cat $ENTRY_FILE >> $TEMP_CHANGELOG
+          
+          # Append old releases (skip header and unreleased section)
+          awk '/^## \[[0-9]/ {found=1} found' CHANGELOG.md >> $TEMP_CHANGELOG 2>/dev/null || true
+          
           mv $TEMP_CHANGELOG CHANGELOG.md
       
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if git diff --quiet; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "⚠️ No changes detected"
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "✅ Changes detected"
+          fi
+      
       - name: Commit and push changes
+        if: steps.check_changes.outputs.has_changes == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add package.json src/components/Footer.tsx CHANGELOG.md
+          git add package.json src/components/Footer.tsx CHANGELOG.md README.md
           git commit -m "chore: bump version to ${{ steps.version.outputs.new_version }} [skip ci]"
           git push
       
       - name: Create and push tag
+        if: steps.check_changes.outputs.has_changes == 'true'
         run: |
           git tag -a "v${{ steps.version.outputs.new_version }}" -m "Release ${{ steps.version.outputs.new_version }}"
           git push origin "v${{ steps.version.outputs.new_version }}"
       
-      - name: Extract changelog for release
-        id: changelog
-        run: |
-          VERSION="${{ steps.version.outputs.new_version }}"
-          
-          # Extract changelog section for current version (between version header and next version or EOF)
-          CHANGELOG_CONTENT=$(awk "/## \[$VERSION\]/,/^## \[/" CHANGELOG.md | grep -v "^## \[" | tail -n +2 | head -n -1)
-          
-          # If extraction failed, use commit messages as fallback
-          if [ -z "$CHANGELOG_CONTENT" ]; then
-            CHANGELOG_CONTENT="${{ steps.commits.outputs.commits }}"
-          fi
-          
-          # Escape multiline content for GitHub Actions
-          CHANGELOG_CONTENT="${CHANGELOG_CONTENT//'%'/'%25'}"
-          CHANGELOG_CONTENT="${CHANGELOG_CONTENT//$'\n'/'%0A'}"
-          CHANGELOG_CONTENT="${CHANGELOG_CONTENT//$'\r'/'%0D'}"
-          
-          echo "content=$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
-      
       - name: Create GitHub Release
+        if: steps.check_changes.outputs.has_changes == 'true'
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.version.outputs.new_version }}
           name: Release ${{ steps.version.outputs.new_version }}
-          body: ${{ steps.changelog.outputs.content }}
+          body: ${{ steps.changelog_entry.outputs.content }}
           draft: false
           prerelease: false
         env:
