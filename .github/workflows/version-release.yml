@@ -5,14 +5,16 @@ on:
     branches:
       - main
     paths-ignore:
-      - '**.md'
-      - 'CHANGELOG.md'
+      - 'README.md'
+      - '.github/**'
+      - 'docs/**'
 
 jobs:
   version-release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      releases: write
       
     steps:
       - uses: actions/checkout@v4
@@ -102,10 +104,36 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add package.json src/components/Footer.tsx CHANGELOG.md
-          git commit -m "chore: bump version to ${{ steps.version.outputs.new_version }}"
+          git commit -m "chore: bump version to ${{ steps.version.outputs.new_version }} [skip ci]"
           git push
       
-      - name: Create Release Tag
+      - name: Extract changelog for release
+        id: changelog
         run: |
-          git tag -a "v${{ steps.version.outputs.new_version }}" -m "Release ${{ steps.version.outputs.new_version }}"
-          git push origin "v${{ steps.version.outputs.new_version }}"
+          VERSION="${{ steps.version.outputs.new_version }}"
+          
+          # Extract changelog section for current version (between version header and next version or EOF)
+          CHANGELOG_CONTENT=$(awk "/## \[$VERSION\]/,/^## \[/" CHANGELOG.md | grep -v "^## \[" | tail -n +2 | head -n -1)
+          
+          # If extraction failed, use commit messages as fallback
+          if [ -z "$CHANGELOG_CONTENT" ]; then
+            CHANGELOG_CONTENT="${{ steps.commits.outputs.commits }}"
+          fi
+          
+          # Escape multiline content for GitHub Actions
+          CHANGELOG_CONTENT="${CHANGELOG_CONTENT//'%'/'%25'}"
+          CHANGELOG_CONTENT="${CHANGELOG_CONTENT//$'\n'/'%0A'}"
+          CHANGELOG_CONTENT="${CHANGELOG_CONTENT//$'\r'/'%0D'}"
+          
+          echo "content=$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.new_version }}
+          name: Release ${{ steps.version.outputs.new_version }}
+          body: ${{ steps.changelog.outputs.content }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
