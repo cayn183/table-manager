@@ -7,6 +7,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-01-14
+
+### Fixed
+- remove unnecessary scrollbar by adjusting viewport height handling
+
 ## [0.6.1] - 2026-01-14
 
 ### Fixed
