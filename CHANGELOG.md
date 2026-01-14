@@ -7,6 +7,11 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-01-14
+
+### Fixed
+- release notes formatting by using body_path instead of escaped body
+
 ## [0.6.0] - 2026-01-14
 
 ### Added

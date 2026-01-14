@@ -1,6 +1,6 @@
 # 🪑 Table Manager
 
-[![Version](https://img.shields.io/badge/version-0.6.0-blue.svg)](https://github.com/Cayn183/Table-Manager/releases)
+[![Version](https://img.shields.io/badge/version-0.6.1-blue.svg)](https://github.com/Cayn183/Table-Manager/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 Eine webbasierte Anwendung zur automatischen Verwaltung und Zuweisung von Gästen an Tischen für Events und Veranstaltungen.
