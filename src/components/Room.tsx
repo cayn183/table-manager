@@ -1270,6 +1270,70 @@ export default function Room() {
           <h1 style={{ margin: 0, fontSize: isMobile ? '20px' : '24px', color: 'white', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>Raum - Plätze belegen</h1>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {/* View Toggle - Karte / Plan */}
+          <div style={{ display: 'inline-flex', gap: '2px', background: 'rgba(255,255,255,0.1)', padding: '4px', borderRadius: '6px' }}>
+            <button
+              onClick={() => setViewMode('map')}
+              style={{
+                padding: '6px 12px',
+                background: viewMode === 'map' ? 'rgba(255,255,255,0.25)' : 'transparent',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '13px',
+                transition: 'all 0.2s',
+                boxShadow: viewMode === 'map' ? '0 2px 8px rgba(0,0,0,0.2)' : 'none'
+              }}
+              title="Kartenansicht"
+            >
+              📍 Karte
+            </button>
+            <button
+              onClick={() => setViewMode('timeline')}
+              style={{
+                padding: '6px 12px',
+                background: viewMode === 'timeline' ? 'rgba(255,255,255,0.25)' : 'transparent',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '13px',
+                transition: 'all 0.2s',
+                boxShadow: viewMode === 'timeline' ? '0 2px 8px rgba(0,0,0,0.2)' : 'none'
+              }}
+              title="Zeitplanansicht"
+            >
+              📋 Plan
+            </button>
+          </div>
+
+          {/* Zeitintervall - nur in Zeitplan-Ansicht */}
+          {viewMode === 'timeline' && (
+            <select 
+              value={timeInterval} 
+              onChange={e => setTimeInterval(parseInt(e.target.value))}
+              style={{
+                padding: '6px 10px',
+                background: 'rgba(255,255,255,0.1)',
+                color: 'white',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: '600',
+                outline: 'none',
+                transition: 'all 0.2s'
+              }}
+            >
+              <option value={5} style={{ background: '#667eea' }}>⏱️ 5 Min</option>
+              <option value={10} style={{ background: '#667eea' }}>⏱️ 10 Min</option>
+              <option value={15} style={{ background: '#667eea' }}>⏱️ 15 Min</option>
+            </select>
+          )}
+
           <button 
             onClick={() => navigate('/new-room')}
             style={{
@@ -1832,6 +1896,71 @@ export default function Room() {
               </div>
             )
           })()}
+          
+          {/* Event speichern Section - under Assigned Groups */}
+          <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', flexWrap: 'wrap' }}>
+              <button 
+                onClick={() => handleSaveEvent()} 
+                disabled={!isDirty || !Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0)}
+                style={{ 
+                  flex: 1,
+                  minWidth: '100px',
+                  padding: '10px 14px',
+                  background: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? '#10b981' : '#e0e7ff',
+                  color: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 'white' : '#94a3b8',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 'pointer' : 'not-allowed',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  transition: 'all 0.2s',
+                  opacity: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 1 : 0.6
+                }}
+              >
+                💾 Speichern
+              </button>
+              
+              {/* Auto-Save Status - Kompakt */}
+              {typeof autosaveRemaining === 'number' && (
+                <span style={{ fontSize: '11px', color: '#64748b', background: '#f1f5f9', padding: '6px 8px', borderRadius: '6px', whiteSpace: 'nowrap' }}>
+                  Auto: {String(Math.floor(autosaveRemaining / 60)).padStart(2, '0')}:{String(autosaveRemaining % 60).padStart(2, '0')}
+                </span>
+              )}
+              
+              {/* Zuletzt gespeichert - Kompakt */}
+              {lastSaveTime && (
+                <span style={{ fontSize: '11px', color: '#64748b', background: '#f1f5f9', padding: '6px 8px', borderRadius: '6px', whiteSpace: 'nowrap' }}>
+                  {lastSaveType === 'auto' ? 'Auto' : 'Sicherung'}: {lastSaveTime}
+                </span>
+              )}
+              
+              {/* Print Button - Klein */}
+              <button
+                onClick={() => window.print()}
+                style={{
+                  padding: '8px 10px',
+                  background: '#f1f5f9',
+                  color: '#667eea',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  transition: 'all 0.2s',
+                  minWidth: '44px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                onMouseOver={e => { e.currentTarget.style.background = '#e2e8f0'; e.currentTarget.style.borderColor = '#94a3b8'; }}
+                onMouseOut={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
+                title="Drucken oder als PDF speichern"
+              >
+                🖨️
+              </button>
+            </div>
+          </div>
           </div>
         </div>
         )}
@@ -1851,146 +1980,8 @@ export default function Room() {
           />
         )}
 
-        {/* View Controls - Elegant Vertical Side Bar */}
-        <div className="no-print" style={{
-          position: 'fixed',
-          top: '68px',
-          right: 0,
-          height: 'calc(100vh - 68px)',
-          width: '48px',
-          zIndex: 18,
-          background: '#e0e7ff',
-          boxShadow: '-2px 0 8px rgba(0,0,0,0.08)',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          padding: '12px 0',
-          gap: '8px'
-        }}>
-          {/* View Toggle Buttons - Vertical Stacked */}
-          <button
-            onClick={() => setViewMode('map')}
-            style={{
-              width: '40px',
-              height: '56px',
-              background: viewMode === 'map' ? '#667eea' : 'transparent',
-              color: viewMode === 'map' ? 'white' : '#667eea',
-              border: viewMode === 'map' ? 'none' : '1px solid #bfdbfe',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontWeight: '600',
-              fontSize: '11px',
-              transition: 'all 0.2s',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '4px',
-              gap: '2px',
-              boxShadow: viewMode === 'map' ? '0 2px 8px rgba(102,126,234,0.3)' : 'none',
-              writingMode: 'vertical-rl',
-              textOrientation: 'mixed'
-            }}
-            title="Kartenansicht"
-          >
-            📍 Karte
-          </button>
-
-          <button
-            onClick={() => setViewMode('timeline')}
-            style={{
-              width: '40px',
-              height: '56px',
-              background: viewMode === 'timeline' ? '#667eea' : 'transparent',
-              color: viewMode === 'timeline' ? 'white' : '#667eea',
-              border: viewMode === 'timeline' ? 'none' : '1px solid #bfdbfe',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontWeight: '600',
-              fontSize: '11px',
-              transition: 'all 0.2s',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '4px',
-              gap: '2px',
-              boxShadow: viewMode === 'timeline' ? '0 2px 8px rgba(102,126,234,0.3)' : 'none',
-              writingMode: 'vertical-rl',
-              textOrientation: 'mixed'
-            }}
-            title="Zeitplanansicht"
-          >
-            📋 Plan
-          </button>
-
-          {/* Separator */}
-          <div style={{
-            width: '24px',
-            height: '1px',
-            background: '#bfdbfe',
-            margin: '4px 0'
-          }} />
-
-          {/* Zeitintervall Dropdown - nur in Zeitplan-Ansicht */}
-          {viewMode === 'timeline' && (
-            <select 
-              value={timeInterval} 
-              onChange={e => setTimeInterval(parseInt(e.target.value))}
-              style={{ 
-                width: '40px',
-                height: '40px',
-                padding: '4px',
-                borderRadius: '6px',
-                border: '1px solid #bfdbfe',
-                fontSize: '9px',
-                fontWeight: '600',
-                background: 'white',
-                color: '#667eea',
-                cursor: 'pointer',
-                outline: 'none',
-                transition: 'all 0.2s',
-                textAlign: 'center',
-                writingMode: 'horizontal-tb'
-              }}
-            >
-              <option value={5}>5m</option>
-              <option value={10}>10m</option>
-              <option value={15}>15m</option>
-            </select>
-          )}
-
-          {/* Spacer */}
-          <div style={{ flex: 1 }} />
-
-          {/* Print Button */}
-          <button
-            onClick={() => window.print()}
-            style={{
-              width: '40px',
-              height: '40px',
-              background: 'white',
-              color: '#667eea',
-              border: '1px solid #bfdbfe',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontWeight: '600',
-              fontSize: '18px',
-              transition: 'all 0.2s',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-            onMouseOver={e => { e.currentTarget.style.background = '#667eea'; e.currentTarget.style.color = 'white'; e.currentTarget.style.borderColor = '#667eea'; }}
-            onMouseOut={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = '#667eea'; e.currentTarget.style.borderColor = '#bfdbfe'; }}
-            title="Drucken oder als PDF speichern"
-          >
-            🖨️
-          </button>
-        </div>
-
         {/* Main area - switches between map and timeline */}
-        <div className="room-layout" style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', padding: '12px', paddingRight: '60px', position: 'relative', minWidth: 0, minHeight: 0 }}>
+        <div className="room-layout" style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', padding: '12px', position: 'relative', minWidth: 0, minHeight: 0 }}>
 
           {/* Content area with top padding to avoid toggle overlap */}
           <div
