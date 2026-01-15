@@ -13,6 +13,10 @@ RUN npm ci
 # Quellcode kopieren
 COPY . .
 
+# Build-Argument für Version
+ARG BUILD_SHA=unknown
+ENV VITE_BUILD_SHA=${BUILD_SHA}
+
 # Build erstellen
 RUN npm run build
 

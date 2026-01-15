@@ -61,3 +61,5 @@ jobs:
           context: .
           push: true
           tags: ${{ steps.tags.outputs.tags }}
+          build-args: |
+            BUILD_SHA=${{ github.sha }}
