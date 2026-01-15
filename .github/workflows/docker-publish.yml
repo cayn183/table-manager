@@ -39,9 +39,7 @@ jobs:
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
           SHA="${GITHUB_SHA::7}"
           REF_NAME="${GITHUB_REF##*/}"
-
           TAGS=""
-
           if [[ "${GITHUB_REF}" == refs/heads/dev ]]; then
             TAGS="$IMAGE:dev-$SHA $IMAGE:dev-latest"
           elif [[ "${GITHUB_REF}" == refs/heads/main ]]; then
@@ -50,12 +48,10 @@ jobs:
           elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             TAGS="$IMAGE:${REF_NAME} $IMAGE:latest"
           fi
-
           if [[ -z "$TAGS" ]]; then
             echo "No tags computed; exiting." >&2
             exit 1
           fi
-
           echo "tags=$(echo $TAGS | tr ' ' ',')" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
