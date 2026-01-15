@@ -1388,43 +1388,46 @@ export default function Room() {
             onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'}
             onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
           >+ Familie anlegen</button>
-          <button 
-            onClick={autoAssign}
-            style={{
-              padding: '12px 20px',
-              background: 'white',
-              color: '#667eea',
-              border: '2px solid #667eea',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '600',
-              transition: 'all 0.2s'
-            }}
-            onMouseOver={e => { e.currentTarget.style.background = '#667eea'; e.currentTarget.style.color = 'white'; }}
-            onMouseOut={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = '#667eea'; }}
-          >
-            {hasAutoAssigned ? '🔄 Re-Assign' : '✨ Auto Assign'}
-          </button>
+          <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
+            <button 
+              onClick={autoAssign}
+              style={{
+                flex: 1,
+                padding: '12px 20px',
+                background: 'white',
+                color: '#667eea',
+                border: '2px solid #667eea',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '600',
+                transition: 'all 0.2s'
+              }}
+              onMouseOver={e => { e.currentTarget.style.background = '#667eea'; e.currentTarget.style.color = 'white'; }}
+              onMouseOut={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = '#667eea'; }}
+            >
+              {hasAutoAssigned ? '🔄 Re-Assign' : '✨ Auto Assign'}
+            </button>
             <button
               onClick={handleCsvImportClick}
               style={{
-                padding: '10px 16px',
+                flex: 1,
+                padding: '12px 20px',
                 background: 'white',
                 color: '#10b981',
                 border: '2px solid #10b981',
                 borderRadius: '8px',
                 cursor: 'pointer',
-                fontSize: '13px',
+                fontSize: '14px',
                 fontWeight: '600',
-                transition: 'all 0.2s',
-                marginTop: '8px'
+                transition: 'all 0.2s'
               }}
               onMouseOver={e => { e.currentTarget.style.background = '#10b981'; e.currentTarget.style.color = 'white'; }}
               onMouseOut={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = '#10b981'; }}
             >
-              📥 Import Familien (CSV)
+              📥 Import (CSV)
             </button>
+          </div>
           <div style={{ marginTop: '8px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <h3 style={{ margin: '0', fontSize: '16px', fontWeight: '600', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1842,60 +1845,59 @@ export default function Room() {
 
         {/* Main area - switches between map and timeline */}
         <div className="room-layout" style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', padding: '12px', position: 'relative', minWidth: 0, minHeight: 0 }}>
-          {/* View Toggle Bar - positioned over the content */}
+          {/* View Toggle Icon - Top Right Corner */}
           <div style={{
             position: 'absolute',
             top: '12px',
-            left: '12px',
             right: '12px',
             zIndex: 20,
             display: 'flex',
-            gap: 12,
-            alignItems: 'center',
-            background: 'rgba(255, 255, 255, 0.95)',
-            padding: '8px 12px',
-            borderRadius: '6px',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            gap: '6px',
+            background: 'rgba(255, 255, 255, 0.92)',
+            padding: '6px',
+            borderRadius: '8px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+            backdropFilter: 'blur(4px)'
           }}>
-            {/* View Toggle Buttons */}
-            <div style={{ display: 'flex', gap: 6, background: '#f1f5f9', padding: '6px', borderRadius: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
-              <button
-                onClick={() => setViewMode('map')}
-                style={{
-                  padding: '8px 16px',
-                  background: viewMode === 'map' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'transparent',
-                  color: viewMode === 'map' ? 'white' : '#64748b',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontWeight: '600',
-                  fontSize: '13px',
-                  transition: 'all 0.2s',
-                  boxShadow: viewMode === 'map' ? '0 2px 8px rgba(102,126,234,0.3)' : 'none'
-                }}
-              >
-                📍 Kartenübersicht
-              </button>
-              <button
-                onClick={() => setViewMode('timeline')}
-                style={{
-                  padding: '8px 16px',
-                  background: viewMode === 'timeline' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'transparent',
-                  color: viewMode === 'timeline' ? 'white' : '#64748b',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontWeight: '600',
-                  fontSize: '13px',
-                  transition: 'all 0.2s',
-                  boxShadow: viewMode === 'timeline' ? '0 2px 8px rgba(102,126,234,0.3)' : 'none'
-                }}
-              >
-                🕐 Zeitplan
-              </button>
-            </div>
+            <button
+              onClick={() => setViewMode('map')}
+              style={{
+                padding: '8px 12px',
+                background: viewMode === 'map' ? '#667eea' : 'transparent',
+                color: viewMode === 'map' ? 'white' : '#64748b',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '12px',
+                transition: 'all 0.2s',
+                boxShadow: viewMode === 'map' ? '0 2px 8px rgba(102,126,234,0.3)' : 'none'
+              }}
+              title="Kartenansicht"
+            >
+              📍 Karte
+            </button>
+            <button
+              onClick={() => setViewMode('timeline')}
+              style={{
+                padding: '8px 12px',
+                background: viewMode === 'timeline' ? '#667eea' : 'transparent',
+                color: viewMode === 'timeline' ? 'white' : '#64748b',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '12px',
+                transition: 'all 0.2s',
+                boxShadow: viewMode === 'timeline' ? '0 2px 8px rgba(102,126,234,0.3)' : 'none'
+              }}
+              title="Zeitplanansicht"
+            >
+              📋 Plan
+            </button>
+          </div>
 
-            {/* Zeitintervall Dropdown - nur in Zeitplan-Ansicht */}
+          {/* Zeitintervall Dropdown - nur in Zeitplan-Ansicht */}
             {viewMode === 'timeline' && (
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '13px', fontWeight: '600', color: '#64748b' }}>
                 Intervall:
