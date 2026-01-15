@@ -1269,44 +1269,46 @@ export default function Room() {
           </Link>
           <h1 style={{ margin: 0, fontSize: isMobile ? '20px' : '24px', color: 'white', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>Raum - Plätze belegen</h1>
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          {/* View Toggle - Karte / Plan */}
-          <div style={{ display: 'inline-flex', gap: '2px', background: 'rgba(255,255,255,0.1)', padding: '4px', borderRadius: '6px' }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          {/* View Toggle - Kartenansicht / Planansicht */}
+          <div style={{ display: 'inline-flex', gap: '3px', background: 'rgba(255,255,255,0.15)', padding: '5px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)' }}>
             <button
               onClick={() => setViewMode('map')}
               style={{
-                padding: '6px 12px',
-                background: viewMode === 'map' ? 'rgba(255,255,255,0.25)' : 'transparent',
+                padding: '8px 14px',
+                background: viewMode === 'map' ? 'rgba(255,255,255,0.3)' : 'transparent',
                 color: 'white',
-                border: 'none',
-                borderRadius: '4px',
+                border: viewMode === 'map' ? '1px solid rgba(255,255,255,0.4)' : 'none',
+                borderRadius: '6px',
                 cursor: 'pointer',
                 fontWeight: '600',
                 fontSize: '13px',
-                transition: 'all 0.2s',
-                boxShadow: viewMode === 'map' ? '0 2px 8px rgba(0,0,0,0.2)' : 'none'
+                transition: 'all 0.2s ease',
+                boxShadow: viewMode === 'map' ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
+                textShadow: '0 1px 2px rgba(0,0,0,0.1)'
               }}
               title="Kartenansicht"
             >
-              📍 Karte
+              📍 Kartenansicht
             </button>
             <button
               onClick={() => setViewMode('timeline')}
               style={{
-                padding: '6px 12px',
-                background: viewMode === 'timeline' ? 'rgba(255,255,255,0.25)' : 'transparent',
+                padding: '8px 14px',
+                background: viewMode === 'timeline' ? 'rgba(255,255,255,0.3)' : 'transparent',
                 color: 'white',
-                border: 'none',
-                borderRadius: '4px',
+                border: viewMode === 'timeline' ? '1px solid rgba(255,255,255,0.4)' : 'none',
+                borderRadius: '6px',
                 cursor: 'pointer',
                 fontWeight: '600',
                 fontSize: '13px',
-                transition: 'all 0.2s',
-                boxShadow: viewMode === 'timeline' ? '0 2px 8px rgba(0,0,0,0.2)' : 'none'
+                transition: 'all 0.2s ease',
+                boxShadow: viewMode === 'timeline' ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
+                textShadow: '0 1px 2px rgba(0,0,0,0.1)'
               }}
-              title="Zeitplanansicht"
+              title="Planansicht"
             >
-              📋 Plan
+              📋 Planansicht
             </button>
           </div>
 
@@ -1351,36 +1353,6 @@ export default function Room() {
             onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
             onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
           >Raum bearbeiten</button>
-          <button 
-            onClick={() => handleSaveEvent()} 
-            disabled={!isDirty || !Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0)}
-            style={{ 
-              padding: '8px 16px',
-              background: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? '#10b981' : 'rgba(255,255,255,0.15)',
-              color: 'white',
-              border: '1px solid rgba(255,255,255,0.3)',
-              borderRadius: '6px',
-              cursor: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 'pointer' : 'not-allowed',
-              fontSize: '14px',
-              fontWeight: '600',
-              transition: 'all 0.2s',
-              opacity: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 1 : 0.5
-            }}
-          >
-            💾 Event speichern
-          </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {typeof autosaveRemaining === 'number' && (
-              <span style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.95)', background: 'rgba(0,0,0,0.25)', padding: '4px 10px', borderRadius: '10px' }}>
-                Auto in {String(Math.floor(autosaveRemaining / 60)).padStart(2, '0')}:{String(autosaveRemaining % 60).padStart(2, '0')}
-              </span>
-            )}
-            {lastSaveTime && (
-              <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.9)', background: 'rgba(0,0,0,0.2)', padding: '4px 12px', borderRadius: '12px' }}>
-                {lastSaveType === 'auto' ? 'Auto gespeichert: ' : 'Zuletzt: '}{lastSaveTime}
-              </p>
-            )}
-          </div>
         </div>
       </div>
       
