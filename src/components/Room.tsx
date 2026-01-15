@@ -1388,46 +1388,43 @@ export default function Room() {
             onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'}
             onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
           >+ Familie anlegen</button>
-          <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
-            <button 
-              onClick={autoAssign}
-              style={{
-                flex: 1,
-                padding: '12px 20px',
-                background: 'white',
-                color: '#667eea',
-                border: '2px solid #667eea',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: '600',
-                transition: 'all 0.2s'
-              }}
-              onMouseOver={e => { e.currentTarget.style.background = '#667eea'; e.currentTarget.style.color = 'white'; }}
-              onMouseOut={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = '#667eea'; }}
-            >
-              {hasAutoAssigned ? '🔄 Re-Assign' : '✨ Auto Assign'}
-            </button>
+          <button 
+            onClick={autoAssign}
+            style={{
+              padding: '12px 20px',
+              background: 'white',
+              color: '#667eea',
+              border: '2px solid #667eea',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '600',
+              transition: 'all 0.2s'
+            }}
+            onMouseOver={e => { e.currentTarget.style.background = '#667eea'; e.currentTarget.style.color = 'white'; }}
+            onMouseOut={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = '#667eea'; }}
+          >
+            {hasAutoAssigned ? '🔄 Re-Assign' : '✨ Auto Assign'}
+          </button>
             <button
               onClick={handleCsvImportClick}
               style={{
-                flex: 1,
-                padding: '12px 20px',
+                padding: '10px 16px',
                 background: 'white',
                 color: '#10b981',
                 border: '2px solid #10b981',
                 borderRadius: '8px',
                 cursor: 'pointer',
-                fontSize: '14px',
+                fontSize: '13px',
                 fontWeight: '600',
-                transition: 'all 0.2s'
+                transition: 'all 0.2s',
+                marginTop: '8px'
               }}
               onMouseOver={e => { e.currentTarget.style.background = '#10b981'; e.currentTarget.style.color = 'white'; }}
               onMouseOut={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = '#10b981'; }}
             >
-              📥 Import (CSV)
+              📥 Import Familien (CSV)
             </button>
-          </div>
           <div style={{ marginTop: '8px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <h3 style={{ margin: '0', fontSize: '16px', fontWeight: '600', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1845,70 +1842,89 @@ export default function Room() {
 
         {/* Main area - switches between map and timeline */}
         <div className="room-layout" style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', padding: '12px', position: 'relative', minWidth: 0, minHeight: 0 }}>
-          {/* View Toggle Icon - Top Right Corner */}
+          {/* View Toggle & Controls - Top Right Corner */}
           <div style={{
             position: 'absolute',
             top: '12px',
             right: '12px',
             zIndex: 20,
             display: 'flex',
-            gap: '6px',
-            background: 'rgba(255, 255, 255, 0.92)',
-            padding: '6px',
-            borderRadius: '8px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-            backdropFilter: 'blur(4px)'
+            flexDirection: 'column',
+            gap: '12px',
+            alignItems: 'flex-end'
           }}>
-            <button
-              onClick={() => setViewMode('map')}
-              style={{
-                padding: '8px 12px',
-                background: viewMode === 'map' ? '#667eea' : 'transparent',
-                color: viewMode === 'map' ? 'white' : '#64748b',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontWeight: '600',
-                fontSize: '12px',
-                transition: 'all 0.2s',
-                boxShadow: viewMode === 'map' ? '0 2px 8px rgba(102,126,234,0.3)' : 'none'
-              }}
-              title="Kartenansicht"
-            >
-              📍 Karte
-            </button>
-            <button
-              onClick={() => setViewMode('timeline')}
-              style={{
-                padding: '8px 12px',
-                background: viewMode === 'timeline' ? '#667eea' : 'transparent',
-                color: viewMode === 'timeline' ? 'white' : '#64748b',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontWeight: '600',
-                fontSize: '12px',
-                transition: 'all 0.2s',
-                boxShadow: viewMode === 'timeline' ? '0 2px 8px rgba(102,126,234,0.3)' : 'none'
-              }}
-              title="Zeitplanansicht"
-            >
-              📋 Plan
-            </button>
-          </div>
+            {/* View Toggle Buttons - Compact Pill */}
+            <div style={{ 
+              display: 'flex', 
+              gap: '6px', 
+              background: 'rgba(255, 255, 255, 0.92)', 
+              padding: '6px', 
+              borderRadius: '8px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              backdropFilter: 'blur(4px)'
+            }}>
+              <button
+                onClick={() => setViewMode('map')}
+                style={{
+                  padding: '8px 12px',
+                  background: viewMode === 'map' ? '#667eea' : 'transparent',
+                  color: viewMode === 'map' ? 'white' : '#64748b',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '12px',
+                  transition: 'all 0.2s',
+                  boxShadow: viewMode === 'map' ? '0 2px 8px rgba(102,126,234,0.3)' : 'none'
+                }}
+                title="Kartenansicht"
+              >
+                📍 Karte
+              </button>
+              <button
+                onClick={() => setViewMode('timeline')}
+                style={{
+                  padding: '8px 12px',
+                  background: viewMode === 'timeline' ? '#667eea' : 'transparent',
+                  color: viewMode === 'timeline' ? 'white' : '#64748b',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '12px',
+                  transition: 'all 0.2s',
+                  boxShadow: viewMode === 'timeline' ? '0 2px 8px rgba(102,126,234,0.3)' : 'none'
+                }}
+                title="Zeitplanansicht"
+              >
+                📋 Plan
+              </button>
+            </div>
 
-          {/* Zeitintervall Dropdown - nur in Zeitplan-Ansicht */}
+            {/* Zeitintervall Dropdown - nur in Zeitplan-Ansicht */}
             {viewMode === 'timeline' && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '13px', fontWeight: '600', color: '#64748b' }}>
+              <label style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '6px', 
+                fontSize: '12px', 
+                fontWeight: '600', 
+                color: '#64748b',
+                background: 'rgba(255, 255, 255, 0.92)',
+                padding: '6px 10px',
+                borderRadius: '8px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                backdropFilter: 'blur(4px)'
+              }}>
                 Intervall:
                 <select 
                   value={timeInterval} 
                   onChange={e => setTimeInterval(parseInt(e.target.value))}
                   style={{ 
-                    padding: '8px 12px', 
-                    borderRadius: '8px', 
-                    border: '2px solid #e2e8f0', 
-                    fontSize: '13px',
+                    padding: '4px 8px', 
+                    borderRadius: '6px', 
+                    border: '1px solid #e2e8f0', 
+                    fontSize: '12px',
                     fontWeight: '600',
                     background: 'white',
                     cursor: 'pointer',
@@ -1927,25 +1943,23 @@ export default function Room() {
               className="no-print"
               onClick={() => window.print()}
               style={{
-                marginLeft: 'auto',
-                padding: '8px 16px',
-                background: 'white',
+                padding: '8px 12px',
+                background: 'rgba(255, 255, 255, 0.92)',
                 color: '#667eea',
-                border: '2px solid #667eea',
+                border: '1px solid rgba(102,126,234,0.3)',
                 borderRadius: '8px',
                 cursor: 'pointer',
                 fontWeight: '600',
-                fontSize: '13px',
+                fontSize: '12px',
                 transition: 'all 0.2s',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                backdropFilter: 'blur(4px)'
               }}
-              onMouseOver={e => { e.currentTarget.style.background = '#667eea'; e.currentTarget.style.color = 'white'; }}
-              onMouseOut={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = '#667eea'; }}
+              onMouseOver={e => { e.currentTarget.style.background = '#667eea'; e.currentTarget.style.color = 'white'; e.currentTarget.style.borderColor = '#667eea'; }}
+              onMouseOut={e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.92)'; e.currentTarget.style.color = '#667eea'; e.currentTarget.style.borderColor = 'rgba(102,126,234,0.3)'; }}
               title="Drucken oder als PDF speichern"
             >
-              🖨️ Drucken / PDF
+              🖨️ PDF
             </button>
           </div>
 
