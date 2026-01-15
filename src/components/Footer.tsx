@@ -2,9 +2,9 @@ import React from 'react'
 import '../styles/footer.css'
 
 const VERSION_INFO = {
-  version: '0.6.2',
+  version: '0.6.2-dev',
   creator: 'Cayn183',
-  releaseDate: '2026-01-14'
+  releaseDate: '2026-01-15'
 }
 
 export default function Footer() {
