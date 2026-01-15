@@ -1479,7 +1479,7 @@ export default function Room() {
                 >#</button>
               </div>
             </div>
-          <div style={{ maxHeight: '400px', overflow: 'hidden' }}>
+          <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
             <div className="groups-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
             {(() => {
               const sortedGroups = [...groups].sort((a, b) => {
