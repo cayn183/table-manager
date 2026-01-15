@@ -37,6 +37,7 @@ jobs:
         id: tags
         run: |
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          IMAGE=$(echo $IMAGE | tr '[:upper:]' '[:lower:]')
           SHA="${GITHUB_SHA::7}"
           REF_NAME="${GITHUB_REF##*/}"
           TAGS=""
