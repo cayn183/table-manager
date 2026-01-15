@@ -1,0 +1,7 @@
+version: '3.8'
+
+services:
+  table-manager:
+    image: ghcr.io/cayn183/table-manager:dev-latest
+    profiles: [ "staging" ]
+    # Optional: override env/volumes per staging here

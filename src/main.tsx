@@ -8,8 +8,8 @@ import './styles/footer.css'
 
 function Root() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'auto' }}>
-      <div style={{ flex: 1, overflow: 'auto', padding: '24px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+      <div style={{ flex: 1, overflow: 'auto' }}>
         <App />
       </div>
       <Footer />

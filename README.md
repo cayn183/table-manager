@@ -53,6 +53,13 @@ npm run preview
 
 ## 🐳 Docker
 
+**Images aus GHCR**
+
+- Stable (main): `ghcr.io/cayn183/table-manager:latest` oder eine feste Version wie `:v0.6.1`
+- Dev/Preview: `ghcr.io/cayn183/table-manager:dev-latest` (oder `dev-<shortsha>`)
+
+**Lokal bauen**
+
 ```bash
 # Docker Image bauen
 docker build -t table-manager .
@@ -61,7 +68,7 @@ docker build -t table-manager .
 docker run -p 5173:5173 table-manager
 ```
 
-Oder mit Docker Compose:
+**Docker Compose**
 
 ```bash
 docker-compose up
