@@ -1220,7 +1220,7 @@ export default function Room() {
     <div style={{ 
       display: 'flex', 
       flexDirection: 'column', 
-      minHeight: '100vh', 
+      height: '100%', 
       width: '100%', 
       background: '#f8fafc',
       transformOrigin: 'top left',
