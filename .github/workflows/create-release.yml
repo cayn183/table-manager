@@ -29,18 +29,7 @@ jobs:
         id: changelog
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          # Extract the section for this version from CHANGELOG.md
-          TEMP_FILE=$(mktemp)
-          awk "/## \[$VERSION\]/,/## \[[0-9]/ { if (/## \[[0-9]/ && !/## \[$VERSION\]/) exit; print }" CHANGELOG.md > $TEMP_FILE
-          
-          # Store the content for release body
-          {
-            echo 'release_notes<<EOF'
-            cat $TEMP_FILE
-            echo 'EOF'
-          } >> $GITHUB_OUTPUT
-          
-          rm -f $TEMP_FILE
+          echo "release_notes=See CHANGELOG.md for details about version $VERSION" >> $GITHUB_OUTPUT
       
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
