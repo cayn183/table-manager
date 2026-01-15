@@ -1220,7 +1220,7 @@ export default function Room() {
     <div style={{ 
       display: 'flex', 
       flexDirection: 'column', 
-      minHeight: '100vh', 
+      height: '100%', 
       width: '100%', 
       background: '#f8fafc',
       transformOrigin: 'top left',
@@ -1269,7 +1269,73 @@ export default function Room() {
           </Link>
           <h1 style={{ margin: 0, fontSize: isMobile ? '20px' : '24px', color: 'white', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>Raum - Plätze belegen</h1>
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          {/* View Toggle - Kartenansicht / Planansicht */}
+          <div style={{ display: 'inline-flex', gap: '3px', background: 'rgba(255,255,255,0.15)', padding: '5px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)' }}>
+            <button
+              onClick={() => setViewMode('map')}
+              style={{
+                padding: '8px 14px',
+                background: viewMode === 'map' ? 'rgba(255,255,255,0.3)' : 'transparent',
+                color: 'white',
+                border: viewMode === 'map' ? '1px solid rgba(255,255,255,0.4)' : 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '13px',
+                transition: 'all 0.2s ease',
+                boxShadow: viewMode === 'map' ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
+                textShadow: '0 1px 2px rgba(0,0,0,0.1)'
+              }}
+              title="Kartenansicht"
+            >
+              📍 Kartenansicht
+            </button>
+            <button
+              onClick={() => setViewMode('timeline')}
+              style={{
+                padding: '8px 14px',
+                background: viewMode === 'timeline' ? 'rgba(255,255,255,0.3)' : 'transparent',
+                color: 'white',
+                border: viewMode === 'timeline' ? '1px solid rgba(255,255,255,0.4)' : 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '13px',
+                transition: 'all 0.2s ease',
+                boxShadow: viewMode === 'timeline' ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
+                textShadow: '0 1px 2px rgba(0,0,0,0.1)'
+              }}
+              title="Planansicht"
+            >
+              📋 Planansicht
+            </button>
+          </div>
+
+          {/* Zeitintervall - nur in Zeitplan-Ansicht */}
+          {viewMode === 'timeline' && (
+            <select 
+              value={timeInterval} 
+              onChange={e => setTimeInterval(parseInt(e.target.value))}
+              style={{
+                padding: '6px 10px',
+                background: 'rgba(255,255,255,0.1)',
+                color: 'white',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: '600',
+                outline: 'none',
+                transition: 'all 0.2s'
+              }}
+            >
+              <option value={5} style={{ background: '#667eea' }}>⏱️ 5 Min</option>
+              <option value={10} style={{ background: '#667eea' }}>⏱️ 10 Min</option>
+              <option value={15} style={{ background: '#667eea' }}>⏱️ 15 Min</option>
+            </select>
+          )}
+
           <button 
             onClick={() => navigate('/new-room')}
             style={{
@@ -1287,36 +1353,6 @@ export default function Room() {
             onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
             onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
           >Raum bearbeiten</button>
-          <button 
-            onClick={() => handleSaveEvent()} 
-            disabled={!isDirty || !Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0)}
-            style={{ 
-              padding: '8px 16px',
-              background: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? '#10b981' : 'rgba(255,255,255,0.15)',
-              color: 'white',
-              border: '1px solid rgba(255,255,255,0.3)',
-              borderRadius: '6px',
-              cursor: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 'pointer' : 'not-allowed',
-              fontSize: '14px',
-              fontWeight: '600',
-              transition: 'all 0.2s',
-              opacity: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 1 : 0.5
-            }}
-          >
-            💾 Event speichern
-          </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {typeof autosaveRemaining === 'number' && (
-              <span style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.95)', background: 'rgba(0,0,0,0.25)', padding: '4px 10px', borderRadius: '10px' }}>
-                Auto in {String(Math.floor(autosaveRemaining / 60)).padStart(2, '0')}:{String(autosaveRemaining % 60).padStart(2, '0')}
-              </span>
-            )}
-            {lastSaveTime && (
-              <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.9)', background: 'rgba(0,0,0,0.2)', padding: '4px 12px', borderRadius: '12px' }}>
-                {lastSaveType === 'auto' ? 'Auto gespeichert: ' : 'Zuletzt: '}{lastSaveTime}
-              </p>
-            )}
-          </div>
         </div>
       </div>
       
@@ -1388,28 +1424,36 @@ export default function Room() {
             onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'}
             onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
           >+ Familie anlegen</button>
-          <button 
-            onClick={autoAssign}
-            style={{
-              padding: '12px 20px',
-              background: 'white',
-              color: '#667eea',
-              border: '2px solid #667eea',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '600',
-              transition: 'all 0.2s'
-            }}
-            onMouseOver={e => { e.currentTarget.style.background = '#667eea'; e.currentTarget.style.color = 'white'; }}
-            onMouseOut={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = '#667eea'; }}
-          >
-            {hasAutoAssigned ? '🔄 Re-Assign' : '✨ Auto Assign'}
-          </button>
+          <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
+            <button 
+              onClick={autoAssign}
+              style={{
+                flex: 1,
+                height: '35px',
+                padding: '0 16px',
+                background: 'white',
+                color: '#667eea',
+                border: '2px solid #667eea',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: '600',
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              onMouseOver={e => { e.currentTarget.style.background = '#667eea'; e.currentTarget.style.color = 'white'; }}
+              onMouseOut={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = '#667eea'; }}
+            >
+              {hasAutoAssigned ? '🔄 Neu zuweisen' : '✨ Automatisch zuweisen'}
+            </button>
             <button
               onClick={handleCsvImportClick}
               style={{
-                padding: '10px 16px',
+                flex: 1,
+                height: '35px',
+                padding: '0 16px',
                 background: 'white',
                 color: '#10b981',
                 border: '2px solid #10b981',
@@ -1418,13 +1462,16 @@ export default function Room() {
                 fontSize: '13px',
                 fontWeight: '600',
                 transition: 'all 0.2s',
-                marginTop: '8px'
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
               }}
               onMouseOver={e => { e.currentTarget.style.background = '#10b981'; e.currentTarget.style.color = 'white'; }}
               onMouseOut={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = '#10b981'; }}
             >
-              📥 Import Familien (CSV)
+              📥 Import (CSV)
             </button>
+          </div>
           <div style={{ marginTop: '8px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <h3 style={{ margin: '0', fontSize: '16px', fontWeight: '600', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1479,7 +1526,7 @@ export default function Room() {
                 >#</button>
               </div>
             </div>
-          <div style={{ maxHeight: '400px', overflow: 'hidden' }}>
+          <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
             <div className="groups-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
             {(() => {
               const sortedGroups = [...groups].sort((a, b) => {
@@ -1821,6 +1868,71 @@ export default function Room() {
               </div>
             )
           })()}
+          
+          {/* Event speichern Section - under Assigned Groups */}
+          <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', flexWrap: 'wrap' }}>
+              <button 
+                onClick={() => handleSaveEvent()} 
+                disabled={!isDirty || !Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0)}
+                style={{ 
+                  flex: 1,
+                  minWidth: '100px',
+                  padding: '10px 14px',
+                  background: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? '#10b981' : '#e0e7ff',
+                  color: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 'white' : '#94a3b8',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 'pointer' : 'not-allowed',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  transition: 'all 0.2s',
+                  opacity: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 1 : 0.6
+                }}
+              >
+                💾 Speichern
+              </button>
+              
+              {/* Auto-Save Status - Kompakt */}
+              {typeof autosaveRemaining === 'number' && (
+                <span style={{ fontSize: '11px', color: '#64748b', background: '#f1f5f9', padding: '6px 8px', borderRadius: '6px', whiteSpace: 'nowrap' }}>
+                  Auto: {String(Math.floor(autosaveRemaining / 60)).padStart(2, '0')}:{String(autosaveRemaining % 60).padStart(2, '0')}
+                </span>
+              )}
+              
+              {/* Zuletzt gespeichert - Kompakt */}
+              {lastSaveTime && (
+                <span style={{ fontSize: '11px', color: '#64748b', background: '#f1f5f9', padding: '6px 8px', borderRadius: '6px', whiteSpace: 'nowrap' }}>
+                  {lastSaveType === 'auto' ? 'Auto' : 'Sicherung'}: {lastSaveTime}
+                </span>
+              )}
+              
+              {/* Print Button - Klein */}
+              <button
+                onClick={() => window.print()}
+                style={{
+                  padding: '8px 10px',
+                  background: '#f1f5f9',
+                  color: '#667eea',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  transition: 'all 0.2s',
+                  minWidth: '44px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                onMouseOver={e => { e.currentTarget.style.background = '#e2e8f0'; e.currentTarget.style.borderColor = '#94a3b8'; }}
+                onMouseOut={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
+                title="Drucken oder als PDF speichern"
+              >
+                🖨️
+              </button>
+            </div>
+          </div>
           </div>
         </div>
         )}
@@ -1842,116 +1954,12 @@ export default function Room() {
 
         {/* Main area - switches between map and timeline */}
         <div className="room-layout" style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', padding: '12px', position: 'relative', minWidth: 0, minHeight: 0 }}>
-          {/* View Toggle Bar - positioned over the content */}
-          <div style={{
-            position: 'absolute',
-            top: '12px',
-            left: '12px',
-            right: '12px',
-            zIndex: 20,
-            display: 'flex',
-            gap: 12,
-            alignItems: 'center',
-            background: 'rgba(255, 255, 255, 0.95)',
-            padding: '8px 12px',
-            borderRadius: '6px',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-          }}>
-            {/* View Toggle Buttons */}
-            <div style={{ display: 'flex', gap: 6, background: '#f1f5f9', padding: '6px', borderRadius: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
-              <button
-                onClick={() => setViewMode('map')}
-                style={{
-                  padding: '8px 16px',
-                  background: viewMode === 'map' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'transparent',
-                  color: viewMode === 'map' ? 'white' : '#64748b',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontWeight: '600',
-                  fontSize: '13px',
-                  transition: 'all 0.2s',
-                  boxShadow: viewMode === 'map' ? '0 2px 8px rgba(102,126,234,0.3)' : 'none'
-                }}
-              >
-                📍 Kartenübersicht
-              </button>
-              <button
-                onClick={() => setViewMode('timeline')}
-                style={{
-                  padding: '8px 16px',
-                  background: viewMode === 'timeline' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'transparent',
-                  color: viewMode === 'timeline' ? 'white' : '#64748b',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontWeight: '600',
-                  fontSize: '13px',
-                  transition: 'all 0.2s',
-                  boxShadow: viewMode === 'timeline' ? '0 2px 8px rgba(102,126,234,0.3)' : 'none'
-                }}
-              >
-                🕐 Zeitplan
-              </button>
-            </div>
-
-            {/* Zeitintervall Dropdown - nur in Zeitplan-Ansicht */}
-            {viewMode === 'timeline' && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '13px', fontWeight: '600', color: '#64748b' }}>
-                Intervall:
-                <select 
-                  value={timeInterval} 
-                  onChange={e => setTimeInterval(parseInt(e.target.value))}
-                  style={{ 
-                    padding: '8px 12px', 
-                    borderRadius: '8px', 
-                    border: '2px solid #e2e8f0', 
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    background: 'white',
-                    cursor: 'pointer',
-                    outline: 'none'
-                  }}
-                >
-                  <option value={5}>5 Min</option>
-                  <option value={10}>10 Min</option>
-                  <option value={15}>15 Min</option>
-                </select>
-              </label>
-            )}
-
-            {/* Print Button */}
-            <button
-              className="no-print"
-              onClick={() => window.print()}
-              style={{
-                marginLeft: 'auto',
-                padding: '8px 16px',
-                background: 'white',
-                color: '#667eea',
-                border: '2px solid #667eea',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontWeight: '600',
-                fontSize: '13px',
-                transition: 'all 0.2s',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-              onMouseOver={e => { e.currentTarget.style.background = '#667eea'; e.currentTarget.style.color = 'white'; }}
-              onMouseOut={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = '#667eea'; }}
-              title="Drucken oder als PDF speichern"
-            >
-              🖨️ Drucken / PDF
-            </button>
-          </div>
 
           {/* Content area with top padding to avoid toggle overlap */}
           <div
             ref={mapContainerRef}
             style={{
-              paddingTop: '60px',
+              paddingTop: '0px',
               display: 'flex',
               justifyContent: 'center',
               alignItems: 'flex-start',

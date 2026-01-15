@@ -7,6 +7,24 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-01-15
+
+### Added
+- Improved view toggle controls in header with better styling and "Kartenansicht" / "Planansicht" labels
+- Event speichern button moved to sidebar footer with compact status indicators
+- Compact auto-save countdown display (MM:SS format) and last save timestamp
+- Print button integrated into event save section
+
+### Changed
+- Restructured layout: moved view controls to main header, event save controls to sidebar footer
+- Enhanced visual hierarchy with better toggle button styling and frosted glass effect
+- Improved form factor: removed floating sidebar, integrated controls into main UI
+- Compact status labels (11px) for auto-save and last save indicators
+
+### Fixed
+- Removed duplicate Event speichern button and status displays from header
+- Cleaned up floating sidebar UI elements
+
 ## [0.6.2] - 2026-01-14
 
 ### Fixed

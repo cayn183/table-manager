@@ -52,7 +52,7 @@ export default function Home() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ background: '#f8fafc', display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header */}
       <div style={{ 
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
@@ -65,7 +65,7 @@ export default function Home() {
       
       {/* Main Content */}
       <div style={{ flex: 1, padding: '40px 24px', maxWidth: '1200px', width: '100%', margin: '0 auto' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginTop: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px', marginTop: '20px', maxWidth: '800px', margin: '20px auto 0' }}>
           <button 
             onClick={() => setShowEventModal(true)}
             style={{

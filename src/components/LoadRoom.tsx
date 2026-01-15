@@ -27,7 +27,7 @@ export default function LoadRoom() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ background: '#f8fafc', display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header */}
       <div style={{ 
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 

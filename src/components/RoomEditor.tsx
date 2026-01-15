@@ -235,7 +235,7 @@ export default function RoomEditor() {
 
   return (
     <div style={{ 
-      minHeight: '100vh', 
+      height: '100%', 
       background: '#f8fafc', 
       display: 'flex', 
       flexDirection: 'column',

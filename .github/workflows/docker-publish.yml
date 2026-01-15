@@ -2,7 +2,8 @@ name: Docker Build and Push
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, dev ]
+    tags: [ 'v*' ]
   workflow_dispatch:
 
 env:
@@ -20,6 +21,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -27,18 +33,33 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=latest
+      - name: Compute tags
+        id: tags
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          IMAGE=$(echo $IMAGE | tr '[:upper:]' '[:lower:]')
+          SHA="${GITHUB_SHA::7}"
+          REF_NAME="${GITHUB_REF##*/}"
+          TAGS=""
+          if [[ "${GITHUB_REF}" == refs/heads/dev ]]; then
+            TAGS="$IMAGE:dev-$SHA $IMAGE:dev-latest"
+          elif [[ "${GITHUB_REF}" == refs/heads/main ]]; then
+            VERSION=$(node -p "require('./package.json').version")
+            TAGS="$IMAGE:latest $IMAGE:v$VERSION $IMAGE:sha-$SHA"
+          elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            TAGS="$IMAGE:${REF_NAME} $IMAGE:latest"
+          fi
+          if [[ -z "$TAGS" ]]; then
+            echo "No tags computed; exiting." >&2
+            exit 1
+          fi
+          echo "tags=$(echo $TAGS | tr ' ' ',')" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.tags.outputs.tags }}
+          build-args: |
+            BUILD_SHA=${{ github.sha }}
