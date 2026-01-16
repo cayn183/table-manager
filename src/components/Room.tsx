@@ -1233,12 +1233,18 @@ export default function Room() {
         padding: '16px 24px', 
         boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
         display: 'flex',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        gap: '16px',
-        flexWrap: 'wrap'
+        gap: '0'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {/* Left Column - Logo & Title (aligned with sidebar width) */}
+        <div style={{ 
+          flex: isMobile ? '1' : '0 0 580px',
+          minWidth: isMobile ? 'auto' : '500px',
+          maxWidth: isMobile ? 'none' : '680px',
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '12px' 
+        }}>
           {isMobile && (
             <button 
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -1293,48 +1299,58 @@ export default function Room() {
           </Link>
           <h1 style={{ margin: 0, fontSize: isMobile ? '20px' : '24px', color: 'white', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>Tischplaner</h1>
         </div>
-        {/* View Toggle - Kartenansicht / Planansicht - Left aligned with sidebar */}
-        <div style={{ display: 'inline-flex', gap: '3px', background: 'rgba(255,255,255,0.15)', padding: '5px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)' }}>
-          <button
-            onClick={() => setViewMode('map')}
-            style={{
-              padding: '8px 14px',
-              background: viewMode === 'map' ? 'rgba(255,255,255,0.3)' : 'transparent',
-              color: 'white',
-              border: viewMode === 'map' ? '1px solid rgba(255,255,255,0.4)' : 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontWeight: '600',
-              fontSize: '13px',
-              transition: 'all 0.2s ease',
-              boxShadow: viewMode === 'map' ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
-              textShadow: '0 1px 2px rgba(0,0,0,0.1)'
-            }}
-            title="Kartenansicht"
-          >
-            📍 Kartenansicht
-          </button>
-          <button
-            onClick={() => setViewMode('timeline')}
-            style={{
-              padding: '8px 14px',
-              background: viewMode === 'timeline' ? 'rgba(255,255,255,0.3)' : 'transparent',
-              color: 'white',
-              border: viewMode === 'timeline' ? '1px solid rgba(255,255,255,0.4)' : 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontWeight: '600',
-              fontSize: '13px',
-              transition: 'all 0.2s ease',
-              boxShadow: viewMode === 'timeline' ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
-              textShadow: '0 1px 2px rgba(0,0,0,0.1)'
-            }}
-            title="Planansicht"
-          >
-            📋 Planansicht
-          </button>
-        </div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+
+        {/* Right Column - View Toggle & Controls */}
+        <div style={{ 
+          flex: 1, 
+          display: 'flex', 
+          gap: '12px', 
+          alignItems: 'center',
+          justifyContent: 'flex-start',
+          paddingLeft: '24px'
+        }}>
+          {/* View Toggle - Kartenansicht / Planansicht */}
+          <div style={{ display: 'inline-flex', gap: '3px', background: 'rgba(255,255,255,0.15)', padding: '5px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)' }}>
+            <button
+              onClick={() => setViewMode('map')}
+              style={{
+                padding: '8px 14px',
+                background: viewMode === 'map' ? 'rgba(255,255,255,0.3)' : 'transparent',
+                color: 'white',
+                border: viewMode === 'map' ? '1px solid rgba(255,255,255,0.4)' : 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '13px',
+                transition: 'all 0.2s ease',
+                boxShadow: viewMode === 'map' ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
+                textShadow: '0 1px 2px rgba(0,0,0,0.1)'
+              }}
+              title="Kartenansicht"
+            >
+              📍 Kartenansicht
+            </button>
+            <button
+              onClick={() => setViewMode('timeline')}
+              style={{
+                padding: '8px 14px',
+                background: viewMode === 'timeline' ? 'rgba(255,255,255,0.3)' : 'transparent',
+                color: 'white',
+                border: viewMode === 'timeline' ? '1px solid rgba(255,255,255,0.4)' : 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '13px',
+                transition: 'all 0.2s ease',
+                boxShadow: viewMode === 'timeline' ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
+                textShadow: '0 1px 2px rgba(0,0,0,0.1)'
+              }}
+              title="Planansicht"
+            >
+              📋 Planansicht
+            </button>
+          </div>
+
           {/* Zeitintervall - nur in Zeitplan-Ansicht */}
           {viewMode === 'timeline' && (
             <select 
@@ -1371,7 +1387,8 @@ export default function Room() {
               fontSize: '14px',
               fontWeight: '500',
               transition: 'all 0.2s',
-              backdropFilter: 'blur(10px)'
+              backdropFilter: 'blur(10px)',
+              marginLeft: 'auto'
             }}
             onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
             onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
@@ -1389,7 +1406,7 @@ export default function Room() {
           maxWidth: '680px', 
           background: 'white',
           boxShadow: '2px 0 12px rgba(0,0,0,0.05)',
-          padding: '20px',
+          padding: '20px 20px 0 20px',
           display: 'flex',
           flexDirection: 'column',
           gap: '16px',
