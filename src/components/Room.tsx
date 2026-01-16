@@ -1293,49 +1293,48 @@ export default function Room() {
           </Link>
           <h1 style={{ margin: 0, fontSize: isMobile ? '20px' : '24px', color: 'white', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>Tischplaner</h1>
         </div>
+        {/* View Toggle - Kartenansicht / Planansicht - Left aligned with sidebar */}
+        <div style={{ display: 'inline-flex', gap: '3px', background: 'rgba(255,255,255,0.15)', padding: '5px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)' }}>
+          <button
+            onClick={() => setViewMode('map')}
+            style={{
+              padding: '8px 14px',
+              background: viewMode === 'map' ? 'rgba(255,255,255,0.3)' : 'transparent',
+              color: 'white',
+              border: viewMode === 'map' ? '1px solid rgba(255,255,255,0.4)' : 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: '600',
+              fontSize: '13px',
+              transition: 'all 0.2s ease',
+              boxShadow: viewMode === 'map' ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
+              textShadow: '0 1px 2px rgba(0,0,0,0.1)'
+            }}
+            title="Kartenansicht"
+          >
+            📍 Kartenansicht
+          </button>
+          <button
+            onClick={() => setViewMode('timeline')}
+            style={{
+              padding: '8px 14px',
+              background: viewMode === 'timeline' ? 'rgba(255,255,255,0.3)' : 'transparent',
+              color: 'white',
+              border: viewMode === 'timeline' ? '1px solid rgba(255,255,255,0.4)' : 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: '600',
+              fontSize: '13px',
+              transition: 'all 0.2s ease',
+              boxShadow: viewMode === 'timeline' ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
+              textShadow: '0 1px 2px rgba(0,0,0,0.1)'
+            }}
+            title="Planansicht"
+          >
+            📋 Planansicht
+          </button>
+        </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          {/* View Toggle - Kartenansicht / Planansicht */}
-          <div style={{ display: 'inline-flex', gap: '3px', background: 'rgba(255,255,255,0.15)', padding: '5px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)' }}>
-            <button
-              onClick={() => setViewMode('map')}
-              style={{
-                padding: '8px 14px',
-                background: viewMode === 'map' ? 'rgba(255,255,255,0.3)' : 'transparent',
-                color: 'white',
-                border: viewMode === 'map' ? '1px solid rgba(255,255,255,0.4)' : 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontWeight: '600',
-                fontSize: '13px',
-                transition: 'all 0.2s ease',
-                boxShadow: viewMode === 'map' ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
-                textShadow: '0 1px 2px rgba(0,0,0,0.1)'
-              }}
-              title="Kartenansicht"
-            >
-              📍 Kartenansicht
-            </button>
-            <button
-              onClick={() => setViewMode('timeline')}
-              style={{
-                padding: '8px 14px',
-                background: viewMode === 'timeline' ? 'rgba(255,255,255,0.3)' : 'transparent',
-                color: 'white',
-                border: viewMode === 'timeline' ? '1px solid rgba(255,255,255,0.4)' : 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontWeight: '600',
-                fontSize: '13px',
-                transition: 'all 0.2s ease',
-                boxShadow: viewMode === 'timeline' ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
-                textShadow: '0 1px 2px rgba(0,0,0,0.1)'
-              }}
-              title="Planansicht"
-            >
-              📋 Planansicht
-            </button>
-          </div>
-
           {/* Zeitintervall - nur in Zeitplan-Ansicht */}
           {viewMode === 'timeline' && (
             <select 
