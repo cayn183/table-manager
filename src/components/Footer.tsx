@@ -2,9 +2,9 @@ import React from 'react'
 import '../styles/footer.css'
 
 const VERSION_INFO = {
-  version: '0.6.2-dev',
+  version: 'dev',
   creator: 'Cayn183',
-  releaseDate: '2026-01-15'
+  releaseDate: '2026-01-16'
 }
 
 const buildSha = import.meta.env.VITE_BUILD_SHA
