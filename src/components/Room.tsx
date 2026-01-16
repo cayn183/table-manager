@@ -433,6 +433,7 @@ export default function Room() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const [uiScale, setUiScale] = useState(1)
   const draggingGroupRef = useRef<{ group: Group; rotation: number } | null>(null)
+  const [activeListTab, setActiveListTab] = useState<'available' | 'assigned'>('available')
 
 
   // Calculate bounding box for tables or explicit view frame
@@ -2091,14 +2092,14 @@ export default function Room() {
           )}
           </div>
         </div>
-      </div>
-      {contextMenu && (
-        <div
+      {contextMenu && (() => {
+        const menu = contextMenu
+        return <div
           className="context-menu"
           style={{
             position: 'fixed',
-            left: contextMenu.x,
-            top: contextMenu.y,
+            left: menu.x,
+            top: menu.y,
             background: 'white',
             border: '1px solid #e2e8f0',
             borderRadius: '8px',
@@ -2109,12 +2110,12 @@ export default function Room() {
           }}
           onMouseLeave={() => setContextMenu(null)}
         >
-          {contextMenu.isList ? (
+          {menu.isList ? (
             <>
               <button
                 onClick={() => {
-                  const group = groups[contextMenu.listIdx!]
-                  setTableSelectModal({ group, index: contextMenu.listIdx! })
+                  const group = groups[menu.listIdx!]
+                  setTableSelectModal({ group, index: menu.listIdx! })
                   setContextMenu(null)
                 }}
                 style={{
@@ -2137,12 +2138,12 @@ export default function Room() {
               </button>
               <button
                 onClick={() => {
-                  setEditModal({ tableId: '', agIdx: -1, isList: true, listIdx: contextMenu.listIdx })
-                  setEditName(groups[contextMenu.listIdx!].name)
-                  setEditSalutation((groups[contextMenu.listIdx!].salutation as 'Fam' | 'Frau' | 'Herr') || 'Fam')
-                  setEditSize(groups[contextMenu.listIdx!].size.toString())
-                  setEditTime(groups[contextMenu.listIdx!].time || '')
-                  setEditToGo(Boolean(groups[contextMenu.listIdx!].toGo))
+                  setEditModal({ tableId: '', agIdx: -1, isList: true, listIdx: menu.listIdx })
+                  setEditName(groups[menu.listIdx!].name)
+                  setEditSalutation((groups[menu.listIdx!].salutation as 'Fam' | 'Frau' | 'Herr') || 'Fam')
+                  setEditSize(groups[menu.listIdx!].size.toString())
+                  setEditTime(groups[menu.listIdx!].time || '')
+                  setEditToGo(Boolean(groups[menu.listIdx!].toGo))
                   setContextMenu(null)
                 }}
                 style={{
@@ -2165,7 +2166,7 @@ export default function Room() {
               </button>
               <button
                 onClick={() => {
-                  setGroups(groups.filter((_, i) => i !== contextMenu.listIdx))
+                  setGroups(groups.filter((_, i) => i !== menu.listIdx))
                   setContextMenu(null)
                 }}
                 style={{
@@ -2186,15 +2187,15 @@ export default function Room() {
                 🗑️ Löschen
               </button>
             </>
-          ) : contextMenu.isAssignedList ? (
+          ) : menu.isAssignedList ? (
             <>
               <button
                 onClick={() => {
-                  const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
+                  const ag = assignedGroups[menu.tableId][menu.agIdx]
                   setGroups([...groups, ag.group])
                   setAssignedGroups({
                     ...assignedGroups,
-                    [contextMenu.tableId]: assignedGroups[contextMenu.tableId].filter((_, i) => i !== contextMenu.agIdx)
+                    [menu.tableId]: assignedGroups[menu.tableId].filter((_, i) => i !== menu.agIdx)
                   })
                   setContextMenu(null)
                 }}
@@ -2275,11 +2276,11 @@ export default function Room() {
             <>
               <button
                 onClick={() => {
-                  const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
+                  const ag = assignedGroups[menu.tableId][menu.agIdx]
                   setGroups([...groups, ag.group])
                   setAssignedGroups({
                     ...assignedGroups,
-                    [contextMenu.tableId]: assignedGroups[contextMenu.tableId].filter((_, i) => i !== contextMenu.agIdx)
+                    [menu.tableId]: assignedGroups[menu.tableId].filter((_, i) => i !== menu.agIdx)
                   })
                   setContextMenu(null)
                 }}
@@ -2303,10 +2304,10 @@ export default function Room() {
               </button>
               <button
                 onClick={() => {
-                  const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
+                  const ag = assignedGroups[menu.tableId][menu.agIdx]
                   setAssignedGroups({
                     ...assignedGroups,
-                    [contextMenu.tableId]: assignedGroups[contextMenu.tableId].map(a => a === ag ? { ...a, locked: !a.locked } : a)
+                    [menu.tableId]: assignedGroups[menu.tableId].map(a => a === ag ? { ...a, locked: !a.locked } : a)
                   })
                   setContextMenu(null)
                 }}
@@ -2326,14 +2327,14 @@ export default function Room() {
                 onMouseOver={e => e.currentTarget.style.background = '#f8fafc'}
                 onMouseOut={e => e.currentTarget.style.background = 'transparent'}
               >
-                {assignedGroups[contextMenu.tableId][contextMenu.agIdx].locked ? '🔓' : '🔒'} Sperren
+                {assignedGroups[menu.tableId][menu.agIdx].locked ? '🔓' : '🔒'} Sperren
               </button>
               <button
                 onClick={() => {
-                  const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
+                  const ag = assignedGroups[menu.tableId][menu.agIdx]
                   setAssignedGroups({
                     ...assignedGroups,
-                    [contextMenu.tableId]: assignedGroups[contextMenu.tableId].map(a => a === ag ? { ...a, rotation: (a.rotation + 1) % 4 } : a)
+                    [menu.tableId]: assignedGroups[menu.tableId].map(a => a === ag ? { ...a, rotation: (a.rotation + 1) % 4 } : a)
                   })
                   setContextMenu(null)
                 }}
@@ -2412,7 +2413,7 @@ export default function Room() {
             </>
           )}
         </div>
-      )}
+      })()}
       {tableSelectModal && (
         <div className="modal">
           <div className="modal-content" style={{ minWidth: 400 }}>
