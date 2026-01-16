@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useCallback, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Importer, { Group } from './Importer'
 import Papa from 'papaparse'
@@ -500,7 +500,9 @@ export default function Room() {
       const scaleX = availableW / contentW
       const scaleY = availableH / contentH
       
-      const maxScale = room?.viewFrame ? 4 : 1.6
+      // Höhere Max-Scale für große Monitore (4K)
+      const screenWidth = window.innerWidth
+      const maxScale = room?.viewFrame ? 6 : (screenWidth >= 2560 ? 2.5 : 1.8)
       const scale = Math.min(maxScale, Math.max(0.3, Math.min(scaleX, scaleY)))
 
       setMapScale(scale)
@@ -550,6 +552,7 @@ export default function Room() {
   }, [])
 
   // Get colors by recalculating on each render based on current positions
+  // Optimiert: nur Tische, die in assignedGroups existieren
   const assignedColors = useMemo(() => {
     const result: Record<string, string[]> = {}
 
@@ -564,7 +567,9 @@ export default function Room() {
       return false
     }
 
+    // Nur nicht-leere Tische verarbeiten
     Object.entries(assignedGroups).forEach(([tableId, ags]) => {
+      if (ags.length === 0) return
       const table = room?.tables.find(t => t.id === tableId)
       if (!table) return
       const colors: string[] = new Array(ags.length)
@@ -602,7 +607,7 @@ export default function Room() {
     setAssignedPage(prev => Math.min(prev, totalPages - 1))
   }, [groups, assignedGroups])
 
-  function updatePreviewPosition(coords: { clientX: number; clientY: number }) {
+  const updatePreviewPosition = useCallback((coords: { clientX: number; clientY: number }) => {
     if (!draggingGroup || !room) return
     const gridElement = document.querySelector('.grid') as HTMLElement
     if (!gridElement) return
@@ -639,7 +644,7 @@ export default function Room() {
 
     setPreviewRotation(bestRotation)
     setDragOverPosition({ tableId: table.id, x: relX, y: relY })
-  }
+  }, [draggingGroup, draggingMeta, room, assignedGroups, mapScale, previewRotation])
 
 
   // Load room definition from localStorage on mount
