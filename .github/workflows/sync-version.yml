@@ -1,0 +1,73 @@
+name: Sync Version on Dev
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - 'package.json'
+
+jobs:
+  sync-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Get version from package.json
+        id: version
+        run: |
+          VERSION=$(grep '"version"' package.json | head -1 | sed 's/.*"version": "\(.*\)".*/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Version detected: $VERSION"
+      
+      - name: Update Footer component
+        run: |
+          RELEASE_DATE=$(date +%Y-%m-%d)
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          # Create temporary file with updated version and date
+          sed "s/version: '[^']*'/version: '$VERSION'/" src/components/Footer.tsx > src/components/Footer.tsx.tmp
+          mv src/components/Footer.tsx.tmp src/components/Footer.tsx
+          
+          sed "s/releaseDate: '[^']*'/releaseDate: '$RELEASE_DATE'/" src/components/Footer.tsx > src/components/Footer.tsx.tmp
+          mv src/components/Footer.tsx.tmp src/components/Footer.tsx
+          
+          echo "✅ Updated Footer.tsx: version=$VERSION, releaseDate=$RELEASE_DATE"
+      
+      - name: Update CHANGELOG unreleased section
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          RELEASE_DATE=$(date +%Y-%m-%d)
+          
+          # Check if version already exists in changelog
+          if grep -q "## \[$VERSION\]" CHANGELOG.md; then
+            echo "ℹ️ Version $VERSION already in CHANGELOG"
+          else
+            # Add version section to unreleased
+            sed -i "s/## \[Unreleased\]/## [Unreleased]\n\n## [$VERSION] - $RELEASE_DATE/" CHANGELOG.md
+            echo "✅ Added version $VERSION to CHANGELOG"
+          fi
+      
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if git diff --quiet; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Commit and push changes
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/components/Footer.tsx CHANGELOG.md
+          git commit -m "chore: sync version ${{ steps.version.outputs.version }} in Footer and CHANGELOG [skip ci]"
+          git push
