@@ -428,6 +428,7 @@ export default function Room() {
   const [hasAutoAssigned, setHasAutoAssigned] = useState(false)
   const [assignedPage, setAssignedPage] = useState(0)
   const [availablePage, setAvailablePage] = useState(0)
+  const [activeListTab, setActiveListTab] = useState<'available' | 'assigned'>('available')
   const [mapScale, setMapScale] = useState(1)
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const [uiScale, setUiScale] = useState(1)
@@ -1327,6 +1328,54 @@ export default function Room() {
               📥 Import (CSV)
             </button>
           </div>
+          
+          {/* Toggle zwischen Listen */}
+          <div style={{ display: 'flex', gap: '6px', background: '#f1f5f9', padding: '4px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+            <button
+              onClick={() => setActiveListTab('available')}
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                background: activeListTab === 'available' ? '#667eea' : 'transparent',
+                color: activeListTab === 'available' ? 'white' : '#64748b',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: '600',
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px'
+              }}
+            >
+              📋 Unzugewiesen ({groups.length})
+            </button>
+            <button
+              onClick={() => setActiveListTab('assigned')}
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                background: activeListTab === 'assigned' ? '#667eea' : 'transparent',
+                color: activeListTab === 'assigned' ? 'white' : '#64748b',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: '600',
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px'
+              }}
+            >
+              ✅ Zugewiesen ({Object.values(assignedGroups).flat().length})
+            </button>
+          </div>
+
+          {activeListTab === 'available' && (
           <div style={{ marginTop: '8px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <h3 style={{ margin: '0', fontSize: '16px', fontWeight: '600', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1526,6 +1575,10 @@ export default function Room() {
               </div>
             )
           })()}
+          </div>
+          )}
+
+          {activeListTab === 'assigned' && (
           <div style={{ marginTop: '8px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <h3 style={{ margin: '0', fontSize: '16px', fontWeight: '600', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1658,7 +1711,6 @@ export default function Room() {
             })()}
             </div>
           </div>
-          </div>
           {(() => {
             const totalItems = Object.values(assignedGroups).flat().length
             const PAGE_SIZE = 10
@@ -1717,6 +1769,8 @@ export default function Room() {
               </div>
             )
           })()}
+          </div>
+          )}
           
           {/* Event speichern Section - under Assigned Groups */}
           <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
@@ -1781,7 +1835,6 @@ export default function Room() {
                 🖨️
               </button>
             </div>
-          </div>
           </div>
         </div>
 
