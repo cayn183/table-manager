@@ -1207,7 +1207,7 @@ export default function Room() {
   if (!room) {
     return (
       <div className="container">
-        <h1>Raum - Plätze belegen</h1>
+        <h1>Tischplaner</h1>
         <p>{loadError ?? 'Lade Raum...'}</p>
         <Link to="/new-room">
           <button>Zum Editor</button>
@@ -1264,10 +1264,34 @@ export default function Room() {
               aria-label="Toggle Sidebar"
             >☰</button>
           )}
-          <Link to="/" style={{ textDecoration: 'none', color: 'white', display: 'flex', alignItems: 'center', transition: 'opacity 0.2s' }}>
-            <span style={{ fontSize: '20px', cursor: 'pointer' }} title="Zurück zur Hauptseite">←</span>
+          <Link to="/" style={{ textDecoration: 'none', color: 'white', display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}>
+            <span 
+              style={{ 
+                fontSize: '24px', 
+                cursor: 'pointer',
+                padding: '6px 10px',
+                borderRadius: '8px',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'rgba(255,255,255,0.1)',
+                border: '2px solid rgba(255,255,255,0.2)'
+              }} 
+              title="Zur Startseite"
+              onMouseOver={e => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.2)';
+                e.currentTarget.style.border = '2px solid rgba(255,255,255,0.4)';
+                e.currentTarget.style.transform = 'scale(1.1)';
+              }}
+              onMouseOut={e => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+                e.currentTarget.style.border = '2px solid rgba(255,255,255,0.2)';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+            >🏠</span>
           </Link>
-          <h1 style={{ margin: 0, fontSize: isMobile ? '20px' : '24px', color: 'white', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>Raum - Plätze belegen</h1>
+          <h1 style={{ margin: 0, fontSize: isMobile ? '20px' : '24px', color: 'white', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>Tischplaner</h1>
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           {/* View Toggle - Kartenansicht / Planansicht */}
