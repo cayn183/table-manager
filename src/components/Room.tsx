@@ -1157,8 +1157,7 @@ export default function Room() {
           display: 'flex', 
           gap: '12px', 
           alignItems: 'center',
-          justifyContent: 'flex-start',
-          paddingLeft: '24px'
+          justifyContent: 'flex-start'
         }}>
           {/* View Toggle - Kartenansicht / Planansicht */}
           <div style={{ display: 'inline-flex', gap: '3px', background: 'rgba(255,255,255,0.15)', padding: '5px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)' }}>
@@ -1261,7 +1260,6 @@ export default function Room() {
           flexDirection: 'column',
           gap: '16px',
           minHeight: 0,
-          height: 'calc(100vh - 140px)',
           overflowY: 'auto'
         }}>
           <button 
