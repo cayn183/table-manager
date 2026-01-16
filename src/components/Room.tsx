@@ -1711,7 +1711,6 @@ export default function Room() {
             })()}
             </div>
           </div>
-          </div>
           {(() => {
             const totalItems = Object.values(assignedGroups).flat().length
             const PAGE_SIZE = 10
