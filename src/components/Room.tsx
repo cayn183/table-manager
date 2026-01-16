@@ -1,405 +1,55 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+// ============================================================================
+// IMPORTS
+// ============================================================================
+import React, { useEffect, useMemo, useCallback, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Importer, { Group } from './Importer'
 import Papa from 'papaparse'
 import { bestFitAssign } from '../utils/placement'
+import type { Table, Room as RoomType, AssignedGroup, DraggingMeta } from '../types/room'
+import {
+  PALETTE,
+  TOGO_COLOR,
+  GRID_SIZE,
+  CELL_SIZE,
+  paletteColor,
+  getPositionsForSize,
+  isValidPosition,
+  loadRoomFromStorage,
+  ensureToGoBucket,
+  greedyReLayout,
+  fillOnly,
+  groupKey
+} from '../utils/roomUtils'
 
-type Table = {
-  id: string
-  x: number
-  y: number
-  capacity: number
-  width: number
-  height: number
-}
-
-type ViewFrame = { x: number; y: number; width: number; height: number }
-
-type Room = {
-  tables: Table[]
-  viewFrame?: ViewFrame
-}
-
-type AssignedGroup = {
-  group: Group
-  rotation: number
-  locked: boolean
-  x: number
-  y: number
-  color: string
-}
-
-type DraggingMeta = { tableId?: string; agIdx?: number } | null
-
-const GRID_SIZE = 20
-const CELL_SIZE = 40
-const STORAGE_KEY = 'currentRoom'
-const PALETTE = ['#E91E63', '#FF9800', '#4CAF50', '#673AB7', '#FF5722']
-const UNASSIGNED_COLOR = '#80808080'
-const TOGO_COLOR = '#FFE082'
-
-// Fixed list height (no scrollbar)
-const LIST_FIXED_HEIGHT = 240
-const LIST_MAX_HEIGHT = LIST_FIXED_HEIGHT
-
-function paletteColor(hex: string): string {
-  return hex + '70'
-}
-
-function generatePossibleLayouts(size: number, maxWidth: number, maxHeight: number): { x: number; y: number }[][] {
-  const layouts: { x: number; y: number }[][] = []
-  
-  for (let cols = 1; cols <= maxWidth; cols++) {
-    for (let rows = 1; rows <= maxHeight; rows++) {
-      const mainBlock = cols * rows
-      if (mainBlock >= size) {
-        const pos: { x: number; y: number }[] = []
-        for (let i = 0; i < size; i++) {
-          pos.push({ x: i % cols, y: Math.floor(i / cols) })
-        }
-        layouts.push(pos)
-      } else if (mainBlock < size && rows < maxHeight) {
-        const pos: { x: number; y: number }[] = []
-        for (let i = 0; i < mainBlock; i++) {
-          pos.push({ x: i % cols, y: Math.floor(i / cols) })
-        }
-        const remaining = size - mainBlock
-        for (let i = 0; i < Math.min(remaining, cols); i++) {
-          pos.push({ x: i, y: rows })
-        }
-        if (pos.length === size) {
-          layouts.push(pos)
-        }
-      }
-    }
-  }
-  
-  return layouts.filter(layout => {
-    const maxX = Math.max(...layout.map(p => p.x))
-    const maxY = Math.max(...layout.map(p => p.y))
-    return maxX < maxWidth && maxY < maxHeight
-  })
-}
-
-function adaptiveLayout(size: number, maxWidth: number, maxHeight: number): { x: number; y: number }[] {
-  const layouts = generatePossibleLayouts(size, maxWidth, maxHeight)
-  
-  if (layouts.length === 0) {
-    const cols = Math.ceil(Math.sqrt(size))
-    const positions: { x: number; y: number }[] = []
-    for (let i = 0; i < size; i++) {
-      positions.push({ x: i % cols, y: Math.floor(i / cols) })
-    }
-    return positions
-  }
-  
-  const best = layouts.sort((a, b) => {
-    const aArea = (Math.max(...a.map(p => p.x)) + 1) * (Math.max(...a.map(p => p.y)) + 1)
-    const bArea = (Math.max(...b.map(p => p.x)) + 1) * (Math.max(...b.map(p => p.y)) + 1)
-    return aArea - bArea
-  })[0]
-  
-  return best
-}
-
-function getPositionsForSize(size: number, rotation: number, tableWidth?: number, tableHeight?: number): { x: number; y: number }[] {
-  let positions: { x: number; y: number }[] = []
-  if (size === 1) {
-    positions = [{ x: 0, y: 0 }]
-  } else if (size === 2) {
-    positions = [{ x: 0, y: 0 }, { x: 0, y: 1 }]
-  } else if (size === 3) {
-    positions = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }]
-  } else if (size === 4) {
-    positions = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }]
-  } else {
-    if (tableWidth && tableHeight) {
-      positions = adaptiveLayout(size, tableWidth, tableHeight)
-    } else {
-      const cols = Math.ceil(Math.sqrt(size))
-      for (let i = 0; i < size; i++) {
-        positions.push({ x: i % cols, y: Math.floor(i / cols) })
-      }
-    }
-  }
-
-  // Spiegelung: rotation >= 4 bedeutet gespiegelt
-  const mirrored = rotation >= 4
-  const actualRotation = rotation % 4
-  
-  // Spiegeln entlang der Y-Achse (horizontal spiegeln)
-  let transformed = mirrored ? positions.map(pos => ({ x: -pos.x, y: pos.y })) : positions
-  
-  // Dann rotieren
-  const rotated = transformed.map(pos => {
-    switch (actualRotation) {
-      case 1: return { x: pos.y, y: -pos.x }
-      case 2: return { x: -pos.x, y: -pos.y }
-      case 3: return { x: -pos.y, y: pos.x }
-      default: return pos
-    }
-  })
-
-  const minX = Math.min(...rotated.map(p => p.x))
-  const minY = Math.min(...rotated.map(p => p.y))
-  return rotated.map(p => ({ x: p.x - minX, y: p.y - minY }))
-}
-
-function isValidPosition(table: Table, group: Group, rotation: number, x: number, y: number, assignedGroups: Record<string, AssignedGroup[]>, skipAg?: AssignedGroup): boolean {
-  const positions = getPositionsForSize(group.size, rotation, table.width, table.height)
-  for (const pos of positions) {
-    const absX = table.x + x + pos.x
-    const absY = table.y + y + pos.y
-    if (absX < table.x || absX >= table.x + table.width || absY < table.y || absY >= table.y + table.height) {
-      return false
-    }
-    for (const ag of assignedGroups[table.id] || []) {
-      if (ag === skipAg) continue
-      const agPositions = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height)
-      for (const agPos of agPositions) {
-        if (absX === table.x + ag.x + agPos.x && absY === table.y + ag.y + agPos.y) {
-          return false
-        }
-      }
-    }
-  }
-  return true
-}
-
-function loadRoomFromStorage(): Room | null {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    return stored ? JSON.parse(stored) as Room : null
-  } catch (err) {
-    console.error('Raum konnte nicht geladen werden', err)
-    return null
-  }
-}
-
-function getColorForGroup(ag: AssignedGroup, tableAssignments: AssignedGroup[], table: Table): string {
-  const positions = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height)
-  const agPositions = positions.map(p => ({ x: ag.x + p.x, y: ag.y + p.y }))
-
-  const isAdjacent = (a: { x: number; y: number }[], b: { x: number; y: number }[]) => {
-    for (const pa of a) {
-      for (const pb of b) {
-        if (Math.abs(pa.x - pb.x) <= 1 && Math.abs(pa.y - pb.y) <= 1) {
-          return true
-        }
-      }
-    }
-    return false
-  }
-
-  const bannedColors = new Set<string>()
-  for (const other of tableAssignments) {
-    if (other === ag) continue
-    const otherPositions = getPositionsForSize(other.group.size, other.rotation, table.width, table.height)
-    const otherAbsPositions = otherPositions.map(p => ({ x: other.x + p.x, y: other.y + p.y }))
-    if (isAdjacent(agPositions, otherAbsPositions)) {
-      bannedColors.add(other.color)
-    }
-  }
-
-  const picked = PALETTE.find(c => !bannedColors.has(paletteColor(c))) || PALETTE[0]
-  return paletteColor(picked)
-}
-
-function addPositionsToSet(set: Set<string>, positions: { x: number; y: number }[], offsetX: number, offsetY: number) {
-  positions.forEach(p => set.add(`${offsetX + p.x},${offsetY + p.y}`))
-}
-
-function findPlacement(
-  table: Table,
-  group: Group,
-  existing: AssignedGroup[],
-  occupied: Set<string>
-): { x: number; y: number; rotation: number } | null {
-  for (let rot = 0; rot < 4; rot++) {
-    const positions = getPositionsForSize(group.size, rot, table.width, table.height)
-    const maxX = Math.max(...positions.map(p => p.x))
-    const maxY = Math.max(...positions.map(p => p.y))
-
-    for (let y = 0; y <= table.height - 1 - maxY; y++) {
-      for (let x = 0; x <= table.width - 1 - maxX; x++) {
-        let collision = false
-        for (const pos of positions) {
-          const key = `${x + pos.x},${y + pos.y}`
-          if (occupied.has(key)) {
-            collision = true
-            break
-          }
-        }
-        if (!collision) {
-          return { x, y, rotation: rot }
-        }
-      }
-    }
-  }
-  return null
-}
-
-function placeGroupsOnTable(table: Table, groups: Group[], seedPlaced: AssignedGroup[] = []): { placed: AssignedGroup[]; unplaced: Group[] } {
-  const placed: AssignedGroup[] = [...seedPlaced]
-  const unplaced: Group[] = []
-  const occupied = new Set<string>()
-
-  // Mark occupied cells from seed placements (e.g., locked items)
-  for (const ag of seedPlaced) {
-    const positions = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height)
-    addPositionsToSet(occupied, positions, ag.x, ag.y)
-  }
-
-  for (const g of groups) {
-    const placement = findPlacement(table, g, placed, occupied)
-    if (placement) {
-      const positions = getPositionsForSize(g.size, placement.rotation, table.width, table.height)
-      addPositionsToSet(occupied, positions, placement.x, placement.y)
-      placed.push({ group: g, rotation: placement.rotation, locked: false, x: placement.x, y: placement.y, color: PALETTE[0] })
-    } else {
-      unplaced.push(g)
-    }
-  }
-
-  return { placed, unplaced }
-}
-
-// Stable identity for a group across runs
-function groupKey(g: Group) {
-  return `${g.salutation || 'Fam'}|${g.name}|${g.time ?? ''}|${g.size}|${g.toGo ? '1' : '0'}`
-}
-
-// Build occupied cell-set for a table from given placements
-function buildOccupied(table: Table, placements: AssignedGroup[]): Set<string> {
-  const occ = new Set<string>()
-  for (const ag of placements) {
-    const cells = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height)
-    for (const c of cells) occ.add(`${ag.x + c.x},${ag.y + c.y}`)
-  }
-  return occ
-}
-
-// Try to place a group on a table without overlapping occupied cells
-function tryPlaceOnTable(
-  table: Table,
-  group: Group,
-  occupied: Set<string>
-): { x: number; y: number; rotation: number } | null {
-  for (let rot = 0; rot < 4; rot++) {
-    const cells = getPositionsForSize(group.size, rot, table.width, table.height)
-    const w = Math.max(...cells.map(c => c.x)) + 1
-    const h = Math.max(...cells.map(c => c.y)) + 1
-    if (w > table.width || h > table.height) continue
-
-    for (let y = 0; y <= table.height - h; y++) {
-      for (let x = 0; x <= table.width - w; x++) {
-        let ok = true
-        for (const c of cells) {
-          const key = `${x + c.x},${y + c.y}`
-          if (occupied.has(key)) { ok = false; break }
-        }
-        if (ok) return { x, y, rotation: rot }
-      }
-    }
-  }
-  return null
-}
-
-// Greedy re-layout of all movable groups, preserving locked as seeds
-function greedyReLayout(
-  tables: Table[],
-  lockedByTable: Record<string, AssignedGroup[]>,
-  candidates: Group[]
-): { nextByTable: Record<string, AssignedGroup[]>; placedKeys: Set<string>; notPlaced: Group[] } {
-  const nextByTable: Record<string, AssignedGroup[]> = {}
-  const occByTable: Record<string, Set<string>> = {}
-  const placedKeys = new Set<string>()
-
-  for (const t of tables) {
-    nextByTable[t.id] = [...(lockedByTable[t.id] || [])]
-    occByTable[t.id] = buildOccupied(t, nextByTable[t.id])
-  }
-
-  const sorted = [...candidates].sort((a, b) => b.size - a.size)
-  const notPlaced: Group[] = []
-
-  for (const g of sorted) {
-    let best: { table: Table; pos: { x: number; y: number; rotation: number }; score: number } | null = null
-    for (const t of tables) {
-      const pos = tryPlaceOnTable(t, g, occByTable[t.id])
-      if (!pos) continue
-      const usedCellsNow = nextByTable[t.id].reduce((acc, ag) => acc + ag.group.size, 0)
-      const score = (t.width * t.height) - (usedCellsNow + g.size)
-      if (!best || score < best.score || (score === best.score && t.id < best.table.id)) {
-        best = { table: t, pos, score }
-      }
-    }
-    if (best) {
-      const ag: AssignedGroup = { group: g, rotation: best.pos.rotation, locked: false, x: best.pos.x, y: best.pos.y, color: '' }
-      nextByTable[best.table.id].push(ag)
-      const cells = getPositionsForSize(g.size, ag.rotation, best.table.width, best.table.height)
-      for (const c of cells) occByTable[best.table.id].add(`${ag.x + c.x},${ag.y + c.y}`)
-      placedKeys.add(groupKey(g))
-    } else {
-      notPlaced.push(g)
-    }
-  }
-
-  return { nextByTable, placedKeys, notPlaced }
-}
-
-// Keep all current placements; only fill free cells with new groups
-function fillOnly(
-  tables: Table[],
-  currentByTable: Record<string, AssignedGroup[]>,
-  newGroups: Group[]
-): { nextByTable: Record<string, AssignedGroup[]>; notPlaced: Group[] } {
-  const nextByTable: Record<string, AssignedGroup[]> = {}
-  const occByTable: Record<string, Set<string>> = {}
-
-  for (const t of tables) {
-    const keep = [...(currentByTable[t.id] || [])]
-    nextByTable[t.id] = keep
-    occByTable[t.id] = buildOccupied(t, keep)
-  }
-
-  const remaining: Group[] = []
-  const sorted = [...newGroups].sort((a, b) => b.size - a.size)
-
-  for (const g of sorted) {
-    let placed = false
-    for (const t of tables) {
-      const pos = tryPlaceOnTable(t, g, occByTable[t.id])
-      if (!pos) continue
-      const ag: AssignedGroup = { group: g, rotation: pos.rotation, locked: false, x: pos.x, y: pos.y, color: '' }
-      nextByTable[t.id].push(ag)
-      const cells = getPositionsForSize(g.size, ag.rotation, t.width, t.height)
-      for (const c of cells) occByTable[t.id].add(`${ag.x + c.x},${ag.y + c.y}`)
-      placed = true
-      break
-    }
-    if (!placed) remaining.push(g)
-  }
-
-  return { nextByTable, notPlaced: remaining }
-}
+// ============================================================================
+// MAIN COMPONENT: Room
+// ============================================================================
 
 export default function Room() {
   const navigate = useNavigate()
-  // State: source data
-  const [room, setRoom] = useState<Room | null>(null)
+  
+  // --------------------------------------------------------------------------
+  // STATE: Core Data
+  // --------------------------------------------------------------------------
+  const [room, setRoom] = useState<RoomType | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [groups, setGroups] = useState<Group[]>([])
   const [assignedGroups, setAssignedGroups] = useState<Record<string, AssignedGroup[]>>({})
+  
+  // --------------------------------------------------------------------------
+  // STATE: Modals & UI Controls
+  // --------------------------------------------------------------------------
   const [showEventSaveModal, setShowEventSaveModal] = useState(false)
   const [eventSaveName, setEventSaveName] = useState('')
   const [isDirty, setIsDirty] = useState(false)
   const [lastSaveTime, setLastSaveTime] = useState<string | null>(null)
   const [lastSaveType, setLastSaveType] = useState<'auto' | 'manual' | null>(null)
-  const [timeInterval, setTimeInterval] = useState(15) // 5, 10, 15 Min
+  const [timeInterval, setTimeInterval] = useState(15)
   const [viewMode, setViewMode] = useState<'map' | 'timeline'>('map')
   const [sortAvailable, setSortAvailable] = useState<'name' | 'time' | 'size'>('name')
   const [sortAssigned, setSortAssigned] = useState<'name' | 'time' | 'table'>('table')
+  const [listView, setListView] = useState<'available' | 'assigned'>('available')
 
   // State: UI and interaction
   const [showModal, setShowModal] = useState(false)
@@ -430,9 +80,6 @@ export default function Room() {
   const [availablePage, setAvailablePage] = useState(0)
   const [mapScale, setMapScale] = useState(1)
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
-  const [isMobile, setIsMobile] = useState(false)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
-  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null)
   const [uiScale, setUiScale] = useState(1)
   const draggingGroupRef = useRef<{ group: Group; rotation: number } | null>(null)
 
@@ -491,9 +138,7 @@ export default function Room() {
       const el = mapContainerRef.current
       if (!el) return
 
-      // Responsive Padding basierend auf Screen-Breite
-      const screenWidth = window.innerWidth
-      const paddingPx = screenWidth < 768 ? 8 : screenWidth < 1024 ? 20 : room?.viewFrame ? 16 : 40
+      const paddingPx = room?.viewFrame ? 16 : 40
       const availableW = Math.max(200, el.clientWidth - paddingPx)
       const availableH = Math.max(200, el.clientHeight - paddingPx)
 
@@ -505,8 +150,9 @@ export default function Room() {
       const scaleX = availableW / contentW
       const scaleY = availableH / contentH
       
-      // Kleinere Max-Scale auf Mobile
-      const maxScale = screenWidth < 768 ? 1.2 : room?.viewFrame ? 4 : 1.6
+      // Höhere Max-Scale für große Monitore (4K)
+      const screenWidth = window.innerWidth
+      const maxScale = room?.viewFrame ? 6 : (screenWidth >= 2560 ? 2.5 : 1.8)
       const scale = Math.min(maxScale, Math.max(0.3, Math.min(scaleX, scaleY)))
 
       setMapScale(scale)
@@ -516,19 +162,6 @@ export default function Room() {
     window.addEventListener('resize', recalcScale)
     return () => window.removeEventListener('resize', recalcScale)
   }, [gridBounds, room])
-
-  // Detect mobile device
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 1024)
-      if (window.innerWidth >= 1024) {
-        setSidebarOpen(true)
-      }
-    }
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
-  }, [])
 
   // DPI-basierte intelligente Skalierung
   useEffect(() => {
@@ -569,6 +202,7 @@ export default function Room() {
   }, [])
 
   // Get colors by recalculating on each render based on current positions
+  // Optimiert: nur Tische, die in assignedGroups existieren
   const assignedColors = useMemo(() => {
     const result: Record<string, string[]> = {}
 
@@ -583,7 +217,9 @@ export default function Room() {
       return false
     }
 
+    // Nur nicht-leere Tische verarbeiten
     Object.entries(assignedGroups).forEach(([tableId, ags]) => {
+      if (ags.length === 0) return
       const table = room?.tables.find(t => t.id === tableId)
       if (!table) return
       const colors: string[] = new Array(ags.length)
@@ -621,7 +257,7 @@ export default function Room() {
     setAssignedPage(prev => Math.min(prev, totalPages - 1))
   }, [groups, assignedGroups])
 
-  function updatePreviewPosition(coords: { clientX: number; clientY: number }) {
+  const updatePreviewPosition = useCallback((coords: { clientX: number; clientY: number }) => {
     if (!draggingGroup || !room) return
     const gridElement = document.querySelector('.grid') as HTMLElement
     if (!gridElement) return
@@ -658,118 +294,8 @@ export default function Room() {
 
     setPreviewRotation(bestRotation)
     setDragOverPosition({ tableId: table.id, x: relX, y: relY })
-  }
+  }, [draggingGroup, draggingMeta, room, assignedGroups, mapScale, previewRotation])
 
-  // Touch event handlers
-  function handleTouchStart(e: React.TouchEvent, group: Group, index: number) {
-    if (group.toGo) return
-    const touch = e.touches[0]
-    touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() }
-    setDraggingGroup({ group, rotation: 0 })
-    setDraggingMeta(null)
-  }
-
-  function handleTouchMove(e: React.TouchEvent) {
-    if (!draggingGroup) return
-    e.preventDefault()
-    const touch = e.touches[0]
-    updatePreviewPosition({ clientX: touch.clientX, clientY: touch.clientY })
-  }
-
-  function handleTouchEnd(e: React.TouchEvent, groupIndex: number) {
-    if (!draggingGroup || !dragOverPosition || !room) {
-      setDraggingGroup(null)
-      setDragOverPosition(null)
-      touchStartRef.current = null
-      return
-    }
-
-    const table = room.tables.find(t => t.id === dragOverPosition.tableId)
-    if (!table) {
-      setDraggingGroup(null)
-      setDragOverPosition(null)
-      touchStartRef.current = null
-      return
-    }
-
-    const current = assignedGroups[table.id] || []
-    const relX = dragOverPosition.x
-    const relY = dragOverPosition.y
-
-    if (draggingMeta?.tableId) {
-      const sourceTable = room.tables.find(t => t.id === draggingMeta.tableId)!
-      const sourceAg = assignedGroups[draggingMeta.tableId]?.[draggingMeta.agIdx ?? -1]
-      if (sourceAg && isValidPosition(table, draggingGroup.group, previewRotation, relX, relY, assignedGroups, sourceAg)) {
-        const newSourceList = [...(assignedGroups[draggingMeta.tableId] || [])]
-        newSourceList.splice(draggingMeta.agIdx ?? -1, 1)
-        setAssignedGroups({
-          ...assignedGroups,
-          [draggingMeta.tableId]: newSourceList,
-          [table.id]: [...current, { ...sourceAg, rotation: previewRotation, x: relX, y: relY }]
-        })
-      }
-    } else {
-      const group = draggingGroup.group
-      const totalOccupied = current.reduce((sum, a) => sum + a.group.size, 0) + group.size
-      if (totalOccupied <= table.capacity && isValidPosition(table, group, previewRotation, relX, relY, assignedGroups)) {
-        setAssignedGroups({
-          ...assignedGroups,
-          [table.id]: [...current, { group, rotation: previewRotation, locked: false, x: relX, y: relY, color: PALETTE[0] }]
-        })
-        setGroups(groups.filter((_, idx) => idx !== groupIndex))
-      }
-    }
-
-    setDragOverPosition(null)
-    setDraggingGroup(null)
-    setDraggingMeta(null)
-    setPreviewRotation(0)
-    touchStartRef.current = null
-  }
-
-  function handleAssignedTouchStart(e: React.TouchEvent, tableId: string, agIdx: number) {
-    const ag = assignedGroups[tableId]?.[agIdx]
-    if (!ag) return
-    const touch = e.touches[0]
-    touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() }
-    setDraggingGroup({ group: ag.group, rotation: ag.rotation })
-    setDraggingMeta({ tableId, agIdx })
-  }
-
-  function handleAssignedTouchEnd(e: React.TouchEvent, tableId: string, agIdx: number) {
-    if (!draggingGroup || !draggingMeta || !draggingMeta.tableId) {
-      setDraggingGroup(null)
-      setDragOverPosition(null)
-      setDraggingMeta(null)
-      touchStartRef.current = null
-      return
-    }
-
-    if (dragOverPosition && room) {
-      const targetTable = room.tables.find(t => t.id === dragOverPosition.tableId)
-      if (targetTable) {
-        const sourceAg = assignedGroups[draggingMeta.tableId]?.[draggingMeta.agIdx ?? -1]
-        if (sourceAg) {
-          const current = assignedGroups[targetTable.id] || []
-          if (isValidPosition(targetTable, draggingGroup.group, previewRotation, dragOverPosition.x, dragOverPosition.y, assignedGroups, sourceAg)) {
-            const newSourceList = [...(assignedGroups[draggingMeta.tableId] || [])]
-            newSourceList.splice(draggingMeta.agIdx ?? -1, 1)
-            setAssignedGroups({
-              ...assignedGroups,
-              [draggingMeta.tableId]: newSourceList,
-              [targetTable.id]: [...current, { ...sourceAg, rotation: previewRotation, x: dragOverPosition.x, y: dragOverPosition.y }]
-            })
-          }
-        }
-      }
-    }
-
-    setDragOverPosition(null)
-    setDraggingGroup(null)
-    setDraggingMeta(null)
-    setPreviewRotation(0)
-    touchStartRef.current = null
-  }
 
   // Load room definition from localStorage on mount
   useEffect(() => {
@@ -1207,7 +733,7 @@ export default function Room() {
   if (!room) {
     return (
       <div className="container">
-        <h1>Raum - Plätze belegen</h1>
+        <h1>Tischplaner</h1>
         <p>{loadError ?? 'Lade Raum...'}</p>
         <Link to="/new-room">
           <button>Zum Editor</button>
@@ -1233,43 +759,56 @@ export default function Room() {
         padding: '16px 24px', 
         boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
         display: 'flex',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        gap: '16px',
-        flexWrap: 'wrap'
+        gap: '0'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {isMobile && (
-            <button 
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              style={{
-                padding: '8px 12px',
-                background: 'rgba(255,255,255,0.2)',
-                color: 'white',
-                border: '1px solid rgba(255,255,255,0.3)',
-                borderRadius: '6px',
+        {/* Left Column - Logo & Title (aligned with sidebar width) */}
+        <div style={{ 
+          flex: '0 0 560px',
+          minWidth: '480px',
+          maxWidth: '640px',
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '12px' 
+        }}>
+          <Link to="/" style={{ textDecoration: 'none', color: 'white', display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}>
+            <span 
+              style={{ 
+                fontSize: '24px', 
                 cursor: 'pointer',
-                fontSize: '20px',
-                fontWeight: '600',
-                transition: 'all 0.2s',
-                backdropFilter: 'blur(10px)',
+                padding: '6px 10px',
+                borderRadius: '8px',
+                transition: 'all 0.2s ease',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                minWidth: '44px',
-                minHeight: '44px'
+                background: 'rgba(255,255,255,0.1)',
+                border: '2px solid rgba(255,255,255,0.2)'
+              }} 
+              title="Zur Startseite"
+              onMouseOver={e => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.2)';
+                e.currentTarget.style.border = '2px solid rgba(255,255,255,0.4)';
+                e.currentTarget.style.transform = 'scale(1.1)';
               }}
-              onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
-              onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-              aria-label="Toggle Sidebar"
-            >☰</button>
-          )}
-          <Link to="/" style={{ textDecoration: 'none', color: 'white', display: 'flex', alignItems: 'center', transition: 'opacity 0.2s' }}>
-            <span style={{ fontSize: '20px', cursor: 'pointer' }} title="Zurück zur Hauptseite">←</span>
+              onMouseOut={e => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+                e.currentTarget.style.border = '2px solid rgba(255,255,255,0.2)';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+            >🏠</span>
           </Link>
-          <h1 style={{ margin: 0, fontSize: isMobile ? '20px' : '24px', color: 'white', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>Raum - Plätze belegen</h1>
+          <h1 style={{ margin: 0, fontSize: '24px', color: 'white', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>Tischplaner</h1>
         </div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+
+        {/* Right Column - View Toggle & Controls */}
+        <div style={{ 
+          flex: 1, 
+          display: 'flex', 
+          gap: '12px', 
+          alignItems: 'center',
+          justifyContent: 'flex-start'
+        }}>
           {/* View Toggle - Kartenansicht / Planansicht */}
           <div style={{ display: 'inline-flex', gap: '3px', background: 'rgba(255,255,255,0.15)', padding: '5px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)' }}>
             <button
@@ -1348,7 +887,8 @@ export default function Room() {
               fontSize: '14px',
               fontWeight: '500',
               transition: 'all 0.2s',
-              backdropFilter: 'blur(10px)'
+              backdropFilter: 'blur(10px)',
+              marginLeft: 'auto'
             }}
             onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
             onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
@@ -1358,56 +898,21 @@ export default function Room() {
       
       {/* Main Content */}
       <div className="room-content" style={{ flex: 1, display: 'flex', overflowX: 'hidden', overflowY: 'auto' }}>
-        {/* Sidebar - conditionally visible on mobile */}
-        {(sidebarOpen || !isMobile) && (
+        {/* Sidebar */}
         <div className="sidebar" style={{ 
-          flex: '0 0 580px', 
-          minWidth: '500px', 
-          maxWidth: '680px', 
+          flex: '0 0 560px', 
+          minWidth: '480px', 
+          maxWidth: '640px', 
           background: 'white',
           boxShadow: '2px 0 12px rgba(0,0,0,0.05)',
-          padding: '20px',
+          padding: '20px 20px 0 20px',
           display: 'flex',
           flexDirection: 'column',
           gap: '16px',
           minHeight: 0,
-          maxHeight: 'calc(100vh - 140px)',
-          overflowY: 'auto',
-          ...(isMobile && {
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            bottom: 0,
-            zIndex: 1000,
-            maxHeight: '100vh',
-            minWidth: '85vw',
-            maxWidth: '85vw'
-          })
+          overflowY: 'auto'
         }}>
-          {isMobile && (
-            <button 
-              onClick={() => setSidebarOpen(false)}
-              style={{
-                position: 'absolute',
-                top: '12px',
-                right: '12px',
-                padding: '8px 12px',
-                background: '#667eea',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '18px',
-                fontWeight: '600',
-                minWidth: '44px',
-                minHeight: '44px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-              aria-label="Close Sidebar"
-            >✕</button>
-          )}          <button 
+          <button 
             onClick={() => setShowModal(true)}
             style={{
               padding: '12px 20px',
@@ -1473,419 +978,466 @@ export default function Room() {
             </button>
           </div>
           <div style={{ marginTop: '8px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <h3 style={{ margin: '0', fontSize: '16px', fontWeight: '600', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ background: '#e0e7ff', padding: '4px 12px', borderRadius: '12px', fontSize: '14px' }}>{groups.length}</span>
-                Verfügbare Familien
-              </h3>
-              <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '6px' }}>
-                <button
-                  onClick={() => setSortAvailable('name')}
-                  style={{
-                    padding: '4px 8px',
-                    background: sortAvailable === 'name' ? '#667eea' : 'transparent',
-                    color: sortAvailable === 'name' ? 'white' : '#64748b',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    transition: 'all 0.2s'
-                  }}
-                  title="Nach Name sortieren"
-                >A-Z</button>
-                <button
-                  onClick={() => setSortAvailable('time')}
-                  style={{
-                    padding: '4px 8px',
-                    background: sortAvailable === 'time' ? '#667eea' : 'transparent',
-                    color: sortAvailable === 'time' ? 'white' : '#64748b',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    transition: 'all 0.2s'
-                  }}
-                  title="Nach Uhrzeit sortieren"
-                >🕐</button>
-                <button
-                  onClick={() => setSortAvailable('size')}
-                  style={{
-                    padding: '4px 8px',
-                    background: sortAvailable === 'size' ? '#667eea' : 'transparent',
-                    color: sortAvailable === 'size' ? 'white' : '#64748b',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    transition: 'all 0.2s'
-                  }}
-                  title="Nach Personenzahl sortieren"
-                >#</button>
-              </div>
+            {/* ========== LISTS TOGGLE ========== */}
+            <div style={{ display: 'inline-flex', gap: '3px', background: '#f1f5f9', padding: '5px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '12px' }}>
+              <button
+                onClick={() => setListView('available')}
+                style={{
+                  padding: '8px 14px',
+                  background: listView === 'available' ? '#667eea' : 'transparent',
+                  color: listView === 'available' ? 'white' : '#475569',
+                  border: listView === 'available' ? '1px solid #5568d3' : 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '13px',
+                  transition: 'all 0.2s ease'
+                }}
+                title="Unzugewiesene Familien anzeigen"
+              >
+                📋 Unzugewiesen
+              </button>
+              <button
+                onClick={() => setListView('assigned')}
+                style={{
+                  padding: '8px 14px',
+                  background: listView === 'assigned' ? '#667eea' : 'transparent',
+                  color: listView === 'assigned' ? 'white' : '#475569',
+                  border: listView === 'assigned' ? '1px solid #5568d3' : 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '13px',
+                  transition: 'all 0.2s ease'
+                }}
+                title="Zugewiesene Familien anzeigen"
+              >
+                🪑 Zugewiesen
+              </button>
             </div>
-          <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-            <div className="groups-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-            {(() => {
-              const sortedGroups = [...groups].sort((a, b) => {
-                if (sortAvailable === 'name') {
-                  return a.name.localeCompare(b.name)
-                } else if (sortAvailable === 'time') {
-                  if (!a.time && !b.time) return 0
-                  if (!a.time) return 1
-                  if (!b.time) return -1
-                  return a.time.localeCompare(b.time)
-                } else {
-                  return b.size - a.size
-                }
-              })
-
-              const PAGE_SIZE = 10
-              const totalPages = Math.max(1, Math.ceil(sortedGroups.length / PAGE_SIZE))
-              const currentPage = Math.min(availablePage, totalPages - 1)
-              const pageItems = sortedGroups.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE)
-
-              return pageItems.map((g, i) => {
-              const salutation = g.salutation || 'Fam'
-              const displaySalutation = salutation === 'Fam' ? 'Fam.' : salutation
-              const displayName = `${displaySalutation} ${g.name}`
-              return (
-                <div
-                  key={`${currentPage}-${i}`}
-                  className="group-item"
-                  style={{ 
-                    color: '#1e293b', 
-                    padding: '10px',
-                    borderRadius: '8px',
-                    border: '1px solid ' + (g.toGo ? '#fbbf24' : '#e2e8f0'),
-                    cursor: g.toGo ? 'default' : 'move',
-                    transition: 'all 0.2s',
-                    fontSize: '13px'
-                  }}
-                  onMouseOver={e => !g.toGo && (e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)')}
-                  onMouseOut={e => e.currentTarget.style.boxShadow = 'none'}
-                  draggable={!g.toGo}
-                  onDragStart={e => {
-                    if (g.toGo) return
-                    e.dataTransfer.setData('text/plain', JSON.stringify({ index: i, ...g }))
-                    setDraggingGroup({ group: g, rotation: 0 })
-                    setDraggingMeta(null)
-                    setPreviewRotation(0)
-                  }}
-                  onTouchStart={e => handleTouchStart(e, g, i)}
-                  onTouchMove={handleTouchMove}
-                  onTouchEnd={e => handleTouchEnd(e, i)}
-                  onContextMenu={e => {
-                    e.preventDefault()
-                    setContextMenu({ x: e.clientX, y: e.clientY, tableId: '', agIdx: -1, isList: true, listIdx: i })
-                  }}
-                >
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
-                    <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: '14px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
-                    </div>
-                    <div style={{ gridColumn: '2 / 3', gridRow: '1 / 2', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '4px', alignItems: 'center' }}>
-                      <span aria-hidden style={{ fontSize: '13px' }}>🕐</span>
-                      <span>{g.time ? `Uhrzeit: ${g.time}` : 'Uhrzeit: offen'}</span>
-                    </div>
-                    <div style={{ gridColumn: '1 / 2', gridRow: '2 / 3', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span aria-hidden style={{ fontSize: '13px' }}>👥</span>
-                      <span>Personen: {g.size}</span>
-                    </div>
-                    <div style={{ gridColumn: '2 / 3', gridRow: '2 / 3', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
-                      <span aria-hidden style={{ fontSize: '13px' }}>{g.toGo ? '🥘' : '🪑'}</span>
-                      <span>{g.toGo ? 'ToGo' : 'Tisch: offen'}</span>
-                    </div>
+            {listView === 'available' && (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h3 style={{ margin: '0', fontSize: '16px', fontWeight: '600', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ background: '#e0e7ff', padding: '4px 12px', borderRadius: '12px', fontSize: '14px' }}>{groups.length}</span>
+                    Unzugewiesene Familien
+                  </h3>
+                  <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '6px' }}>
+                    <button
+                      onClick={() => setSortAvailable('name')}
+                      style={{
+                        padding: '4px 8px',
+                        background: sortAvailable === 'name' ? '#667eea' : 'transparent',
+                        color: sortAvailable === 'name' ? 'white' : '#64748b',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        transition: 'all 0.2s'
+                      }}
+                      title="Nach Name sortieren"
+                    >A-Z</button>
+                    <button
+                      onClick={() => setSortAvailable('time')}
+                      style={{
+                        padding: '4px 8px',
+                        background: sortAvailable === 'time' ? '#667eea' : 'transparent',
+                        color: sortAvailable === 'time' ? 'white' : '#64748b',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        transition: 'all 0.2s'
+                      }}
+                      title="Nach Uhrzeit sortieren"
+                    >🕐</button>
+                    <button
+                      onClick={() => setSortAvailable('size')}
+                      style={{
+                        padding: '4px 8px',
+                        background: sortAvailable === 'size' ? '#667eea' : 'transparent',
+                        color: sortAvailable === 'size' ? 'white' : '#64748b',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        transition: 'all 0.2s'
+                      }}
+                      title="Nach Personenzahl sortieren"
+                    >#</button>
                   </div>
                 </div>
-              )
-              })
-            })()}
-          </div>
-          </div>
-          {(() => {
-            const sortedGroups = [...groups].sort((a, b) => {
-              if (sortAvailable === 'name') {
-                return a.name.localeCompare(b.name)
-              } else if (sortAvailable === 'time') {
-                if (!a.time && !b.time) return 0
-                if (!a.time) return 1
-                if (!b.time) return -1
-                return a.time.localeCompare(b.time)
-              } else {
-                return b.size - a.size
-              }
-            })
-            const PAGE_SIZE = 10
-            const totalPages = Math.max(1, Math.ceil(sortedGroups.length / PAGE_SIZE))
-            const currentPage = Math.min(availablePage, totalPages - 1)
-            return (
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
-                <button
-                  onClick={() => setAvailablePage(p => Math.max(0, p - 1))}
-                  disabled={currentPage === 0}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: '20px',
-                    border: '1px solid #e2e8f0',
-                    background: currentPage === 0 ? '#f8fafc' : 'white',
-                    color: currentPage === 0 ? '#cbd5e1' : '#0f172a',
-                    cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    minWidth: '60px'
-                  }}
-                >Zurück</button>
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                  {Array.from({ length: totalPages }).map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setAvailablePage(i)}
-                      style={{
-                        width: '10px',
-                        height: '10px',
-                        borderRadius: '50%',
-                        border: '1px solid #cbd5e1',
-                        background: i === currentPage ? '#667eea' : 'white',
-                        cursor: 'pointer',
-                        padding: 0
-                      }}
-                      aria-label={`Seite ${i + 1}`}
-                    />
-                  ))}
+
+                {/* ========== AVAILABLE GROUPS LIST ========== */}
+                <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+                  <div className="groups-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                    {(() => {
+                      const sortedGroups = [...groups].sort((a, b) => {
+                        if (sortAvailable === 'name') {
+                          return a.name.localeCompare(b.name)
+                        } else if (sortAvailable === 'time') {
+                          if (!a.time && !b.time) return 0
+                          if (!a.time) return 1
+                          if (!b.time) return -1
+                          return a.time.localeCompare(b.time)
+                        } else {
+                          return b.size - a.size
+                        }
+                      })
+
+                      const PAGE_SIZE = 16
+                      const totalPages = Math.max(1, Math.ceil(sortedGroups.length / PAGE_SIZE))
+                      const currentPage = Math.min(availablePage, totalPages - 1)
+                      const pageItems = sortedGroups.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE)
+
+                      return pageItems.map((g, i) => {
+                        const salutation = g.salutation || 'Fam'
+                        const displaySalutation = salutation === 'Fam' ? 'Fam.' : salutation
+                        const displayName = `${displaySalutation} ${g.name}`
+                        return (
+                          <div
+                            key={`${currentPage}-${i}`}
+                            className="group-item"
+                            style={{
+                              color: '#1e293b',
+                              padding: '10px',
+                              borderRadius: '8px',
+                              border: '1px solid ' + (g.toGo ? '#fbbf24' : '#e2e8f0'),
+                              cursor: g.toGo ? 'default' : 'move',
+                              transition: 'all 0.2s',
+                              fontSize: '13px'
+                            }}
+                            onMouseOver={e => !g.toGo && (e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)')}
+                            onMouseOut={e => e.currentTarget.style.boxShadow = 'none'}
+                            draggable={!g.toGo}
+                            onDragStart={e => {
+                              if (g.toGo) return
+                              e.dataTransfer.setData('text/plain', JSON.stringify({ index: i, ...g }))
+                              setDraggingGroup({ group: g, rotation: 0 })
+                              setDraggingMeta(null)
+                              setPreviewRotation(0)
+                            }}
+                            onContextMenu={e => {
+                              e.preventDefault()
+                              setContextMenu({ x: e.clientX, y: e.clientY, tableId: '', agIdx: -1, isList: true, listIdx: i })
+                            }}
+                          >
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
+                              <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: '14px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
+                              </div>
+                              <div style={{ gridColumn: '2 / 3', gridRow: '1 / 2', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '4px', alignItems: 'center' }}>
+                                <span aria-hidden style={{ fontSize: '13px' }}>🕐</span>
+                                <span>{g.time ? `Uhrzeit: ${g.time}` : 'Uhrzeit: offen'}</span>
+                              </div>
+                              <div style={{ gridColumn: '1 / 2', gridRow: '2 / 3', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span aria-hidden style={{ fontSize: '13px' }}>👥</span>
+                                <span>Personen: {g.size}</span>
+                              </div>
+                              <div style={{ gridColumn: '2 / 3', gridRow: '2 / 3', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
+                                <span aria-hidden style={{ fontSize: '13px' }}>{g.toGo ? '🥘' : '🪑'}</span>
+                                <span>{g.toGo ? 'ToGo' : 'Tisch: offen'}</span>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })
+                    })()}
+                  </div>
                 </div>
-                <button
-                  onClick={() => setAvailablePage(p => Math.min(totalPages - 1, p + 1))}
-                  disabled={currentPage >= totalPages - 1}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: '20px',
-                    border: '1px solid #e2e8f0',
-                    background: currentPage >= totalPages - 1 ? '#f8fafc' : 'white',
-                    color: currentPage >= totalPages - 1 ? '#cbd5e1' : '#0f172a',
-                    cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    minWidth: '60px'
-                  }}
-                >Weiter</button>
-              </div>
-            )
-          })()}
-          <div style={{ marginTop: '8px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <h3 style={{ margin: '0', fontSize: '16px', fontWeight: '600', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ background: '#dbeafe', padding: '4px 12px', borderRadius: '12px', fontSize: '14px' }}>{Object.values(assignedGroups).flat().length}</span>
-                Zugewiesene Familien
-              </h3>
-              <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '6px' }}>
-                <button
-                  onClick={() => setSortAssigned('name')}
-                  style={{
-                    padding: '4px 8px',
-                    background: sortAssigned === 'name' ? '#667eea' : 'transparent',
-                    color: sortAssigned === 'name' ? 'white' : '#64748b',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    transition: 'all 0.2s'
-                  }}
-                  title="Nach Name sortieren"
-                >A-Z</button>
-                <button
-                  onClick={() => setSortAssigned('time')}
-                  style={{
-                    padding: '4px 8px',
-                    background: sortAssigned === 'time' ? '#667eea' : 'transparent',
-                    color: sortAssigned === 'time' ? 'white' : '#64748b',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    transition: 'all 0.2s'
-                  }}
-                  title="Nach Uhrzeit sortieren"
-                >🕐</button>
-                <button
-                  onClick={() => setSortAssigned('table')}
-                  style={{
-                    padding: '4px 8px',
-                    background: sortAssigned === 'table' ? '#667eea' : 'transparent',
-                    color: sortAssigned === 'table' ? 'white' : '#64748b',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    transition: 'all 0.2s'
-                  }}
-                  title="Nach Tischnummer sortieren"
-                >🪑</button>
-              </div>
-            </div>
-          <div style={{ maxHeight: '400px', overflow: 'hidden' }}>
-            <div className="assigned-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-            {(() => {
-              const assignedItems = Object.entries(assignedGroups)
-                .flatMap(([tableId, ags]) => ags.map((ag, idx) => ({ tableId, ag, idx })))
-                .sort((a, b) => {
-                  if (sortAssigned === 'name') {
-                    return a.ag.group.name.localeCompare(b.ag.group.name)
-                  } else if (sortAssigned === 'time') {
-                    const timeA = a.ag.group.time || ''
-                    const timeB = b.ag.group.time || ''
-                    if (!timeA && !timeB) return 0
-                    if (!timeA) return 1
-                    if (!timeB) return -1
-                    return timeA.localeCompare(timeB)
-                  } else {
-                    if (a.tableId === 'TOGO' && b.tableId !== 'TOGO') return 1
-                    if (a.tableId !== 'TOGO' && b.tableId === 'TOGO') return -1
-                    if (a.tableId === 'TOGO' && b.tableId === 'TOGO') return 0
-                    const numA = parseInt(a.tableId.slice(1))
-                    const numB = parseInt(b.tableId.slice(1))
-                    return numA - numB
-                  }
-                })
 
-              const PAGE_SIZE = 10
-              const totalPages = Math.max(1, Math.ceil(assignedItems.length / PAGE_SIZE))
-              const currentPage = Math.min(assignedPage, totalPages - 1)
-              const pageItems = assignedItems.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE)
-
-              return pageItems.map(({ tableId, ag, idx }) => {
-                const salutation = ag.group.salutation || 'Fam'
-                const displaySalutation = salutation === 'Fam' ? 'Fam.' : salutation
-                const displayName = `${displaySalutation} ${ag.group.name}`
-                const isToGo = tableId === 'TOGO'
-                return (
-                  <div
-                    key={`${tableId}-${idx}`}
-                    className="assigned-item"
-                    style={{
-                      background: isToGo ? '#fef3c7' : (assignedColors[tableId]?.[idx] || '#e0e7ff'),
-                      padding: '10px',
-                      borderRadius: '8px',
-                      border: '1px solid ' + (isToGo ? '#fbbf24' : '#c7d2fe'),
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      fontSize: '13px'
-                    }}
-                    onMouseOver={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'}
-                    onMouseOut={e => e.currentTarget.style.boxShadow = 'none'}
-                    onTouchStart={e => handleAssignedTouchStart(e, tableId, idx)}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={e => handleAssignedTouchEnd(e, tableId, idx)}
-                    onContextMenu={e => {
-                      e.preventDefault()
-                      setContextMenu({ x: e.clientX, y: e.clientY, tableId, agIdx: idx, isList: false, isAssignedList: true })
-                    }}
-                  >
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
-                      <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: '14px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
+                {/* ========== AVAILABLE GROUPS PAGINATION ========== */}
+                {(() => {
+                  const sortedGroups = [...groups].sort((a, b) => {
+                    if (sortAvailable === 'name') {
+                      return a.name.localeCompare(b.name)
+                    } else if (sortAvailable === 'time') {
+                      if (!a.time && !b.time) return 0
+                      if (!a.time) return 1
+                      if (!b.time) return -1
+                      return a.time.localeCompare(b.time)
+                    } else {
+                      return b.size - a.size
+                    }
+                  })
+                  const PAGE_SIZE = 16
+                  const totalPages = Math.max(1, Math.ceil(sortedGroups.length / PAGE_SIZE))
+                  const currentPage = Math.min(availablePage, totalPages - 1)
+                  return (
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
+                      <button
+                        onClick={() => setAvailablePage(p => Math.max(0, p - 1))}
+                        disabled={currentPage === 0}
+                        style={{
+                          padding: '6px 10px',
+                          borderRadius: '20px',
+                          border: '1px solid #e2e8f0',
+                          background: currentPage === 0 ? '#f8fafc' : 'white',
+                          color: currentPage === 0 ? '#cbd5e1' : '#0f172a',
+                          cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          minWidth: '60px'
+                        }}
+                      >Zurück</button>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        {Array.from({ length: totalPages }).map((_, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setAvailablePage(i)}
+                            style={{
+                              width: '10px',
+                              height: '10px',
+                              borderRadius: '50%',
+                              border: '1px solid #cbd5e1',
+                              background: i === currentPage ? '#667eea' : 'white',
+                              cursor: 'pointer',
+                              padding: 0
+                            }}
+                            aria-label={`Seite ${i + 1}`}
+                          />
+                        ))}
                       </div>
-                      <div style={{ gridColumn: '2 / 3', gridRow: '1 / 2', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '4px', alignItems: 'center' }}>
-                        <span aria-hidden style={{ fontSize: '13px' }}>🕐</span>
-                        <span>{ag.group.time ? `Uhrzeit: ${ag.group.time}` : 'Uhrzeit: offen'}</span>
-                      </div>
-                      <div style={{ gridColumn: '1 / 2', gridRow: '2 / 3', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span aria-hidden style={{ fontSize: '13px' }}>👥</span>
-                        <span>Personen: {ag.group.size}</span>
-                      </div>
-                      <div style={{ gridColumn: '2 / 3', gridRow: '2 / 3', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
-                        <span aria-hidden style={{ fontSize: '13px' }}>{isToGo ? '🥘' : '🪑'}</span>
-                        <span>{isToGo ? 'ToGo' : `Tisch: ${tableId.slice(1)}`}</span>
-                      </div>
+                      <button
+                        onClick={() => setAvailablePage(p => Math.min(totalPages - 1, p + 1))}
+                        disabled={currentPage >= totalPages - 1}
+                        style={{
+                          padding: '6px 10px',
+                          borderRadius: '20px',
+                          border: '1px solid #e2e8f0',
+                          background: currentPage >= totalPages - 1 ? '#f8fafc' : 'white',
+                          color: currentPage >= totalPages - 1 ? '#cbd5e1' : '#0f172a',
+                          cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          minWidth: '60px'
+                        }}
+                      >Weiter</button>
                     </div>
+                  )
+                })()}
+              </>
+            )}
+          
+          {/* ========== ASSIGNED GROUPS LIST ========== */}
+          {listView === 'assigned' && (
+            <>
+              <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h3 style={{ margin: '0', fontSize: '16px', fontWeight: '600', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ background: '#dbeafe', padding: '4px 12px', borderRadius: '12px', fontSize: '14px' }}>{Object.values(assignedGroups).flat().length}</span>
+                    Zugewiesene Familien
+                  </h3>
+                  <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '6px' }}>
+                    <button
+                      onClick={() => setSortAssigned('name')}
+                      style={{
+                        padding: '4px 8px',
+                        background: sortAssigned === 'name' ? '#667eea' : 'transparent',
+                        color: sortAssigned === 'name' ? 'white' : '#64748b',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        transition: 'all 0.2s'
+                      }}
+                      title="Nach Name sortieren"
+                    >A-Z</button>
+                    <button
+                      onClick={() => setSortAssigned('time')}
+                      style={{
+                        padding: '4px 8px',
+                        background: sortAssigned === 'time' ? '#667eea' : 'transparent',
+                        color: sortAssigned === 'time' ? 'white' : '#64748b',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        transition: 'all 0.2s'
+                      }}
+                      title="Nach Uhrzeit sortieren"
+                    >🕐</button>
+                    <button
+                      onClick={() => setSortAssigned('table')}
+                      style={{
+                        padding: '4px 8px',
+                        background: sortAssigned === 'table' ? '#667eea' : 'transparent',
+                        color: sortAssigned === 'table' ? 'white' : '#64748b',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        transition: 'all 0.2s'
+                      }}
+                      title="Nach Tischnummer sortieren"
+                    >🪑</button>
+                  </div>
+                </div>
+
+                <div className="assigned-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                  {(() => {
+                    const assignedItems = Object.entries(assignedGroups)
+                      .flatMap(([tableId, ags]) => ags.map((ag, idx) => ({ tableId, ag, idx })))
+                      .sort((a, b) => {
+                        if (sortAssigned === 'name') {
+                          return a.ag.group.name.localeCompare(b.ag.group.name)
+                        } else if (sortAssigned === 'time') {
+                          const timeA = a.ag.group.time || ''
+                          const timeB = b.ag.group.time || ''
+                          if (!timeA && !timeB) return 0
+                          if (!timeA) return 1
+                          if (!timeB) return -1
+                          return timeA.localeCompare(timeB)
+                        } else {
+                          if (a.tableId === 'TOGO' && b.tableId !== 'TOGO') return 1
+                          if (a.tableId !== 'TOGO' && b.tableId === 'TOGO') return -1
+                          if (a.tableId === 'TOGO' && b.tableId === 'TOGO') return 0
+                          const numA = parseInt(a.tableId.slice(1))
+                          const numB = parseInt(b.tableId.slice(1))
+                          return numA - numB
+                        }
+                      })
+
+                    const PAGE_SIZE = 16
+                    const totalPages = Math.max(1, Math.ceil(assignedItems.length / PAGE_SIZE))
+                    const currentPage = Math.min(assignedPage, totalPages - 1)
+                    const pageItems = assignedItems.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE)
+
+                    return pageItems.map(({ tableId, ag, idx }) => {
+                      const salutation = ag.group.salutation || 'Fam'
+                      const displaySalutation = salutation === 'Fam' ? 'Fam.' : salutation
+                      const displayName = `${displaySalutation} ${ag.group.name}`
+                      const isToGo = tableId === 'TOGO'
+                      return (
+                        <div
+                          key={`${tableId}-${idx}`}
+                          className="assigned-item"
+                          style={{
+                            background: isToGo ? '#fef3c7' : (assignedColors[tableId]?.[idx] || '#e0e7ff'),
+                            padding: '10px',
+                            borderRadius: '8px',
+                            border: '1px solid ' + (isToGo ? '#fbbf24' : '#c7d2fe'),
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            fontSize: '13px'
+                          }}
+                          onMouseOver={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'}
+                          onMouseOut={e => e.currentTarget.style.boxShadow = 'none'}
+                          onContextMenu={e => {
+                            e.preventDefault()
+                            setContextMenu({ x: e.clientX, y: e.clientY, tableId, agIdx: idx, isList: false, isAssignedList: true })
+                          }}
+                        >
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
+                            <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: '14px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
+                            </div>
+                            <div style={{ gridColumn: '2 / 3', gridRow: '1 / 2', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '4px', alignItems: 'center' }}>
+                              <span aria-hidden style={{ fontSize: '13px' }}>🕐</span>
+                              <span>{ag.group.time ? `Uhrzeit: ${ag.group.time}` : 'Uhrzeit: offen'}</span>
+                            </div>
+                            <div style={{ gridColumn: '1 / 2', gridRow: '2 / 3', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <span aria-hidden style={{ fontSize: '13px' }}>👥</span>
+                              <span>Personen: {ag.group.size}</span>
+                            </div>
+                            <div style={{ gridColumn: '2 / 3', gridRow: '2 / 3', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
+                              <span aria-hidden style={{ fontSize: '13px' }}>{isToGo ? '🥘' : '🪑'}</span>
+                              <span>{isToGo ? 'ToGo' : `Tisch: ${tableId.slice(1)}`}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )
+          
+                    })
+                  })()}
+                </div>
+              </div>
+
+              {/* ========== ASSIGNED GROUPS PAGINATION ========== */}
+              {(() => {
+                const totalItems = Object.values(assignedGroups).flat().length
+                const PAGE_SIZE = 16
+                const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE))
+                const currentPage = Math.min(assignedPage, totalPages - 1)
+                return (
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
+                    <button
+                      onClick={() => setAssignedPage(p => Math.max(0, p - 1))}
+                      disabled={currentPage === 0}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: '20px',
+                        border: '1px solid #e2e8f0',
+                        background: currentPage === 0 ? '#f8fafc' : 'white',
+                        color: currentPage === 0 ? '#cbd5e1' : '#0f172a',
+                        cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        minWidth: '60px'
+                      }}
+                    >Zurück</button>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      {Array.from({ length: totalPages }).map((_, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setAssignedPage(i)}
+                          style={{
+                            width: '10px',
+                            height: '10px',
+                            borderRadius: '50%',
+                            border: '1px solid #cbd5e1',
+                            background: i === currentPage ? '#667eea' : 'white',
+                            cursor: 'pointer',
+                            padding: 0
+                          }}
+                          aria-label={`Seite ${i + 1}`}
+                        />
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setAssignedPage(p => Math.min(totalPages - 1, p + 1))}
+                      disabled={currentPage >= totalPages - 1}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: '20px',
+                        border: '1px solid #e2e8f0',
+                        background: currentPage >= totalPages - 1 ? '#f8fafc' : 'white',
+                        color: currentPage >= totalPages - 1 ? '#cbd5e1' : '#0f172a',
+                        cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        minWidth: '60px'
+                      }}
+                    >Weiter</button>
                   </div>
                 )
-              })
-            })()}
-            </div>
-          </div>
-          </div>
-          {(() => {
-            const totalItems = Object.values(assignedGroups).flat().length
-            const PAGE_SIZE = 10
-            const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE))
-            const currentPage = Math.min(assignedPage, totalPages - 1)
-            return (
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
-                <button
-                  onClick={() => setAssignedPage(p => Math.max(0, p - 1))}
-                  disabled={currentPage === 0}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: '20px',
-                    border: '1px solid #e2e8f0',
-                    background: currentPage === 0 ? '#f8fafc' : 'white',
-                    color: currentPage === 0 ? '#cbd5e1' : '#0f172a',
-                    cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    minWidth: '60px'
-                  }}
-                >Zurück</button>
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                  {Array.from({ length: totalPages }).map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setAssignedPage(i)}
-                      style={{
-                        width: '10px',
-                        height: '10px',
-                        borderRadius: '50%',
-                        border: '1px solid #cbd5e1',
-                        background: i === currentPage ? '#667eea' : 'white',
-                        cursor: 'pointer',
-                        padding: 0
-                      }}
-                      aria-label={`Seite ${i + 1}`}
-                    />
-                  ))}
-                </div>
-                <button
-                  onClick={() => setAssignedPage(p => Math.min(totalPages - 1, p + 1))}
-                  disabled={currentPage >= totalPages - 1}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: '20px',
-                    border: '1px solid #e2e8f0',
-                    background: currentPage >= totalPages - 1 ? '#f8fafc' : 'white',
-                    color: currentPage >= totalPages - 1 ? '#cbd5e1' : '#0f172a',
-                    cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    minWidth: '60px'
-                  }}
-                >Weiter</button>
-              </div>
-            )
-          })()}
+              })()}
+            </>
+          )}
           
-          {/* Event speichern Section - under Assigned Groups */}
+          {/* ========== EVENT SPEICHERN ========== */}
           <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch', width: '100%' }}>
               <button 
                 onClick={() => handleSaveEvent()} 
                 disabled={!isDirty || !Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0)}
                 style={{ 
-                  flex: 1,
-                  minWidth: '100px',
-                  padding: '10px 14px',
+                  flex: 3,
+                  padding: '12px 20px',
                   background: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? '#10b981' : '#e0e7ff',
                   color: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 'white' : '#94a3b8',
                   border: 'none',
-                  borderRadius: '6px',
+                  borderRadius: '8px',
                   cursor: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 'pointer' : 'not-allowed',
-                  fontSize: '13px',
+                  fontSize: '14px',
                   fontWeight: '600',
+                  boxShadow: '0 2px 8px rgba(102,126,234,0.15)',
                   transition: 'all 0.2s',
                   opacity: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 1 : 0.6
                 }}
@@ -1893,34 +1445,19 @@ export default function Room() {
                 💾 Speichern
               </button>
               
-              {/* Auto-Save Status - Kompakt */}
-              {typeof autosaveRemaining === 'number' && (
-                <span style={{ fontSize: '11px', color: '#64748b', background: '#f1f5f9', padding: '6px 8px', borderRadius: '6px', whiteSpace: 'nowrap' }}>
-                  Auto: {String(Math.floor(autosaveRemaining / 60)).padStart(2, '0')}:{String(autosaveRemaining % 60).padStart(2, '0')}
-                </span>
-              )}
-              
-              {/* Zuletzt gespeichert - Kompakt */}
-              {lastSaveTime && (
-                <span style={{ fontSize: '11px', color: '#64748b', background: '#f1f5f9', padding: '6px 8px', borderRadius: '6px', whiteSpace: 'nowrap' }}>
-                  {lastSaveType === 'auto' ? 'Auto' : 'Sicherung'}: {lastSaveTime}
-                </span>
-              )}
-              
-              {/* Print Button - Klein */}
               <button
                 onClick={() => window.print()}
                 style={{
-                  padding: '8px 10px',
+                  flex: 1,
+                  padding: '12px 20px',
                   background: '#f1f5f9',
                   color: '#667eea',
                   border: '1px solid #cbd5e1',
-                  borderRadius: '6px',
+                  borderRadius: '8px',
                   cursor: 'pointer',
-                  fontSize: '13px',
+                  fontSize: '14px',
                   fontWeight: '600',
                   transition: 'all 0.2s',
-                  minWidth: '44px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
@@ -1932,25 +1469,28 @@ export default function Room() {
                 🖨️
               </button>
             </div>
+
+            <div style={{ display: 'flex', width: '100%', marginTop: '10px' }}>
+              <div style={{ flex: 3, display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
+                {/* Auto-Save Status - Kompakt */}
+                {typeof autosaveRemaining === 'number' && (
+                  <span style={{ fontSize: '11px', color: '#64748b', background: '#f1f5f9', padding: '6px 8px', borderRadius: '6px', whiteSpace: 'nowrap' }}>
+                    Auto: {String(Math.floor(autosaveRemaining / 60)).padStart(2, '0')}:{String(autosaveRemaining % 60).padStart(2, '0')}
+                  </span>
+                )}
+                
+                {/* Zuletzt gespeichert - Kompakt */}
+                {lastSaveTime && (
+                  <span style={{ fontSize: '11px', color: '#64748b', background: '#f1f5f9', padding: '6px 8px', borderRadius: '6px', whiteSpace: 'nowrap' }}>
+                    {lastSaveType === 'auto' ? 'Auto' : 'Sicherung'}: {lastSaveTime}
+                  </span>
+                )}
+              </div>
+              <div style={{ flex: 1 }} />
+            </div>
           </div>
           </div>
         </div>
-        )}
-        {/* Backdrop für Mobile Sidebar */}
-        {isMobile && sidebarOpen && (
-          <div 
-            onClick={() => setSidebarOpen(false)}
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'rgba(0,0,0,0.5)',
-              zIndex: 999
-            }}
-          />
-        )}
 
         {/* Main area - switches between map and timeline */}
         <div className="room-layout" style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', padding: '12px', position: 'relative', minWidth: 0, minHeight: 0 }}>
@@ -2065,12 +1605,6 @@ export default function Room() {
               e.preventDefault()
               updatePreviewPosition({ clientX: e.clientX, clientY: e.clientY })
             }}
-            onTouchMove={e => {
-              if (!draggingGroup) return
-              e.preventDefault()
-              const touch = e.touches[0]
-              updatePreviewPosition({ clientX: touch.clientX, clientY: touch.clientY })
-            }}
             onDragLeave={() => {
               setDragOverPosition(null)
             }}
@@ -2143,8 +1677,6 @@ export default function Room() {
                         setPreviewRotation(ag.rotation)
                       }
                     }}
-                    onTouchStart={e => !ag.locked && handleAssignedTouchStart(e, tableId, idx)}
-                    onTouchEnd={e => !ag.locked && handleAssignedTouchEnd(e, tableId, idx)}
                     onContextMenu={e => {
                       e.preventDefault()
                       setContextMenu({ x: e.clientX, y: e.clientY, tableId, agIdx: idx, isList: false })
@@ -2178,9 +1710,7 @@ export default function Room() {
                         {ag.group.time && <div style={{ fontSize: '6px', opacity: 0.9, lineHeight: '1' }}>🕐 {ag.group.time.slice(0, 5)}</div>}
                         <div style={{ fontSize: '7px', fontWeight: '600' }}>👥 {ag.group.size}</div>
                       </div>
-                    ) : ''
-}
-
+                    ) : ''}
                   </div>
                 ))
               })
@@ -3194,11 +2724,6 @@ export default function Room() {
       )}
     </div>
   )
-}
-
-function ensureToGoBucket(map: Record<string, AssignedGroup[]>): Record<string, AssignedGroup[]> {
-  if (!map['TOGO']) map['TOGO'] = []
-  return map
 }
 
 function TimelineView({ 

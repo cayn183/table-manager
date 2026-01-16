@@ -51,6 +51,11 @@ npm run build
 npm run preview
 ```
 
+### 📝 Entwicklungs-Hinweis
+
+- **Nächste Schritte**: `npm install`, danach `npm run dev`.
+- **Tests**: Aktuell sind keine Tests eingerichtet.
+
 ## 🐳 Docker
 
 **Images aus GHCR**
