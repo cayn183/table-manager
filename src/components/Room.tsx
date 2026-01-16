@@ -1238,9 +1238,9 @@ export default function Room() {
       }}>
         {/* Left Column - Logo & Title (aligned with sidebar width) */}
         <div style={{ 
-          flex: isMobile ? '1' : '0 0 580px',
-          minWidth: isMobile ? 'auto' : '500px',
-          maxWidth: isMobile ? 'none' : '680px',
+          flex: isMobile ? '1' : '0 0 560px',
+          minWidth: isMobile ? 'auto' : '480px',
+          maxWidth: isMobile ? 'none' : '640px',
           display: 'flex', 
           alignItems: 'center', 
           gap: '12px' 
@@ -1401,9 +1401,9 @@ export default function Room() {
         {/* Sidebar - conditionally visible on mobile */}
         {(sidebarOpen || !isMobile) && (
         <div className="sidebar" style={{ 
-          flex: '0 0 580px', 
-          minWidth: '500px', 
-          maxWidth: '680px', 
+          flex: '0 0 560px', 
+          minWidth: '480px', 
+          maxWidth: '640px', 
           background: 'white',
           boxShadow: '2px 0 12px rgba(0,0,0,0.05)',
           padding: '20px 20px 0 20px',
@@ -1411,7 +1411,7 @@ export default function Room() {
           flexDirection: 'column',
           gap: '16px',
           minHeight: 0,
-          maxHeight: 'calc(100vh - 140px)',
+          height: 'calc(100vh - 140px)',
           overflowY: 'auto',
           ...(isMobile && {
             position: 'fixed',
@@ -1419,7 +1419,7 @@ export default function Room() {
             left: 0,
             bottom: 0,
             zIndex: 1000,
-            maxHeight: '100vh',
+            height: '100vh',
             minWidth: '85vw',
             maxWidth: '85vw'
           })
