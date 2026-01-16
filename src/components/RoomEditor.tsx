@@ -24,10 +24,8 @@ export default function RoomEditor() {
   const [frameDragStart, setFrameDragStart] = useState<{ x: number; y: number } | null>(null)
   const [defineViewMode, setDefineViewMode] = useState(false)
   const [showHelp, setShowHelp] = useState(true)
-  const touchStartTimeRef = useRef<number>(0)
   const [draggingTable, setDraggingTable] = useState<Table | null>(null)
   const [dragPreviewPos, setDragPreviewPos] = useState<{ x: number; y: number } | null>(null)
-  const [uiScale, setUiScale] = useState(1)
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tableId: string } | null>(null)
   const [sizeModal, setSizeModal] = useState<{ tableId: string; capacity: string } | null>(null)
@@ -36,36 +34,6 @@ export default function RoomEditor() {
 
   const gridSize = 20
   const cellSize = 40
-
-  // DPI-basierte intelligente Skalierung
-  useEffect(() => {
-    const checkEffectiveSize = () => {
-      const dpr = window.devicePixelRatio || 1
-      const effectiveWidth = window.innerWidth * dpr
-      const effectiveHeight = window.innerHeight * dpr
-      
-      let scale = 1
-      if (effectiveWidth > 2560 || effectiveHeight > 1600) {
-        scale = 1.15
-      } else if (effectiveWidth > 1920 && effectiveHeight > 1080) {
-        scale = 1
-      } else if (effectiveWidth < 800) {
-        scale = 1
-      } else {
-        scale = 1
-      }
-      
-      setUiScale(scale)
-    }
-    
-    checkEffectiveSize()
-    window.addEventListener('resize', checkEffectiveSize)
-    window.addEventListener('orientationchange', checkEffectiveSize)
-    return () => {
-      window.removeEventListener('resize', checkEffectiveSize)
-      window.removeEventListener('orientationchange', checkEffectiveSize)
-    }
-  }, [])
 
   // Keyboard: rotate selected table with 'R', delete with 'Delete'
   useEffect(() => {
@@ -238,10 +206,7 @@ export default function RoomEditor() {
       height: '100%', 
       background: '#f8fafc', 
       display: 'flex', 
-      flexDirection: 'column',
-      transformOrigin: 'top left',
-      transform: `scale(${uiScale})`,
-      ...(uiScale !== 1 && { width: `${100 / uiScale}%`, height: `${100 / uiScale}%` })
+      flexDirection: 'column'
     }}>
       {/* Header */}
       <div style={{ 
@@ -452,16 +417,6 @@ export default function RoomEditor() {
                   setContextMenu({ x: e.clientX, y: e.clientY, tableId: table.id })
                 }}
                 onClick={() => setSelectedTableId(table.id)}
-                onTouchStart={e => {
-                  touchStartTimeRef.current = Date.now()
-                }}
-                onTouchEnd={e => {
-                  const duration = Date.now() - touchStartTimeRef.current
-                  if (duration > 500) {
-                    e.preventDefault()
-                    setTables(tables.map(t => t.id === table.id ? { ...t, width: t.height, height: t.width } : t))
-                  }
-                }}
                 style={{
                   gridColumn: `${table.x + 1} / span ${table.width}`,
                   gridRow: `${table.y + 1} / span ${table.height}`,

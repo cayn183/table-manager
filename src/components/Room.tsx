@@ -430,9 +430,6 @@ export default function Room() {
   const [availablePage, setAvailablePage] = useState(0)
   const [mapScale, setMapScale] = useState(1)
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
-  const [isMobile, setIsMobile] = useState(false)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
-  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null)
   const [uiScale, setUiScale] = useState(1)
   const draggingGroupRef = useRef<{ group: Group; rotation: number } | null>(null)
 
@@ -491,9 +488,7 @@ export default function Room() {
       const el = mapContainerRef.current
       if (!el) return
 
-      // Responsive Padding basierend auf Screen-Breite
-      const screenWidth = window.innerWidth
-      const paddingPx = screenWidth < 768 ? 8 : screenWidth < 1024 ? 20 : room?.viewFrame ? 16 : 40
+      const paddingPx = room?.viewFrame ? 16 : 40
       const availableW = Math.max(200, el.clientWidth - paddingPx)
       const availableH = Math.max(200, el.clientHeight - paddingPx)
 
@@ -505,8 +500,7 @@ export default function Room() {
       const scaleX = availableW / contentW
       const scaleY = availableH / contentH
       
-      // Kleinere Max-Scale auf Mobile
-      const maxScale = screenWidth < 768 ? 1.2 : room?.viewFrame ? 4 : 1.6
+      const maxScale = room?.viewFrame ? 4 : 1.6
       const scale = Math.min(maxScale, Math.max(0.3, Math.min(scaleX, scaleY)))
 
       setMapScale(scale)
@@ -516,19 +510,6 @@ export default function Room() {
     window.addEventListener('resize', recalcScale)
     return () => window.removeEventListener('resize', recalcScale)
   }, [gridBounds, room])
-
-  // Detect mobile device
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 1024)
-      if (window.innerWidth >= 1024) {
-        setSidebarOpen(true)
-      }
-    }
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
-  }, [])
 
   // DPI-basierte intelligente Skalierung
   useEffect(() => {
@@ -660,116 +641,6 @@ export default function Room() {
     setDragOverPosition({ tableId: table.id, x: relX, y: relY })
   }
 
-  // Touch event handlers
-  function handleTouchStart(e: React.TouchEvent, group: Group, index: number) {
-    if (group.toGo) return
-    const touch = e.touches[0]
-    touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() }
-    setDraggingGroup({ group, rotation: 0 })
-    setDraggingMeta(null)
-  }
-
-  function handleTouchMove(e: React.TouchEvent) {
-    if (!draggingGroup) return
-    e.preventDefault()
-    const touch = e.touches[0]
-    updatePreviewPosition({ clientX: touch.clientX, clientY: touch.clientY })
-  }
-
-  function handleTouchEnd(e: React.TouchEvent, groupIndex: number) {
-    if (!draggingGroup || !dragOverPosition || !room) {
-      setDraggingGroup(null)
-      setDragOverPosition(null)
-      touchStartRef.current = null
-      return
-    }
-
-    const table = room.tables.find(t => t.id === dragOverPosition.tableId)
-    if (!table) {
-      setDraggingGroup(null)
-      setDragOverPosition(null)
-      touchStartRef.current = null
-      return
-    }
-
-    const current = assignedGroups[table.id] || []
-    const relX = dragOverPosition.x
-    const relY = dragOverPosition.y
-
-    if (draggingMeta?.tableId) {
-      const sourceTable = room.tables.find(t => t.id === draggingMeta.tableId)!
-      const sourceAg = assignedGroups[draggingMeta.tableId]?.[draggingMeta.agIdx ?? -1]
-      if (sourceAg && isValidPosition(table, draggingGroup.group, previewRotation, relX, relY, assignedGroups, sourceAg)) {
-        const newSourceList = [...(assignedGroups[draggingMeta.tableId] || [])]
-        newSourceList.splice(draggingMeta.agIdx ?? -1, 1)
-        setAssignedGroups({
-          ...assignedGroups,
-          [draggingMeta.tableId]: newSourceList,
-          [table.id]: [...current, { ...sourceAg, rotation: previewRotation, x: relX, y: relY }]
-        })
-      }
-    } else {
-      const group = draggingGroup.group
-      const totalOccupied = current.reduce((sum, a) => sum + a.group.size, 0) + group.size
-      if (totalOccupied <= table.capacity && isValidPosition(table, group, previewRotation, relX, relY, assignedGroups)) {
-        setAssignedGroups({
-          ...assignedGroups,
-          [table.id]: [...current, { group, rotation: previewRotation, locked: false, x: relX, y: relY, color: PALETTE[0] }]
-        })
-        setGroups(groups.filter((_, idx) => idx !== groupIndex))
-      }
-    }
-
-    setDragOverPosition(null)
-    setDraggingGroup(null)
-    setDraggingMeta(null)
-    setPreviewRotation(0)
-    touchStartRef.current = null
-  }
-
-  function handleAssignedTouchStart(e: React.TouchEvent, tableId: string, agIdx: number) {
-    const ag = assignedGroups[tableId]?.[agIdx]
-    if (!ag) return
-    const touch = e.touches[0]
-    touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() }
-    setDraggingGroup({ group: ag.group, rotation: ag.rotation })
-    setDraggingMeta({ tableId, agIdx })
-  }
-
-  function handleAssignedTouchEnd(e: React.TouchEvent, tableId: string, agIdx: number) {
-    if (!draggingGroup || !draggingMeta || !draggingMeta.tableId) {
-      setDraggingGroup(null)
-      setDragOverPosition(null)
-      setDraggingMeta(null)
-      touchStartRef.current = null
-      return
-    }
-
-    if (dragOverPosition && room) {
-      const targetTable = room.tables.find(t => t.id === dragOverPosition.tableId)
-      if (targetTable) {
-        const sourceAg = assignedGroups[draggingMeta.tableId]?.[draggingMeta.agIdx ?? -1]
-        if (sourceAg) {
-          const current = assignedGroups[targetTable.id] || []
-          if (isValidPosition(targetTable, draggingGroup.group, previewRotation, dragOverPosition.x, dragOverPosition.y, assignedGroups, sourceAg)) {
-            const newSourceList = [...(assignedGroups[draggingMeta.tableId] || [])]
-            newSourceList.splice(draggingMeta.agIdx ?? -1, 1)
-            setAssignedGroups({
-              ...assignedGroups,
-              [draggingMeta.tableId]: newSourceList,
-              [targetTable.id]: [...current, { ...sourceAg, rotation: previewRotation, x: dragOverPosition.x, y: dragOverPosition.y }]
-            })
-          }
-        }
-      }
-    }
-
-    setDragOverPosition(null)
-    setDraggingGroup(null)
-    setDraggingMeta(null)
-    setPreviewRotation(0)
-    touchStartRef.current = null
-  }
 
   // Load room definition from localStorage on mount
   useEffect(() => {
@@ -1238,38 +1109,13 @@ export default function Room() {
       }}>
         {/* Left Column - Logo & Title (aligned with sidebar width) */}
         <div style={{ 
-          flex: isMobile ? '1' : '0 0 560px',
-          minWidth: isMobile ? 'auto' : '480px',
-          maxWidth: isMobile ? 'none' : '640px',
+          flex: '0 0 560px',
+          minWidth: '480px',
+          maxWidth: '640px',
           display: 'flex', 
           alignItems: 'center', 
           gap: '12px' 
         }}>
-          {isMobile && (
-            <button 
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              style={{
-                padding: '8px 12px',
-                background: 'rgba(255,255,255,0.2)',
-                color: 'white',
-                border: '1px solid rgba(255,255,255,0.3)',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '20px',
-                fontWeight: '600',
-                transition: 'all 0.2s',
-                backdropFilter: 'blur(10px)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minWidth: '44px',
-                minHeight: '44px'
-              }}
-              onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
-              onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-              aria-label="Toggle Sidebar"
-            >☰</button>
-          )}
           <Link to="/" style={{ textDecoration: 'none', color: 'white', display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}>
             <span 
               style={{ 
@@ -1297,7 +1143,7 @@ export default function Room() {
               }}
             >🏠</span>
           </Link>
-          <h1 style={{ margin: 0, fontSize: isMobile ? '20px' : '24px', color: 'white', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>Tischplaner</h1>
+          <h1 style={{ margin: 0, fontSize: '24px', color: 'white', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>Tischplaner</h1>
         </div>
 
         {/* Right Column - View Toggle & Controls */}
@@ -1398,8 +1244,7 @@ export default function Room() {
       
       {/* Main Content */}
       <div className="room-content" style={{ flex: 1, display: 'flex', overflowX: 'hidden', overflowY: 'auto' }}>
-        {/* Sidebar - conditionally visible on mobile */}
-        {(sidebarOpen || !isMobile) && (
+        {/* Sidebar */}
         <div className="sidebar" style={{ 
           flex: '0 0 560px', 
           minWidth: '480px', 
@@ -1412,42 +1257,9 @@ export default function Room() {
           gap: '16px',
           minHeight: 0,
           height: 'calc(100vh - 140px)',
-          overflowY: 'auto',
-          ...(isMobile && {
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            bottom: 0,
-            zIndex: 1000,
-            height: '100vh',
-            minWidth: '85vw',
-            maxWidth: '85vw'
-          })
+          overflowY: 'auto'
         }}>
-          {isMobile && (
-            <button 
-              onClick={() => setSidebarOpen(false)}
-              style={{
-                position: 'absolute',
-                top: '12px',
-                right: '12px',
-                padding: '8px 12px',
-                background: '#667eea',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '18px',
-                fontWeight: '600',
-                minWidth: '44px',
-                minHeight: '44px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-              aria-label="Close Sidebar"
-            >✕</button>
-          )}          <button 
+          <button 
             onClick={() => setShowModal(true)}
             style={{
               padding: '12px 20px',
@@ -1614,9 +1426,6 @@ export default function Room() {
                     setDraggingMeta(null)
                     setPreviewRotation(0)
                   }}
-                  onTouchStart={e => handleTouchStart(e, g, i)}
-                  onTouchMove={handleTouchMove}
-                  onTouchEnd={e => handleTouchEnd(e, i)}
                   onContextMenu={e => {
                     e.preventDefault()
                     setContextMenu({ x: e.clientX, y: e.clientY, tableId: '', agIdx: -1, isList: true, listIdx: i })
@@ -1818,9 +1627,6 @@ export default function Room() {
                     }}
                     onMouseOver={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'}
                     onMouseOut={e => e.currentTarget.style.boxShadow = 'none'}
-                    onTouchStart={e => handleAssignedTouchStart(e, tableId, idx)}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={e => handleAssignedTouchEnd(e, tableId, idx)}
                     onContextMenu={e => {
                       e.preventDefault()
                       setContextMenu({ x: e.clientX, y: e.clientY, tableId, agIdx: idx, isList: false, isAssignedList: true })
@@ -1975,22 +1781,6 @@ export default function Room() {
           </div>
           </div>
         </div>
-        )}
-        {/* Backdrop für Mobile Sidebar */}
-        {isMobile && sidebarOpen && (
-          <div 
-            onClick={() => setSidebarOpen(false)}
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: 'rgba(0,0,0,0.5)',
-              zIndex: 999
-            }}
-          />
-        )}
 
         {/* Main area - switches between map and timeline */}
         <div className="room-layout" style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', padding: '12px', position: 'relative', minWidth: 0, minHeight: 0 }}>
@@ -2105,12 +1895,6 @@ export default function Room() {
               e.preventDefault()
               updatePreviewPosition({ clientX: e.clientX, clientY: e.clientY })
             }}
-            onTouchMove={e => {
-              if (!draggingGroup) return
-              e.preventDefault()
-              const touch = e.touches[0]
-              updatePreviewPosition({ clientX: touch.clientX, clientY: touch.clientY })
-            }}
             onDragLeave={() => {
               setDragOverPosition(null)
             }}
@@ -2183,8 +1967,6 @@ export default function Room() {
                         setPreviewRotation(ag.rotation)
                       }
                     }}
-                    onTouchStart={e => !ag.locked && handleAssignedTouchStart(e, tableId, idx)}
-                    onTouchEnd={e => !ag.locked && handleAssignedTouchEnd(e, tableId, idx)}
                     onContextMenu={e => {
                       e.preventDefault()
                       setContextMenu({ x: e.clientX, y: e.clientY, tableId, agIdx: idx, isList: false })
