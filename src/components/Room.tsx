@@ -49,6 +49,7 @@ export default function Room() {
   const [viewMode, setViewMode] = useState<'map' | 'timeline'>('map')
   const [sortAvailable, setSortAvailable] = useState<'name' | 'time' | 'size'>('name')
   const [sortAssigned, setSortAssigned] = useState<'name' | 'time' | 'table'>('table')
+  const [listView, setListView] = useState<'available' | 'assigned'>('available')
 
   // State: UI and interaction
   const [showModal, setShowModal] = useState(false)
@@ -977,413 +978,466 @@ export default function Room() {
             </button>
           </div>
           <div style={{ marginTop: '8px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <h3 style={{ margin: '0', fontSize: '16px', fontWeight: '600', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ background: '#e0e7ff', padding: '4px 12px', borderRadius: '12px', fontSize: '14px' }}>{groups.length}</span>
-                Unzugewiesene Familien
-              </h3>
-              <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '6px' }}>
-                <button
-                  onClick={() => setSortAvailable('name')}
-                  style={{
-                    padding: '4px 8px',
-                    background: sortAvailable === 'name' ? '#667eea' : 'transparent',
-                    color: sortAvailable === 'name' ? 'white' : '#64748b',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    transition: 'all 0.2s'
-                  }}
-                  title="Nach Name sortieren"
-                >A-Z</button>
-                <button
-                  onClick={() => setSortAvailable('time')}
-                  style={{
-                    padding: '4px 8px',
-                    background: sortAvailable === 'time' ? '#667eea' : 'transparent',
-                    color: sortAvailable === 'time' ? 'white' : '#64748b',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    transition: 'all 0.2s'
-                  }}
-                  title="Nach Uhrzeit sortieren"
-                >🕐</button>
-                <button
-                  onClick={() => setSortAvailable('size')}
-                  style={{
-                    padding: '4px 8px',
-                    background: sortAvailable === 'size' ? '#667eea' : 'transparent',
-                    color: sortAvailable === 'size' ? 'white' : '#64748b',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    transition: 'all 0.2s'
-                  }}
-                  title="Nach Personenzahl sortieren"
-                >#</button>
-              </div>
+            {/* ========== LISTS TOGGLE ========== */}
+            <div style={{ display: 'inline-flex', gap: '3px', background: '#f1f5f9', padding: '5px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '12px' }}>
+              <button
+                onClick={() => setListView('available')}
+                style={{
+                  padding: '8px 14px',
+                  background: listView === 'available' ? '#667eea' : 'transparent',
+                  color: listView === 'available' ? 'white' : '#475569',
+                  border: listView === 'available' ? '1px solid #5568d3' : 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '13px',
+                  transition: 'all 0.2s ease'
+                }}
+                title="Unzugewiesene Familien anzeigen"
+              >
+                📋 Unzugewiesen
+              </button>
+              <button
+                onClick={() => setListView('assigned')}
+                style={{
+                  padding: '8px 14px',
+                  background: listView === 'assigned' ? '#667eea' : 'transparent',
+                  color: listView === 'assigned' ? 'white' : '#475569',
+                  border: listView === 'assigned' ? '1px solid #5568d3' : 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '13px',
+                  transition: 'all 0.2s ease'
+                }}
+                title="Zugewiesene Familien anzeigen"
+              >
+                🪑 Zugewiesen
+              </button>
             </div>
-          <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-            <div className="groups-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-            {(() => {
-              const sortedGroups = [...groups].sort((a, b) => {
-                if (sortAvailable === 'name') {
-                  return a.name.localeCompare(b.name)
-                } else if (sortAvailable === 'time') {
-                  if (!a.time && !b.time) return 0
-                  if (!a.time) return 1
-                  if (!b.time) return -1
-                  return a.time.localeCompare(b.time)
-                } else {
-                  return b.size - a.size
-                }
-              })
-
-              const PAGE_SIZE = 10
-              const totalPages = Math.max(1, Math.ceil(sortedGroups.length / PAGE_SIZE))
-              const currentPage = Math.min(availablePage, totalPages - 1)
-              const pageItems = sortedGroups.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE)
-
-              return pageItems.map((g, i) => {
-              const salutation = g.salutation || 'Fam'
-              const displaySalutation = salutation === 'Fam' ? 'Fam.' : salutation
-              const displayName = `${displaySalutation} ${g.name}`
-              return (
-                <div
-                  key={`${currentPage}-${i}`}
-                  className="group-item"
-                  style={{ 
-                    color: '#1e293b', 
-                    padding: '10px',
-                    borderRadius: '8px',
-                    border: '1px solid ' + (g.toGo ? '#fbbf24' : '#e2e8f0'),
-                    cursor: g.toGo ? 'default' : 'move',
-                    transition: 'all 0.2s',
-                    fontSize: '13px'
-                  }}
-                  onMouseOver={e => !g.toGo && (e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)')}
-                  onMouseOut={e => e.currentTarget.style.boxShadow = 'none'}
-                  draggable={!g.toGo}
-                  onDragStart={e => {
-                    if (g.toGo) return
-                    e.dataTransfer.setData('text/plain', JSON.stringify({ index: i, ...g }))
-                    setDraggingGroup({ group: g, rotation: 0 })
-                    setDraggingMeta(null)
-                    setPreviewRotation(0)
-                  }}
-                  onContextMenu={e => {
-                    e.preventDefault()
-                    setContextMenu({ x: e.clientX, y: e.clientY, tableId: '', agIdx: -1, isList: true, listIdx: i })
-                  }}
-                >
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
-                    <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: '14px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
-                    </div>
-                    <div style={{ gridColumn: '2 / 3', gridRow: '1 / 2', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '4px', alignItems: 'center' }}>
-                      <span aria-hidden style={{ fontSize: '13px' }}>🕐</span>
-                      <span>{g.time ? `Uhrzeit: ${g.time}` : 'Uhrzeit: offen'}</span>
-                    </div>
-                    <div style={{ gridColumn: '1 / 2', gridRow: '2 / 3', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span aria-hidden style={{ fontSize: '13px' }}>👥</span>
-                      <span>Personen: {g.size}</span>
-                    </div>
-                    <div style={{ gridColumn: '2 / 3', gridRow: '2 / 3', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
-                      <span aria-hidden style={{ fontSize: '13px' }}>{g.toGo ? '🥘' : '🪑'}</span>
-                      <span>{g.toGo ? 'ToGo' : 'Tisch: offen'}</span>
-                    </div>
+            {listView === 'available' && (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h3 style={{ margin: '0', fontSize: '16px', fontWeight: '600', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ background: '#e0e7ff', padding: '4px 12px', borderRadius: '12px', fontSize: '14px' }}>{groups.length}</span>
+                    Unzugewiesene Familien
+                  </h3>
+                  <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '6px' }}>
+                    <button
+                      onClick={() => setSortAvailable('name')}
+                      style={{
+                        padding: '4px 8px',
+                        background: sortAvailable === 'name' ? '#667eea' : 'transparent',
+                        color: sortAvailable === 'name' ? 'white' : '#64748b',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        transition: 'all 0.2s'
+                      }}
+                      title="Nach Name sortieren"
+                    >A-Z</button>
+                    <button
+                      onClick={() => setSortAvailable('time')}
+                      style={{
+                        padding: '4px 8px',
+                        background: sortAvailable === 'time' ? '#667eea' : 'transparent',
+                        color: sortAvailable === 'time' ? 'white' : '#64748b',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        transition: 'all 0.2s'
+                      }}
+                      title="Nach Uhrzeit sortieren"
+                    >🕐</button>
+                    <button
+                      onClick={() => setSortAvailable('size')}
+                      style={{
+                        padding: '4px 8px',
+                        background: sortAvailable === 'size' ? '#667eea' : 'transparent',
+                        color: sortAvailable === 'size' ? 'white' : '#64748b',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        transition: 'all 0.2s'
+                      }}
+                      title="Nach Personenzahl sortieren"
+                    >#</button>
                   </div>
                 </div>
-              )
-              })
-            })()}
-          </div>
-          </div>
-          {(() => {
-            const sortedGroups = [...groups].sort((a, b) => {
-              if (sortAvailable === 'name') {
-                return a.name.localeCompare(b.name)
-              } else if (sortAvailable === 'time') {
-                if (!a.time && !b.time) return 0
-                if (!a.time) return 1
-                if (!b.time) return -1
-                return a.time.localeCompare(b.time)
-              } else {
-                return b.size - a.size
-              }
-            })
-            const PAGE_SIZE = 10
-            const totalPages = Math.max(1, Math.ceil(sortedGroups.length / PAGE_SIZE))
-            const currentPage = Math.min(availablePage, totalPages - 1)
-            return (
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
-                <button
-                  onClick={() => setAvailablePage(p => Math.max(0, p - 1))}
-                  disabled={currentPage === 0}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: '20px',
-                    border: '1px solid #e2e8f0',
-                    background: currentPage === 0 ? '#f8fafc' : 'white',
-                    color: currentPage === 0 ? '#cbd5e1' : '#0f172a',
-                    cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    minWidth: '60px'
-                  }}
-                >Zurück</button>
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                  {Array.from({ length: totalPages }).map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setAvailablePage(i)}
-                      style={{
-                        width: '10px',
-                        height: '10px',
-                        borderRadius: '50%',
-                        border: '1px solid #cbd5e1',
-                        background: i === currentPage ? '#667eea' : 'white',
-                        cursor: 'pointer',
-                        padding: 0
-                      }}
-                      aria-label={`Seite ${i + 1}`}
-                    />
-                  ))}
+
+                {/* ========== AVAILABLE GROUPS LIST ========== */}
+                <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+                  <div className="groups-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                    {(() => {
+                      const sortedGroups = [...groups].sort((a, b) => {
+                        if (sortAvailable === 'name') {
+                          return a.name.localeCompare(b.name)
+                        } else if (sortAvailable === 'time') {
+                          if (!a.time && !b.time) return 0
+                          if (!a.time) return 1
+                          if (!b.time) return -1
+                          return a.time.localeCompare(b.time)
+                        } else {
+                          return b.size - a.size
+                        }
+                      })
+
+                      const PAGE_SIZE = 16
+                      const totalPages = Math.max(1, Math.ceil(sortedGroups.length / PAGE_SIZE))
+                      const currentPage = Math.min(availablePage, totalPages - 1)
+                      const pageItems = sortedGroups.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE)
+
+                      return pageItems.map((g, i) => {
+                        const salutation = g.salutation || 'Fam'
+                        const displaySalutation = salutation === 'Fam' ? 'Fam.' : salutation
+                        const displayName = `${displaySalutation} ${g.name}`
+                        return (
+                          <div
+                            key={`${currentPage}-${i}`}
+                            className="group-item"
+                            style={{
+                              color: '#1e293b',
+                              padding: '10px',
+                              borderRadius: '8px',
+                              border: '1px solid ' + (g.toGo ? '#fbbf24' : '#e2e8f0'),
+                              cursor: g.toGo ? 'default' : 'move',
+                              transition: 'all 0.2s',
+                              fontSize: '13px'
+                            }}
+                            onMouseOver={e => !g.toGo && (e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)')}
+                            onMouseOut={e => e.currentTarget.style.boxShadow = 'none'}
+                            draggable={!g.toGo}
+                            onDragStart={e => {
+                              if (g.toGo) return
+                              e.dataTransfer.setData('text/plain', JSON.stringify({ index: i, ...g }))
+                              setDraggingGroup({ group: g, rotation: 0 })
+                              setDraggingMeta(null)
+                              setPreviewRotation(0)
+                            }}
+                            onContextMenu={e => {
+                              e.preventDefault()
+                              setContextMenu({ x: e.clientX, y: e.clientY, tableId: '', agIdx: -1, isList: true, listIdx: i })
+                            }}
+                          >
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
+                              <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: '14px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
+                              </div>
+                              <div style={{ gridColumn: '2 / 3', gridRow: '1 / 2', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '4px', alignItems: 'center' }}>
+                                <span aria-hidden style={{ fontSize: '13px' }}>🕐</span>
+                                <span>{g.time ? `Uhrzeit: ${g.time}` : 'Uhrzeit: offen'}</span>
+                              </div>
+                              <div style={{ gridColumn: '1 / 2', gridRow: '2 / 3', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span aria-hidden style={{ fontSize: '13px' }}>👥</span>
+                                <span>Personen: {g.size}</span>
+                              </div>
+                              <div style={{ gridColumn: '2 / 3', gridRow: '2 / 3', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
+                                <span aria-hidden style={{ fontSize: '13px' }}>{g.toGo ? '🥘' : '🪑'}</span>
+                                <span>{g.toGo ? 'ToGo' : 'Tisch: offen'}</span>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })
+                    })()}
+                  </div>
                 </div>
-                <button
-                  onClick={() => setAvailablePage(p => Math.min(totalPages - 1, p + 1))}
-                  disabled={currentPage >= totalPages - 1}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: '20px',
-                    border: '1px solid #e2e8f0',
-                    background: currentPage >= totalPages - 1 ? '#f8fafc' : 'white',
-                    color: currentPage >= totalPages - 1 ? '#cbd5e1' : '#0f172a',
-                    cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    minWidth: '60px'
-                  }}
-                >Weiter</button>
-              </div>
-            )
-          })()}
-          <div style={{ marginTop: '8px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <h3 style={{ margin: '0', fontSize: '16px', fontWeight: '600', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ background: '#dbeafe', padding: '4px 12px', borderRadius: '12px', fontSize: '14px' }}>{Object.values(assignedGroups).flat().length}</span>
-                Zugewiesene Familien
-              </h3>
-              <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '6px' }}>
-                <button
-                  onClick={() => setSortAssigned('name')}
-                  style={{
-                    padding: '4px 8px',
-                    background: sortAssigned === 'name' ? '#667eea' : 'transparent',
-                    color: sortAssigned === 'name' ? 'white' : '#64748b',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    transition: 'all 0.2s'
-                  }}
-                  title="Nach Name sortieren"
-                >A-Z</button>
-                <button
-                  onClick={() => setSortAssigned('time')}
-                  style={{
-                    padding: '4px 8px',
-                    background: sortAssigned === 'time' ? '#667eea' : 'transparent',
-                    color: sortAssigned === 'time' ? 'white' : '#64748b',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    transition: 'all 0.2s'
-                  }}
-                  title="Nach Uhrzeit sortieren"
-                >🕐</button>
-                <button
-                  onClick={() => setSortAssigned('table')}
-                  style={{
-                    padding: '4px 8px',
-                    background: sortAssigned === 'table' ? '#667eea' : 'transparent',
-                    color: sortAssigned === 'table' ? 'white' : '#64748b',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    transition: 'all 0.2s'
-                  }}
-                  title="Nach Tischnummer sortieren"
-                >🪑</button>
-              </div>
-            </div>
-          <div style={{ maxHeight: '400px', overflow: 'hidden' }}>
-            <div className="assigned-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-            {(() => {
-              const assignedItems = Object.entries(assignedGroups)
-                .flatMap(([tableId, ags]) => ags.map((ag, idx) => ({ tableId, ag, idx })))
-                .sort((a, b) => {
-                  if (sortAssigned === 'name') {
-                    return a.ag.group.name.localeCompare(b.ag.group.name)
-                  } else if (sortAssigned === 'time') {
-                    const timeA = a.ag.group.time || ''
-                    const timeB = b.ag.group.time || ''
-                    if (!timeA && !timeB) return 0
-                    if (!timeA) return 1
-                    if (!timeB) return -1
-                    return timeA.localeCompare(timeB)
-                  } else {
-                    if (a.tableId === 'TOGO' && b.tableId !== 'TOGO') return 1
-                    if (a.tableId !== 'TOGO' && b.tableId === 'TOGO') return -1
-                    if (a.tableId === 'TOGO' && b.tableId === 'TOGO') return 0
-                    const numA = parseInt(a.tableId.slice(1))
-                    const numB = parseInt(b.tableId.slice(1))
-                    return numA - numB
-                  }
-                })
 
-              const PAGE_SIZE = 10
-              const totalPages = Math.max(1, Math.ceil(assignedItems.length / PAGE_SIZE))
-              const currentPage = Math.min(assignedPage, totalPages - 1)
-              const pageItems = assignedItems.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE)
-
-              return pageItems.map(({ tableId, ag, idx }) => {
-                const salutation = ag.group.salutation || 'Fam'
-                const displaySalutation = salutation === 'Fam' ? 'Fam.' : salutation
-                const displayName = `${displaySalutation} ${ag.group.name}`
-                const isToGo = tableId === 'TOGO'
-                return (
-                  <div
-                    key={`${tableId}-${idx}`}
-                    className="assigned-item"
-                    style={{
-                      background: isToGo ? '#fef3c7' : (assignedColors[tableId]?.[idx] || '#e0e7ff'),
-                      padding: '10px',
-                      borderRadius: '8px',
-                      border: '1px solid ' + (isToGo ? '#fbbf24' : '#c7d2fe'),
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      fontSize: '13px'
-                    }}
-                    onMouseOver={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'}
-                    onMouseOut={e => e.currentTarget.style.boxShadow = 'none'}
-                    onContextMenu={e => {
-                      e.preventDefault()
-                      setContextMenu({ x: e.clientX, y: e.clientY, tableId, agIdx: idx, isList: false, isAssignedList: true })
-                    }}
-                  >
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
-                      <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: '14px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
+                {/* ========== AVAILABLE GROUPS PAGINATION ========== */}
+                {(() => {
+                  const sortedGroups = [...groups].sort((a, b) => {
+                    if (sortAvailable === 'name') {
+                      return a.name.localeCompare(b.name)
+                    } else if (sortAvailable === 'time') {
+                      if (!a.time && !b.time) return 0
+                      if (!a.time) return 1
+                      if (!b.time) return -1
+                      return a.time.localeCompare(b.time)
+                    } else {
+                      return b.size - a.size
+                    }
+                  })
+                  const PAGE_SIZE = 16
+                  const totalPages = Math.max(1, Math.ceil(sortedGroups.length / PAGE_SIZE))
+                  const currentPage = Math.min(availablePage, totalPages - 1)
+                  return (
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
+                      <button
+                        onClick={() => setAvailablePage(p => Math.max(0, p - 1))}
+                        disabled={currentPage === 0}
+                        style={{
+                          padding: '6px 10px',
+                          borderRadius: '20px',
+                          border: '1px solid #e2e8f0',
+                          background: currentPage === 0 ? '#f8fafc' : 'white',
+                          color: currentPage === 0 ? '#cbd5e1' : '#0f172a',
+                          cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          minWidth: '60px'
+                        }}
+                      >Zurück</button>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        {Array.from({ length: totalPages }).map((_, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setAvailablePage(i)}
+                            style={{
+                              width: '10px',
+                              height: '10px',
+                              borderRadius: '50%',
+                              border: '1px solid #cbd5e1',
+                              background: i === currentPage ? '#667eea' : 'white',
+                              cursor: 'pointer',
+                              padding: 0
+                            }}
+                            aria-label={`Seite ${i + 1}`}
+                          />
+                        ))}
                       </div>
-                      <div style={{ gridColumn: '2 / 3', gridRow: '1 / 2', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '4px', alignItems: 'center' }}>
-                        <span aria-hidden style={{ fontSize: '13px' }}>🕐</span>
-                        <span>{ag.group.time ? `Uhrzeit: ${ag.group.time}` : 'Uhrzeit: offen'}</span>
-                      </div>
-                      <div style={{ gridColumn: '1 / 2', gridRow: '2 / 3', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <span aria-hidden style={{ fontSize: '13px' }}>👥</span>
-                        <span>Personen: {ag.group.size}</span>
-                      </div>
-                      <div style={{ gridColumn: '2 / 3', gridRow: '2 / 3', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
-                        <span aria-hidden style={{ fontSize: '13px' }}>{isToGo ? '🥘' : '🪑'}</span>
-                        <span>{isToGo ? 'ToGo' : `Tisch: ${tableId.slice(1)}`}</span>
-                      </div>
+                      <button
+                        onClick={() => setAvailablePage(p => Math.min(totalPages - 1, p + 1))}
+                        disabled={currentPage >= totalPages - 1}
+                        style={{
+                          padding: '6px 10px',
+                          borderRadius: '20px',
+                          border: '1px solid #e2e8f0',
+                          background: currentPage >= totalPages - 1 ? '#f8fafc' : 'white',
+                          color: currentPage >= totalPages - 1 ? '#cbd5e1' : '#0f172a',
+                          cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          minWidth: '60px'
+                        }}
+                      >Weiter</button>
                     </div>
+                  )
+                })()}
+              </>
+            )}
+          
+          {/* ========== ASSIGNED GROUPS LIST ========== */}
+          {listView === 'assigned' && (
+            <>
+              <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h3 style={{ margin: '0', fontSize: '16px', fontWeight: '600', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ background: '#dbeafe', padding: '4px 12px', borderRadius: '12px', fontSize: '14px' }}>{Object.values(assignedGroups).flat().length}</span>
+                    Zugewiesene Familien
+                  </h3>
+                  <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '6px' }}>
+                    <button
+                      onClick={() => setSortAssigned('name')}
+                      style={{
+                        padding: '4px 8px',
+                        background: sortAssigned === 'name' ? '#667eea' : 'transparent',
+                        color: sortAssigned === 'name' ? 'white' : '#64748b',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        transition: 'all 0.2s'
+                      }}
+                      title="Nach Name sortieren"
+                    >A-Z</button>
+                    <button
+                      onClick={() => setSortAssigned('time')}
+                      style={{
+                        padding: '4px 8px',
+                        background: sortAssigned === 'time' ? '#667eea' : 'transparent',
+                        color: sortAssigned === 'time' ? 'white' : '#64748b',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        transition: 'all 0.2s'
+                      }}
+                      title="Nach Uhrzeit sortieren"
+                    >🕐</button>
+                    <button
+                      onClick={() => setSortAssigned('table')}
+                      style={{
+                        padding: '4px 8px',
+                        background: sortAssigned === 'table' ? '#667eea' : 'transparent',
+                        color: sortAssigned === 'table' ? 'white' : '#64748b',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        transition: 'all 0.2s'
+                      }}
+                      title="Nach Tischnummer sortieren"
+                    >🪑</button>
+                  </div>
+                </div>
+
+                <div className="assigned-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                  {(() => {
+                    const assignedItems = Object.entries(assignedGroups)
+                      .flatMap(([tableId, ags]) => ags.map((ag, idx) => ({ tableId, ag, idx })))
+                      .sort((a, b) => {
+                        if (sortAssigned === 'name') {
+                          return a.ag.group.name.localeCompare(b.ag.group.name)
+                        } else if (sortAssigned === 'time') {
+                          const timeA = a.ag.group.time || ''
+                          const timeB = b.ag.group.time || ''
+                          if (!timeA && !timeB) return 0
+                          if (!timeA) return 1
+                          if (!timeB) return -1
+                          return timeA.localeCompare(timeB)
+                        } else {
+                          if (a.tableId === 'TOGO' && b.tableId !== 'TOGO') return 1
+                          if (a.tableId !== 'TOGO' && b.tableId === 'TOGO') return -1
+                          if (a.tableId === 'TOGO' && b.tableId === 'TOGO') return 0
+                          const numA = parseInt(a.tableId.slice(1))
+                          const numB = parseInt(b.tableId.slice(1))
+                          return numA - numB
+                        }
+                      })
+
+                    const PAGE_SIZE = 16
+                    const totalPages = Math.max(1, Math.ceil(assignedItems.length / PAGE_SIZE))
+                    const currentPage = Math.min(assignedPage, totalPages - 1)
+                    const pageItems = assignedItems.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE)
+
+                    return pageItems.map(({ tableId, ag, idx }) => {
+                      const salutation = ag.group.salutation || 'Fam'
+                      const displaySalutation = salutation === 'Fam' ? 'Fam.' : salutation
+                      const displayName = `${displaySalutation} ${ag.group.name}`
+                      const isToGo = tableId === 'TOGO'
+                      return (
+                        <div
+                          key={`${tableId}-${idx}`}
+                          className="assigned-item"
+                          style={{
+                            background: isToGo ? '#fef3c7' : (assignedColors[tableId]?.[idx] || '#e0e7ff'),
+                            padding: '10px',
+                            borderRadius: '8px',
+                            border: '1px solid ' + (isToGo ? '#fbbf24' : '#c7d2fe'),
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            fontSize: '13px'
+                          }}
+                          onMouseOver={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'}
+                          onMouseOut={e => e.currentTarget.style.boxShadow = 'none'}
+                          onContextMenu={e => {
+                            e.preventDefault()
+                            setContextMenu({ x: e.clientX, y: e.clientY, tableId, agIdx: idx, isList: false, isAssignedList: true })
+                          }}
+                        >
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
+                            <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: '14px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
+                            </div>
+                            <div style={{ gridColumn: '2 / 3', gridRow: '1 / 2', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '4px', alignItems: 'center' }}>
+                              <span aria-hidden style={{ fontSize: '13px' }}>🕐</span>
+                              <span>{ag.group.time ? `Uhrzeit: ${ag.group.time}` : 'Uhrzeit: offen'}</span>
+                            </div>
+                            <div style={{ gridColumn: '1 / 2', gridRow: '2 / 3', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <span aria-hidden style={{ fontSize: '13px' }}>👥</span>
+                              <span>Personen: {ag.group.size}</span>
+                            </div>
+                            <div style={{ gridColumn: '2 / 3', gridRow: '2 / 3', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
+                              <span aria-hidden style={{ fontSize: '13px' }}>{isToGo ? '🥘' : '🪑'}</span>
+                              <span>{isToGo ? 'ToGo' : `Tisch: ${tableId.slice(1)}`}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )
+          
+                    })
+                  })()}
+                </div>
+              </div>
+
+              {/* ========== ASSIGNED GROUPS PAGINATION ========== */}
+              {(() => {
+                const totalItems = Object.values(assignedGroups).flat().length
+                const PAGE_SIZE = 16
+                const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE))
+                const currentPage = Math.min(assignedPage, totalPages - 1)
+                return (
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
+                    <button
+                      onClick={() => setAssignedPage(p => Math.max(0, p - 1))}
+                      disabled={currentPage === 0}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: '20px',
+                        border: '1px solid #e2e8f0',
+                        background: currentPage === 0 ? '#f8fafc' : 'white',
+                        color: currentPage === 0 ? '#cbd5e1' : '#0f172a',
+                        cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        minWidth: '60px'
+                      }}
+                    >Zurück</button>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      {Array.from({ length: totalPages }).map((_, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setAssignedPage(i)}
+                          style={{
+                            width: '10px',
+                            height: '10px',
+                            borderRadius: '50%',
+                            border: '1px solid #cbd5e1',
+                            background: i === currentPage ? '#667eea' : 'white',
+                            cursor: 'pointer',
+                            padding: 0
+                          }}
+                          aria-label={`Seite ${i + 1}`}
+                        />
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setAssignedPage(p => Math.min(totalPages - 1, p + 1))}
+                      disabled={currentPage >= totalPages - 1}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: '20px',
+                        border: '1px solid #e2e8f0',
+                        background: currentPage >= totalPages - 1 ? '#f8fafc' : 'white',
+                        color: currentPage >= totalPages - 1 ? '#cbd5e1' : '#0f172a',
+                        cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        minWidth: '60px'
+                      }}
+                    >Weiter</button>
                   </div>
                 )
-              })
-            })()}
-            </div>
-          </div>
-          </div>
-          {(() => {
-            const totalItems = Object.values(assignedGroups).flat().length
-            const PAGE_SIZE = 10
-            const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE))
-            const currentPage = Math.min(assignedPage, totalPages - 1)
-            return (
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
-                <button
-                  onClick={() => setAssignedPage(p => Math.max(0, p - 1))}
-                  disabled={currentPage === 0}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: '20px',
-                    border: '1px solid #e2e8f0',
-                    background: currentPage === 0 ? '#f8fafc' : 'white',
-                    color: currentPage === 0 ? '#cbd5e1' : '#0f172a',
-                    cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    minWidth: '60px'
-                  }}
-                >Zurück</button>
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                  {Array.from({ length: totalPages }).map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setAssignedPage(i)}
-                      style={{
-                        width: '10px',
-                        height: '10px',
-                        borderRadius: '50%',
-                        border: '1px solid #cbd5e1',
-                        background: i === currentPage ? '#667eea' : 'white',
-                        cursor: 'pointer',
-                        padding: 0
-                      }}
-                      aria-label={`Seite ${i + 1}`}
-                    />
-                  ))}
-                </div>
-                <button
-                  onClick={() => setAssignedPage(p => Math.min(totalPages - 1, p + 1))}
-                  disabled={currentPage >= totalPages - 1}
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: '20px',
-                    border: '1px solid #e2e8f0',
-                    background: currentPage >= totalPages - 1 ? '#f8fafc' : 'white',
-                    color: currentPage >= totalPages - 1 ? '#cbd5e1' : '#0f172a',
-                    cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    minWidth: '60px'
-                  }}
-                >Weiter</button>
-              </div>
-            )
-          })()}
+              })()}
+            </>
+          )}
           
-          {/* Event speichern Section - under Assigned Groups */}
+          {/* ========== EVENT SPEICHERN ========== */}
           <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch', width: '100%' }}>
               <button 
                 onClick={() => handleSaveEvent()} 
                 disabled={!isDirty || !Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0)}
                 style={{ 
-                  flex: 1,
-                  minWidth: '100px',
-                  padding: '10px 14px',
+                  flex: 3,
+                  padding: '12px 20px',
                   background: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? '#10b981' : '#e0e7ff',
                   color: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 'white' : '#94a3b8',
                   border: 'none',
-                  borderRadius: '6px',
+                  borderRadius: '8px',
                   cursor: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 'pointer' : 'not-allowed',
-                  fontSize: '13px',
+                  fontSize: '14px',
                   fontWeight: '600',
+                  boxShadow: '0 2px 8px rgba(102,126,234,0.15)',
                   transition: 'all 0.2s',
                   opacity: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 1 : 0.6
                 }}
@@ -1391,34 +1445,19 @@ export default function Room() {
                 💾 Speichern
               </button>
               
-              {/* Auto-Save Status - Kompakt */}
-              {typeof autosaveRemaining === 'number' && (
-                <span style={{ fontSize: '11px', color: '#64748b', background: '#f1f5f9', padding: '6px 8px', borderRadius: '6px', whiteSpace: 'nowrap' }}>
-                  Auto: {String(Math.floor(autosaveRemaining / 60)).padStart(2, '0')}:{String(autosaveRemaining % 60).padStart(2, '0')}
-                </span>
-              )}
-              
-              {/* Zuletzt gespeichert - Kompakt */}
-              {lastSaveTime && (
-                <span style={{ fontSize: '11px', color: '#64748b', background: '#f1f5f9', padding: '6px 8px', borderRadius: '6px', whiteSpace: 'nowrap' }}>
-                  {lastSaveType === 'auto' ? 'Auto' : 'Sicherung'}: {lastSaveTime}
-                </span>
-              )}
-              
-              {/* Print Button - Klein */}
               <button
                 onClick={() => window.print()}
                 style={{
-                  padding: '8px 10px',
+                  flex: 1,
+                  padding: '12px 20px',
                   background: '#f1f5f9',
                   color: '#667eea',
                   border: '1px solid #cbd5e1',
-                  borderRadius: '6px',
+                  borderRadius: '8px',
                   cursor: 'pointer',
-                  fontSize: '13px',
+                  fontSize: '14px',
                   fontWeight: '600',
                   transition: 'all 0.2s',
-                  minWidth: '44px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
@@ -1429,6 +1468,25 @@ export default function Room() {
               >
                 🖨️
               </button>
+            </div>
+
+            <div style={{ display: 'flex', width: '100%', marginTop: '10px' }}>
+              <div style={{ flex: 3, display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
+                {/* Auto-Save Status - Kompakt */}
+                {typeof autosaveRemaining === 'number' && (
+                  <span style={{ fontSize: '11px', color: '#64748b', background: '#f1f5f9', padding: '6px 8px', borderRadius: '6px', whiteSpace: 'nowrap' }}>
+                    Auto: {String(Math.floor(autosaveRemaining / 60)).padStart(2, '0')}:{String(autosaveRemaining % 60).padStart(2, '0')}
+                  </span>
+                )}
+                
+                {/* Zuletzt gespeichert - Kompakt */}
+                {lastSaveTime && (
+                  <span style={{ fontSize: '11px', color: '#64748b', background: '#f1f5f9', padding: '6px 8px', borderRadius: '6px', whiteSpace: 'nowrap' }}>
+                    {lastSaveType === 'auto' ? 'Auto' : 'Sicherung'}: {lastSaveTime}
+                  </span>
+                )}
+              </div>
+              <div style={{ flex: 1 }} />
             </div>
           </div>
           </div>
@@ -1652,9 +1710,7 @@ export default function Room() {
                         {ag.group.time && <div style={{ fontSize: '6px', opacity: 0.9, lineHeight: '1' }}>🕐 {ag.group.time.slice(0, 5)}</div>}
                         <div style={{ fontSize: '7px', fontWeight: '600' }}>👥 {ag.group.size}</div>
                       </div>
-                    ) : ''
-}
-
+                    ) : ''}
                   </div>
                 ))
               })
