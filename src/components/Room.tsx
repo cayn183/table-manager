@@ -1750,7 +1750,8 @@ export default function Room() {
                   setPreviewRotation(0)
                   return
                 }
-                const group = { name: data.name, size: data.size, time: data.time, toGo: data.toGo, salutation: data.salutation || 'Fam' }
+                // Ensure dragged-in groups always carry an id for selection and assignment logic
+                const group = { id: data.id || generateUUID(), name: data.name, size: data.size, time: data.time, toGo: data.toGo, salutation: data.salutation || 'Fam' }
                 const current = assignedGroups[table.id] || []
                 const totalOccupied = current.reduce((sum, a) => sum + a.group.size, 0) + group.size
                 if (totalOccupied <= table.capacity && isValidPosition(table, group, previewRotation, relX, relY, assignedGroups)) {
@@ -3018,7 +3019,7 @@ export default function Room() {
                   onClick={() => {
                     const size = parseInt(editSize) || 1
                     if (editModal.isList) {
-                      setGroups(groups.map((g, i) => i === editModal.listIdx ? { name: editName || `Familie ${i + 1}`, size, time: editTime || undefined, toGo: editToGo, salutation: editSalutation || 'Fam' } : g))
+                      setGroups(groups.map((g, i) => i === editModal.listIdx ? { ...g, name: editName || `Familie ${i + 1}`, size, time: editTime || undefined, toGo: editToGo, salutation: editSalutation || 'Fam' } : g))
                     } else {
                       setAssignedGroups({
                         ...assignedGroups,
