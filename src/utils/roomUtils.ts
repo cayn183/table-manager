@@ -7,6 +7,14 @@ export const STORAGE_KEY = 'currentRoom'
 export const PALETTE = ['#E91E63', '#FF9800', '#4CAF50', '#673AB7', '#FF5722']
 export const TOGO_COLOR = '#FFE082'
 
+export function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0
+    const v = c === 'x' ? r : (r & 0x3 | 0x8)
+    return v.toString(16)
+  })
+}
+
 export function paletteColor(hex: string): string {
   return hex + '70'
 }
@@ -176,7 +184,7 @@ export function placeGroupsOnTable(table: Table, groups: Group[], seedPlaced: As
 }
 
 export function groupKey(g: Group) {
-  return `${g.salutation || 'Fam'}|${g.name}|${g.time ?? ''}|${g.size}|${g.toGo ? '1' : '0'}`
+  return g.id
 }
 
 export function buildOccupied(table: Table, placements: AssignedGroup[]): Set<string> {

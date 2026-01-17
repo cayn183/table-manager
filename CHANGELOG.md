@@ -7,6 +7,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-01-16
+
+### Changed
+- Corrected GitHub Actions workflows: version-release.yml now triggers on version tags (v*) instead of main branch pushes
+- Added sync-version.yml workflow to automatically sync package.json version to Footer component and CHANGELOG on dev branch
+- Improved release creation automation with proper workflow trigger configuration
+
 ## [0.6.3] - 2026-01-15
 
 ### Added
@@ -28,7 +35,7 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [0.6.2] - 2026-01-14
 
 ### Fixed
-- Remove unnecessary scrollbar by adjusting viewport height handling
+- remove unnecessary scrollbar by adjusting viewport height handling
 
 ## [0.6.1] - 2026-01-14
 
