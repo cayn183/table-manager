@@ -1,7 +1,7 @@
 import React from 'react'
 import Papa from 'papaparse'
 
-export type Group = { name: string; size: number; time?: string; toGo?: boolean; salutation?: 'Fam' | 'Frau' | 'Herr' | string }
+export type Group = { id: string; name: string; size: number; time?: string; toGo?: boolean; salutation?: 'Fam' | 'Frau' | 'Herr' | string }
 
 export default function Importer({ onImport }: { onImport: (g: Group[]) => void }) {
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {

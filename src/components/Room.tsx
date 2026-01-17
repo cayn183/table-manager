@@ -19,7 +19,10 @@ import {
   ensureToGoBucket,
   greedyReLayout,
   fillOnly,
-  groupKey
+  groupKey,
+  buildOccupied,
+  tryPlaceOnTable,
+  generateUUID
 } from '../utils/roomUtils'
 
 // ============================================================================
@@ -50,6 +53,14 @@ export default function Room() {
   const [sortAvailable, setSortAvailable] = useState<'name' | 'time' | 'size'>('name')
   const [sortAssigned, setSortAssigned] = useState<'name' | 'time' | 'table'>('table')
   const [listView, setListView] = useState<'available' | 'assigned'>('available')
+  const [multiSelectAvailable, setMultiSelectAvailable] = useState(false)
+  const [selectedAvailableKeys, setSelectedAvailableKeys] = useState<Set<string>>(new Set())
+  const [multiSelectAssigned, setMultiSelectAssigned] = useState(false)
+  const [selectedAssignedKeys, setSelectedAssignedKeys] = useState<Set<string>>(new Set())
+  const [batchTableSelectModal, setBatchTableSelectModal] = useState<Group[] | null>(null)
+  const [batchMoveTableModal, setBatchMoveTableModal] = useState<{ count: number } | null>(null)
+  const [batchRemoveAssignmentModal, setBatchRemoveAssignmentModal] = useState<{ count: number } | null>(null)
+  const [batchDeleteConfirmModal, setBatchDeleteConfirmModal] = useState<{ count: number } | null>(null)
 
   // State: UI and interaction
   const [showModal, setShowModal] = useState(false)
@@ -82,6 +93,20 @@ export default function Room() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const [uiScale, setUiScale] = useState(1)
   const draggingGroupRef = useRef<{ group: Group; rotation: number } | null>(null)
+
+  useEffect(() => {
+    if (!multiSelectAvailable || listView !== 'available') {
+      setSelectedAvailableKeys(new Set())
+    }
+  }, [multiSelectAvailable, listView])
+
+  useEffect(() => {
+    if (!multiSelectAssigned || listView !== 'assigned') {
+      setSelectedAssignedKeys(new Set())
+    }
+  }, [multiSelectAssigned, listView])
+
+  const assignedKey = (tableId: string, idx: number) => `${tableId}|${idx}`
 
 
   // Calculate bounding box for tables or explicit view frame
@@ -480,7 +505,7 @@ export default function Room() {
       alert('Personenzahl muss größer als 0 sein')
       return
     }
-    const group = { name, size, time: newGroupTime || undefined, toGo: newGroupToGo, salutation: newGroupSalutation }
+    const group = { id: generateUUID(), name, size, time: newGroupTime || undefined, toGo: newGroupToGo, salutation: newGroupSalutation }
     if (group.toGo) {
       const updatedAssigned = ensureToGoBucket({ ...assignedGroups })
       updatedAssigned['TOGO'] = [...(updatedAssigned['TOGO'] || []), { group, rotation: 0, locked: false, x: 0, y: 0, color: TOGO_COLOR }]
@@ -561,6 +586,7 @@ export default function Room() {
 
           if (name && size > 0) {
             parsed.push({
+              id: generateUUID(),
               name,
               size,
               time: time || undefined,
@@ -598,7 +624,11 @@ export default function Room() {
       return
     }
 
-    const enriched = csvPreview.map(g => ({ ...g, salutation: g.salutation || 'Fam' }))
+    const enriched = csvPreview.map(g => ({
+      ...g,
+      id: g.id || generateUUID(),
+      salutation: g.salutation || 'Fam'
+    }))
     const toGo = enriched.filter(g => g.toGo)
     const rest = enriched.filter(g => !g.toGo)
     const updatedAssigned = ensureToGoBucket({ ...assignedGroups })
@@ -981,7 +1011,13 @@ export default function Room() {
             {/* ========== LISTS TOGGLE ========== */}
             <div style={{ display: 'inline-flex', gap: '3px', background: '#f1f5f9', padding: '5px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '12px' }}>
               <button
-                onClick={() => setListView('available')}
+                onClick={() => {
+                  setListView('available')
+                  setSelectedAvailableKeys(new Set())
+                  setSelectedAssignedKeys(new Set())
+                  setMultiSelectAvailable(false)
+                  setMultiSelectAssigned(false)
+                }}
                 style={{
                   padding: '8px 14px',
                   background: listView === 'available' ? '#667eea' : 'transparent',
@@ -998,7 +1034,13 @@ export default function Room() {
                 📋 Unzugewiesen
               </button>
               <button
-                onClick={() => setListView('assigned')}
+                onClick={() => {
+                  setListView('assigned')
+                  setSelectedAvailableKeys(new Set())
+                  setSelectedAssignedKeys(new Set())
+                  setMultiSelectAvailable(false)
+                  setMultiSelectAssigned(false)
+                }}
                 style={{
                   padding: '8px 14px',
                   background: listView === 'assigned' ? '#667eea' : 'transparent',
@@ -1017,57 +1059,91 @@ export default function Room() {
             </div>
             {listView === 'available' && (
               <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                  <h3 style={{ margin: '0', fontSize: '16px', fontWeight: '600', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ background: '#e0e7ff', padding: '4px 12px', borderRadius: '12px', fontSize: '14px' }}>{groups.length}</span>
-                    Unzugewiesene Familien
-                  </h3>
-                  <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', gap: '12px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    <h3 style={{ margin: '0', fontSize: '16px', fontWeight: '600', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ background: '#e0e7ff', padding: '4px 12px', borderRadius: '12px', fontSize: '14px' }}>{groups.length}</span>
+                      Unzugewiesene Familien
+                    </h3>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '6px', alignItems: 'center' }}>
+                      <button
+                        onClick={() => setSortAvailable('name')}
+                        style={{
+                          padding: '4px 8px',
+                          background: sortAvailable === 'name' ? '#667eea' : 'transparent',
+                          color: sortAvailable === 'name' ? 'white' : '#64748b',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          transition: 'all 0.2s'
+                        }}
+                        title="Nach Name sortieren"
+                      >A-Z</button>
+                      <button
+                        onClick={() => setSortAvailable('time')}
+                        style={{
+                          padding: '4px 8px',
+                          background: sortAvailable === 'time' ? '#667eea' : 'transparent',
+                          color: sortAvailable === 'time' ? 'white' : '#64748b',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          transition: 'all 0.2s'
+                        }}
+                        title="Nach Uhrzeit sortieren"
+                      >🕐</button>
+                      <button
+                        onClick={() => setSortAvailable('size')}
+                        style={{
+                          padding: '4px 8px',
+                          background: sortAvailable === 'size' ? '#667eea' : 'transparent',
+                          color: sortAvailable === 'size' ? 'white' : '#64748b',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          transition: 'all 0.2s'
+                        }}
+                        title="Nach Personenzahl sortieren"
+                      >#</button>
+                    </div>
                     <button
-                      onClick={() => setSortAvailable('name')}
+                      onClick={() => {
+                        setMultiSelectAvailable(prev => {
+                          const next = !prev
+                          if (!next) {
+                            setSelectedAvailableKeys(new Set())
+                          }
+                          return next
+                        })
+                      }}
                       style={{
-                        padding: '4px 8px',
-                        background: sortAvailable === 'name' ? '#667eea' : 'transparent',
-                        color: sortAvailable === 'name' ? 'white' : '#64748b',
-                        border: 'none',
-                        borderRadius: '4px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '10px 14px',
+                        background: multiSelectAvailable ? 'linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%)' : '#e0f2fe',
+                        color: multiSelectAvailable ? 'white' : '#0f172a',
+                        border: multiSelectAvailable ? '1px solid #1d4ed8' : '1px solid #bae6fd',
+                        borderRadius: '10px',
                         cursor: 'pointer',
-                        fontSize: '11px',
-                        fontWeight: '600',
+                        fontSize: '13px',
+                        fontWeight: '700',
+                        boxShadow: multiSelectAvailable ? '0 4px 12px rgba(37,99,235,0.35)' : 'none',
                         transition: 'all 0.2s'
                       }}
-                      title="Nach Name sortieren"
-                    >A-Z</button>
-                    <button
-                      onClick={() => setSortAvailable('time')}
-                      style={{
-                        padding: '4px 8px',
-                        background: sortAvailable === 'time' ? '#667eea' : 'transparent',
-                        color: sortAvailable === 'time' ? 'white' : '#64748b',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        transition: 'all 0.2s'
-                      }}
-                      title="Nach Uhrzeit sortieren"
-                    >🕐</button>
-                    <button
-                      onClick={() => setSortAvailable('size')}
-                      style={{
-                        padding: '4px 8px',
-                        background: sortAvailable === 'size' ? '#667eea' : 'transparent',
-                        color: sortAvailable === 'size' ? 'white' : '#64748b',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        transition: 'all 0.2s'
-                      }}
-                      title="Nach Personenzahl sortieren"
-                    >#</button>
+                      title={multiSelectAvailable ? 'Mehrfachauswahl deaktivieren' : 'Mehrfachauswahl aktivieren'}
+                    >
+                      <span aria-hidden>{multiSelectAvailable ? '☑︎' : '⬜︎'}</span>
+                      <span>{multiSelectAvailable ? `Ausgewählt (${selectedAvailableKeys.size})` : 'Auswählen'}</span>
+                    </button>
                   </div>
                 </div>
 
@@ -1094,9 +1170,11 @@ export default function Room() {
                       const pageItems = sortedGroups.slice(currentPage * PAGE_SIZE, currentPage * PAGE_SIZE + PAGE_SIZE)
 
                       return pageItems.map((g, i) => {
+                        const k = groupKey(g)
                         const salutation = g.salutation || 'Fam'
                         const displaySalutation = salutation === 'Fam' ? 'Fam.' : salutation
                         const displayName = `${displaySalutation} ${g.name}`
+                        const isSelected = selectedAvailableKeys.has(k)
                         return (
                           <div
                             key={`${currentPage}-${i}`}
@@ -1105,14 +1183,15 @@ export default function Room() {
                               color: '#1e293b',
                               padding: '10px',
                               borderRadius: '8px',
-                              border: '1px solid ' + (g.toGo ? '#fbbf24' : '#e2e8f0'),
-                              cursor: g.toGo ? 'default' : 'move',
+                              border: '2px solid ' + (isSelected ? '#22c55e' : (g.toGo ? '#fbbf24' : '#e2e8f0')),
+                              background: isSelected ? '#ecfdf5' : 'transparent',
+                              cursor: g.toGo ? 'default' : (multiSelectAvailable ? 'pointer' : 'move'),
                               transition: 'all 0.2s',
                               fontSize: '13px'
                             }}
                             onMouseOver={e => !g.toGo && (e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)')}
                             onMouseOut={e => e.currentTarget.style.boxShadow = 'none'}
-                            draggable={!g.toGo}
+                            draggable={!g.toGo && !multiSelectAvailable}
                             onDragStart={e => {
                               if (g.toGo) return
                               e.dataTransfer.setData('text/plain', JSON.stringify({ index: i, ...g }))
@@ -1120,13 +1199,39 @@ export default function Room() {
                               setDraggingMeta(null)
                               setPreviewRotation(0)
                             }}
+                            onClick={() => {
+                              if (!multiSelectAvailable) return
+                              setSelectedAvailableKeys(prev => {
+                                const next = new Set(prev)
+                                if (next.has(k)) next.delete(k); else next.add(k)
+                                return next
+                              })
+                            }}
+                            onDoubleClick={() => {
+                              if (!multiSelectAvailable) return
+                              const key = groupKey(g)
+                              setSelectedAvailableKeys(prev => {
+                                const next = new Set(prev)
+                                if (next.has(key)) next.delete(key); else next.add(key)
+                                return next
+                              })
+                            }}
                             onContextMenu={e => {
                               e.preventDefault()
+                              if (multiSelectAvailable) {
+                                const key = groupKey(g)
+                                setSelectedAvailableKeys(prev => {
+                                  const next = new Set(prev)
+                                  next.add(key)
+                                  return next
+                                })
+                              }
                               setContextMenu({ x: e.clientX, y: e.clientY, tableId: '', agIdx: -1, isList: true, listIdx: i })
                             }}
                           >
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
                               <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: '14px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                {isSelected && <span aria-hidden style={{ fontSize: '13px', color: '#22c55e' }}>✔</span>}
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
                               </div>
                               <div style={{ gridColumn: '2 / 3', gridRow: '1 / 2', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '4px', alignItems: 'center' }}>
@@ -1231,52 +1336,84 @@ export default function Room() {
                     <span style={{ background: '#dbeafe', padding: '4px 12px', borderRadius: '12px', fontSize: '14px' }}>{Object.values(assignedGroups).flat().length}</span>
                     Zugewiesene Familien
                   </h3>
-                  <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '6px' }}>
+                      <button
+                        onClick={() => setSortAssigned('name')}
+                        style={{
+                          padding: '4px 8px',
+                          background: sortAssigned === 'name' ? '#667eea' : 'transparent',
+                          color: sortAssigned === 'name' ? 'white' : '#64748b',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          transition: 'all 0.2s'
+                        }}
+                        title="Nach Name sortieren"
+                      >A-Z</button>
+                      <button
+                        onClick={() => setSortAssigned('time')}
+                        style={{
+                          padding: '4px 8px',
+                          background: sortAssigned === 'time' ? '#667eea' : 'transparent',
+                          color: sortAssigned === 'time' ? 'white' : '#64748b',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          transition: 'all 0.2s'
+                        }}
+                        title="Nach Uhrzeit sortieren"
+                      >🕐</button>
+                      <button
+                        onClick={() => setSortAssigned('table')}
+                        style={{
+                          padding: '4px 8px',
+                          background: sortAssigned === 'table' ? '#667eea' : 'transparent',
+                          color: sortAssigned === 'table' ? 'white' : '#64748b',
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          transition: 'all 0.2s'
+                        }}
+                        title="Nach Tischnummer sortieren"
+                      >🪑</button>
+                    </div>
                     <button
-                      onClick={() => setSortAssigned('name')}
+                      onClick={() => {
+                        setMultiSelectAssigned(prev => {
+                          const next = !prev
+                          if (!next) {
+                            setSelectedAssignedKeys(new Set())
+                          }
+                          return next
+                        })
+                      }}
                       style={{
-                        padding: '4px 8px',
-                        background: sortAssigned === 'name' ? '#667eea' : 'transparent',
-                        color: sortAssigned === 'name' ? 'white' : '#64748b',
-                        border: 'none',
-                        borderRadius: '4px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '10px 14px',
+                        background: multiSelectAssigned ? 'linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%)' : '#e0f2fe',
+                        color: multiSelectAssigned ? 'white' : '#0f172a',
+                        border: multiSelectAssigned ? '1px solid #1d4ed8' : '1px solid #bae6fd',
+                        borderRadius: '10px',
                         cursor: 'pointer',
-                        fontSize: '11px',
-                        fontWeight: '600',
+                        fontSize: '13px',
+                        fontWeight: '700',
+                        boxShadow: multiSelectAssigned ? '0 4px 12px rgba(37,99,235,0.35)' : 'none',
                         transition: 'all 0.2s'
                       }}
-                      title="Nach Name sortieren"
-                    >A-Z</button>
-                    <button
-                      onClick={() => setSortAssigned('time')}
-                      style={{
-                        padding: '4px 8px',
-                        background: sortAssigned === 'time' ? '#667eea' : 'transparent',
-                        color: sortAssigned === 'time' ? 'white' : '#64748b',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        transition: 'all 0.2s'
-                      }}
-                      title="Nach Uhrzeit sortieren"
-                    >🕐</button>
-                    <button
-                      onClick={() => setSortAssigned('table')}
-                      style={{
-                        padding: '4px 8px',
-                        background: sortAssigned === 'table' ? '#667eea' : 'transparent',
-                        color: sortAssigned === 'table' ? 'white' : '#64748b',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontSize: '11px',
-                        fontWeight: '600',
-                        transition: 'all 0.2s'
-                      }}
-                      title="Nach Tischnummer sortieren"
-                    >🪑</button>
+                      title={multiSelectAssigned ? 'Auswahl aufheben' : 'Auswählen'}
+                    >
+                      <span aria-hidden>{multiSelectAssigned ? '☑︎' : '⬜︎'}</span>
+                      <span>{multiSelectAssigned ? `Ausgewählt (${selectedAssignedKeys.size})` : 'Auswählen'}</span>
+                    </button>
                   </div>
                 </div>
 
@@ -1314,28 +1451,56 @@ export default function Room() {
                       const displaySalutation = salutation === 'Fam' ? 'Fam.' : salutation
                       const displayName = `${displaySalutation} ${ag.group.name}`
                       const isToGo = tableId === 'TOGO'
+                      const key = assignedKey(tableId, idx)
+                      const isSelected = selectedAssignedKeys.has(key)
                       return (
                         <div
                           key={`${tableId}-${idx}`}
                           className="assigned-item"
                           style={{
-                            background: isToGo ? '#fef3c7' : (assignedColors[tableId]?.[idx] || '#e0e7ff'),
+                            background: isSelected ? '#ecfdf5' : (isToGo ? '#fef3c7' : (assignedColors[tableId]?.[idx] || '#e0e7ff')),
                             padding: '10px',
                             borderRadius: '8px',
-                            border: '1px solid ' + (isToGo ? '#fbbf24' : '#c7d2fe'),
-                            cursor: 'pointer',
+                            border: isSelected ? '2px solid #22c55e' : ('1px solid ' + (isToGo ? '#fbbf24' : '#c7d2fe')),
+                            cursor: multiSelectAssigned ? 'pointer' : 'default',
                             transition: 'all 0.2s',
                             fontSize: '13px'
                           }}
                           onMouseOver={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'}
                           onMouseOut={e => e.currentTarget.style.boxShadow = 'none'}
+                          onClick={() => {
+                            if (!multiSelectAssigned) return
+                            setSelectedAssignedKeys(prev => {
+                              const next = new Set(prev)
+                              if (next.has(key)) next.delete(key); else next.add(key)
+                              return next
+                            })
+                          }}
+                          onDoubleClick={() => {
+                            if (!multiSelectAssigned) return
+                            const k = key
+                            setSelectedAssignedKeys(prev => {
+                              const next = new Set(prev)
+                              if (next.has(k)) next.delete(k); else next.add(k)
+                              return next
+                            })
+                          }}
                           onContextMenu={e => {
                             e.preventDefault()
+                            if (multiSelectAssigned) {
+                              const k = key
+                              setSelectedAssignedKeys(prev => {
+                                const next = new Set(prev)
+                                next.add(k)
+                                return next
+                              })
+                            }
                             setContextMenu({ x: e.clientX, y: e.clientY, tableId, agIdx: idx, isList: false, isAssignedList: true })
                           }}
                         >
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
                             <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: '14px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              {isSelected && <span aria-hidden style={{ fontSize: '13px', color: '#22c55e' }}>✔</span>}
                               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
                             </div>
                             <div style={{ gridColumn: '2 / 3', gridRow: '1 / 2', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '4px', alignItems: 'center' }}>
@@ -1762,167 +1927,371 @@ export default function Room() {
           onMouseLeave={() => setContextMenu(null)}
         >
           {contextMenu.isList ? (
-            <>
-              <button
-                onClick={() => {
-                  const group = groups[contextMenu.listIdx!]
-                  setTableSelectModal({ group, index: contextMenu.listIdx! })
-                  setContextMenu(null)
-                }}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  background: 'transparent',
-                  color: '#1e293b',
-                  border: 'none',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  borderBottom: '1px solid #f1f5f9'
-                }}
-                onMouseOver={e => e.currentTarget.style.background = '#f8fafc'}
-                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
-              >
-                📌 Zuweisen
-              </button>
-              <button
-                onClick={() => {
-                  setEditModal({ tableId: '', agIdx: -1, isList: true, listIdx: contextMenu.listIdx })
-                  setEditName(groups[contextMenu.listIdx!].name)
-                  setEditSalutation((groups[contextMenu.listIdx!].salutation as 'Fam' | 'Frau' | 'Herr') || 'Fam')
-                  setEditSize(groups[contextMenu.listIdx!].size.toString())
-                  setEditTime(groups[contextMenu.listIdx!].time || '')
-                  setEditToGo(Boolean(groups[contextMenu.listIdx!].toGo))
-                  setContextMenu(null)
-                }}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  background: 'transparent',
-                  color: '#1e293b',
-                  border: 'none',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  borderBottom: '1px solid #f1f5f9'
-                }}
-                onMouseOver={e => e.currentTarget.style.background = '#f8fafc'}
-                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
-              >
-                ✏️ Bearbeiten
-              </button>
-              <button
-                onClick={() => {
-                  setGroups(groups.filter((_, i) => i !== contextMenu.listIdx))
-                  setContextMenu(null)
-                }}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  background: 'transparent',
-                  color: '#ef4444',
-                  border: 'none',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-                onMouseOver={e => e.currentTarget.style.background = '#fee2e2'}
-                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
-              >
-                🗑️ Löschen
-              </button>
-            </>
+            (() => {
+              const group = groups[contextMenu.listIdx!]
+              const key = groupKey(group)
+              const isMarked = selectedAvailableKeys.has(key)
+              if (multiSelectAvailable) {
+                return (
+                  <>
+                    {selectedAvailableKeys.size > 0 ? (
+                      <>
+                        <button
+                          onClick={() => {
+                            const batch = groups.filter(g => selectedAvailableKeys.has(groupKey(g)))
+                            if (batch.length > 0) {
+                              setBatchTableSelectModal(batch)
+                            }
+                            setContextMenu(null)
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            background: 'transparent',
+                            color: '#1e293b',
+                            border: 'none',
+                            fontSize: '13px',
+                            fontWeight: '500',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            borderBottom: '1px solid #f1f5f9'
+                          }}
+                          onMouseOver={e => e.currentTarget.style.background = '#f8fafc'}
+                          onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                          📌 Ausgewählte zu Tisch zuweisen
+                        </button>
+                        <button
+                          onClick={() => {
+                            const deleteSet = new Set(selectedAvailableKeys)
+                            setGroups(prev => prev.filter(g => !deleteSet.has(groupKey(g))))
+                            setSelectedAvailableKeys(new Set())
+                            setMultiSelectAvailable(false)
+                            setContextMenu(null)
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            background: 'transparent',
+                            color: '#ef4444',
+                            border: 'none',
+                            fontSize: '13px',
+                            fontWeight: '500',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseOver={e => e.currentTarget.style.background = '#fee2e2'}
+                          onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                          🗑️ Ausgewählte Familien löschen
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setBatchTableSelectModal([group])
+                          setContextMenu(null)
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          background: 'transparent',
+                          color: '#1e293b',
+                          border: 'none',
+                          fontSize: '13px',
+                          fontWeight: '500',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          borderBottom: '1px solid #f1f5f9'
+                        }}
+                        onMouseOver={e => e.currentTarget.style.background = '#f8fafc'}
+                        onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                      >
+                        📌 Zu Tisch zuweisen
+                      </button>
+                    )}
+                  </>
+                )
+              }
+
+              return (
+                <>
+                  <button
+                    onClick={() => {
+                      setTableSelectModal({ group, index: contextMenu.listIdx! })
+                      setContextMenu(null)
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      background: 'transparent',
+                      color: '#1e293b',
+                      border: 'none',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      borderBottom: '1px solid #f1f5f9'
+                    }}
+                    onMouseOver={e => e.currentTarget.style.background = '#f8fafc'}
+                    onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    📌 Zu Tisch zuweisen
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditModal({ tableId: '', agIdx: -1, isList: true, listIdx: contextMenu.listIdx })
+                      setEditName(group.name)
+                      setEditSalutation((group.salutation as 'Fam' | 'Frau' | 'Herr') || 'Fam')
+                      setEditSize(group.size.toString())
+                      setEditTime(group.time || '')
+                      setEditToGo(Boolean(group.toGo))
+                      setContextMenu(null)
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      background: 'transparent',
+                      color: '#1e293b',
+                      border: 'none',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      borderBottom: '1px solid #f1f5f9'
+                    }}
+                    onMouseOver={e => e.currentTarget.style.background = '#f8fafc'}
+                    onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    ✏️ Familie bearbeiten
+                  </button>
+                  <button
+                    onClick={() => {
+                      setGroups(groups.filter((_, i) => i !== contextMenu.listIdx))
+                      setContextMenu(null)
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      background: 'transparent',
+                      color: '#ef4444',
+                      border: 'none',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseOver={e => e.currentTarget.style.background = '#fee2e2'}
+                    onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    🗑️ Familie löschen
+                  </button>
+                </>
+              )
+            })()
           ) : contextMenu.isAssignedList ? (
-            <>
-              <button
-                onClick={() => {
-                  const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
-                  setGroups([...groups, ag.group])
-                  setAssignedGroups({
-                    ...assignedGroups,
-                    [contextMenu.tableId]: assignedGroups[contextMenu.tableId].filter((_, i) => i !== contextMenu.agIdx)
+            (() => {
+              const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
+              const key = assignedKey(contextMenu.tableId, contextMenu.agIdx)
+              const isMarked = selectedAssignedKeys.has(key)
+              if (multiSelectAssigned) {
+                const ensureSelected = () => {
+                  setSelectedAssignedKeys(prev => {
+                    const next = new Set(prev)
+                    next.add(key)
+                    return next
                   })
-                  setContextMenu(null)
-                }}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  background: 'transparent',
-                  color: '#1e293b',
-                  border: 'none',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  borderBottom: '1px solid #f1f5f9'
-                }}
-                onMouseOver={e => e.currentTarget.style.background = '#f8fafc'}
-                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
-              >
-                ↩️ Entfernen
-              </button>
-              <button
-                onClick={() => {
-                  setEditModal({ tableId: contextMenu.tableId, agIdx: contextMenu.agIdx, isList: false })
-                  const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
-                  setEditName(ag.group.name)
-                  setEditSalutation((ag.group.salutation as 'Fam' | 'Frau' | 'Herr') || 'Fam')
-                  setEditSize(ag.group.size.toString())
-                  setEditTime(ag.group.time || '')
-                  setEditToGo(Boolean(ag.group.toGo))
-                  setContextMenu(null)
-                }}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  background: 'transparent',
-                  color: '#1e293b',
-                  border: 'none',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  borderBottom: '1px solid #f1f5f9'
-                }}
-                onMouseOver={e => e.currentTarget.style.background = '#f8fafc'}
-                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
-              >
-                ✏️ Bearbeiten
-              </button>
-              <button
-                onClick={() => {
-                  setAssignedGroups({
-                    ...assignedGroups,
-                    [contextMenu.tableId]: assignedGroups[contextMenu.tableId].filter((_, i) => i !== contextMenu.agIdx)
-                  })
-                  setContextMenu(null)
-                }}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  background: 'transparent',
-                  color: '#ef4444',
-                  border: 'none',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-                onMouseOver={e => e.currentTarget.style.background = '#fee2e2'}
-                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
-              >
-                🗑️ Löschen
-              </button>
-            </>
+                }
+                const effectiveKeys = (() => {
+                  const next = new Set(selectedAssignedKeys)
+                  next.add(key)
+                  return next
+                })()
+                const selectedCount = effectiveKeys.size
+                return (
+                  <>
+                    <button
+                      onClick={() => {
+                        ensureSelected()
+                        setBatchMoveTableModal({ count: selectedCount })
+                        setContextMenu(null)
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        background: 'transparent',
+                        color: '#1e293b',
+                        border: 'none',
+                        fontSize: '13px',
+                        fontWeight: '500',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        borderBottom: '1px solid #f1f5f9'
+                      }}
+                      onMouseOver={e => e.currentTarget.style.background = '#f8fafc'}
+                      onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      📋 Zu anderem Tisch verschieben
+                    </button>
+                    <button
+                      onClick={() => {
+                        ensureSelected()
+                        setBatchRemoveAssignmentModal({ count: selectedCount })
+                        setContextMenu(null)
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        background: 'transparent',
+                        color: '#8b5cf6',
+                        border: 'none',
+                        fontSize: '13px',
+                        fontWeight: '500',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        borderBottom: '1px solid #f1f5f9'
+                      }}
+                      onMouseOver={e => e.currentTarget.style.background = '#faf5ff'}
+                      onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      ↩️ Tischzuweisung aufheben
+                    </button>
+                    <button
+                      onClick={() => {
+                        ensureSelected()
+                        const removeSet = new Set(selectedAssignedKeys)
+                        removeSet.add(key)
+                        const count = removeSet.size
+                        if (count > 1) {
+                          setBatchDeleteConfirmModal({ count })
+                        } else {
+                          setAssignedGroups(prev => {
+                            const next: typeof prev = {}
+                            Object.entries(prev).forEach(([tid, arr]) => {
+                              next[tid] = arr.filter((_, i) => !removeSet.has(assignedKey(tid, i)))
+                            })
+                            return next
+                          })
+                          setSelectedAssignedKeys(new Set())
+                        }
+                        setContextMenu(null)
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        background: 'transparent',
+                        color: '#ef4444',
+                        border: 'none',
+                        fontSize: '13px',
+                        fontWeight: '500',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseOver={e => e.currentTarget.style.background = '#fee2e2'}
+                      onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      🗑️ Ausgewählte Familien löschen
+                    </button>
+                  </>
+                )
+              }
+
+              return (
+                <>
+                  <button
+                    onClick={() => {
+                      const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
+                      setGroups([...groups, ag.group])
+                      setAssignedGroups({
+                        ...assignedGroups,
+                        [contextMenu.tableId]: assignedGroups[contextMenu.tableId].filter((_, i) => i !== contextMenu.agIdx)
+                      })
+                      setContextMenu(null)
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      background: 'transparent',
+                      color: '#1e293b',
+                      border: 'none',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      borderBottom: '1px solid #f1f5f9'
+                    }}
+                    onMouseOver={e => e.currentTarget.style.background = '#f8fafc'}
+                    onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    ↩️ Tischzuweisung aufheben
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditModal({ tableId: contextMenu.tableId, agIdx: contextMenu.agIdx, isList: false })
+                      const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
+                      setEditName(ag.group.name)
+                      setEditSalutation((ag.group.salutation as 'Fam' | 'Frau' | 'Herr') || 'Fam')
+                      setEditSize(ag.group.size.toString())
+                      setEditTime(ag.group.time || '')
+                      setEditToGo(Boolean(ag.group.toGo))
+                      setContextMenu(null)
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      background: 'transparent',
+                      color: '#1e293b',
+                      border: 'none',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      borderBottom: '1px solid #f1f5f9'
+                    }}
+                    onMouseOver={e => e.currentTarget.style.background = '#f8fafc'}
+                    onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    ✏️ Familie bearbeiten
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAssignedGroups({
+                        ...assignedGroups,
+                        [contextMenu.tableId]: assignedGroups[contextMenu.tableId].filter((_, i) => i !== contextMenu.agIdx)
+                      })
+                      setContextMenu(null)
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      background: 'transparent',
+                      color: '#ef4444',
+                      border: 'none',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseOver={e => e.currentTarget.style.background = '#fee2e2'}
+                    onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    🗑️ Familie löschen
+                  </button>
+                </>
+              )
+            })()
           ) : (
             <>
               <button
@@ -2135,6 +2504,268 @@ export default function Room() {
                 onMouseOut={e => e.currentTarget.style.background = 'white'}
               >
                 Abbrechen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {batchTableSelectModal && (
+        <div className="modal">
+          <div className="modal-content" style={{ minWidth: 440 }}>
+            <h3 style={{ margin: '0 0 20px 0', fontSize: '20px', fontWeight: '600', color: '#1e293b' }}>Tisch für {batchTableSelectModal.length} Familien auswählen</h3>
+            <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: '#64748b' }}>Es werden so viele wie möglich platziert; ToGo wird übersprungen.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', maxHeight: '300px', overflowY: 'auto', marginBottom: '16px' }}>
+              {room?.tables.map(table => {
+                const current = assignedGroups[table.id] || []
+                const occupied = current.reduce((sum, a) => sum + a.group.size, 0)
+                const available = table.capacity - occupied
+                const anyFit = batchTableSelectModal.some(g => !g.toGo && g.size <= available)
+                return (
+                  <button
+                    key={table.id}
+                    onClick={() => {
+                      const currentAssigned = assignedGroups[table.id] || []
+                      let occ = buildOccupied(table, currentAssigned)
+                      let totalOcc = currentAssigned.reduce((sum, a) => sum + a.group.size, 0)
+                      const placed: typeof currentAssigned = []
+                      const placedKeys = new Set<string>()
+                      for (const g of batchTableSelectModal) {
+                        if (g.toGo) continue
+                        if (totalOcc + g.size > table.capacity) continue
+                        const placement = tryPlaceOnTable(table, g, occ)
+                        if (placement) {
+                          const cells = getPositionsForSize(g.size, placement.rotation, table.width, table.height)
+                          for (const c of cells) occ.add(`${placement.x + c.x},${placement.y + c.y}`)
+                          placed.push({ group: g, rotation: placement.rotation, locked: false, x: placement.x, y: placement.y, color: PALETTE[0] })
+                          totalOcc += g.size
+                          placedKeys.add(groupKey(g))
+                        }
+                      }
+                      if (placed.length > 0) {
+                        setAssignedGroups({
+                          ...assignedGroups,
+                          [table.id]: [...currentAssigned, ...placed]
+                        })
+                        setGroups(prev => prev.filter(g => !placedKeys.has(groupKey(g))))
+                      }
+                      setBatchTableSelectModal(null)
+                      setSelectedAvailableKeys(new Set())
+                    }}
+                    style={{
+                      padding: '12px',
+                      background: anyFit ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#e2e8f0',
+                      color: anyFit ? 'white' : '#94a3b8',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: anyFit ? 'pointer' : 'not-allowed',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                    onMouseOver={e => {
+                      if (anyFit) e.currentTarget.style.transform = 'translateY(-2px)'
+                    }}
+                    onMouseOut={e => {
+                      e.currentTarget.style.transform = 'translateY(0)'
+                    }}
+                  >
+                    Tisch {table.id.slice(1)}
+                    <span style={{ fontSize: '11px', opacity: 0.8 }}>{occupied}/{table.capacity} Plätze</span>
+                  </button>
+                )
+              })}
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => setBatchTableSelectModal(null)}
+                style={{
+                  flex: 1,
+                  padding: '10px 16px',
+                  background: 'white',
+                  color: '#667eea',
+                  border: '2px solid #667eea',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={e => e.currentTarget.style.background = '#f1f5f9'}
+                onMouseOut={e => e.currentTarget.style.background = 'white'}
+              >
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {batchMoveTableModal && (
+        <div className="modal">
+          <div className="modal-content" style={{ minWidth: 420 }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: '600', color: '#1e293b' }}>Zu anderem Tisch verschieben</h3>
+            <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: '#64748b' }}>
+              Wählen Sie einen Ziel-Tisch für <strong>{batchMoveTableModal.count} Familien</strong>:
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', maxHeight: '300px', overflowY: 'auto', marginBottom: '16px', paddingRight: '4px' }}>
+              {room?.tables
+                .map(t => t.id)
+                .filter(tid => tid !== 'TOGO')
+                .sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)))
+                .map(tid => {
+                  const tableNum = tid.slice(1)
+                  const occupied = (assignedGroups[tid] || []).reduce((sum, ag) => sum + ag.group.size, 0)
+                  const table = room?.tables.find(t => t.id === tid)
+                  const capacity = table?.capacity || 10
+                  return (
+                    <button
+                      key={tid}
+                      onClick={() => {
+                        const moveSet = new Set(selectedAssignedKeys)
+                        const canFit = capacity >= occupied + batchMoveTableModal.count
+                        if (canFit) {
+                          setAssignedGroups(prev => {
+                            const next: typeof prev = {}
+                            Object.entries(prev).forEach(([t, arr]) => {
+                              next[t] = arr.filter((_, i) => !moveSet.has(assignedKey(t, i)))
+                            })
+                            const movedItems: typeof next[string] = []
+                            Object.entries(prev).forEach(([t, arr]) => {
+                              arr.forEach((ag, i) => {
+                                if (moveSet.has(assignedKey(t, i))) {
+                                  movedItems.push(ag)
+                                }
+                              })
+                            })
+                            next[tid] = [...(next[tid] || []), ...movedItems]
+                            return next
+                          })
+                          setSelectedAssignedKeys(new Set())
+                          setMultiSelectAssigned(false)
+                          setBatchMoveTableModal(null)
+                        } else {
+                          alert(`Nicht genug Plätze am Tisch ${tableNum}. Verfügbar: ${capacity - occupied}, benötigt: ${batchMoveTableModal.count}`)
+                        }
+                      }}
+                      style={{
+                        padding: '12px 10px',
+                        background: '#f1f5f9',
+                        color: '#1e293b',
+                        border: '2px solid #cbd5e1',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontSize: '13px',
+                        fontWeight: '600',
+                        transition: 'all 0.2s',
+                        textAlign: 'center'
+                      }}
+                      onMouseOver={e => {
+                        e.currentTarget.style.background = '#0ea5e9'
+                        e.currentTarget.style.color = 'white'
+                        e.currentTarget.style.borderColor = '#0ea5e9'
+                      }}
+                      onMouseOut={e => {
+                        e.currentTarget.style.background = '#f1f5f9'
+                        e.currentTarget.style.color = '#1e293b'
+                        e.currentTarget.style.borderColor = '#cbd5e1'
+                      }}
+                    >
+                      T{tableNum} ({occupied}/{capacity})
+                    </button>
+                  )
+                })}
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => setBatchMoveTableModal(null)}
+                style={{ flex: 1, padding: '10px 14px', background: 'white', color: '#64748b', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}
+              >Abbrechen</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {batchRemoveAssignmentModal && (
+        <div className="modal">
+          <div className="modal-content" style={{ minWidth: 380 }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: '600', color: '#1e293b' }}>Bestätigung: Zuweisung entfernen</h3>
+            <p style={{ margin: '0 0 24px 0', fontSize: '14px', color: '#64748b' }}>
+              Sollen wirklich <strong>{batchRemoveAssignmentModal.count} Familien</strong> aus der Tischzuweisung entfernt werden? Sie werden zur unzugeordneten Liste hinzugefügt.
+            </p>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => setBatchRemoveAssignmentModal(null)}
+                style={{ flex: 1, padding: '10px 14px', background: 'white', color: '#64748b', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}
+              >Abbrechen</button>
+              <button
+                onClick={() => {
+                  const removeSet = new Set(selectedAssignedKeys)
+                  const itemsToRestore: Group[] = []
+                  // Sammle alle Gruppen die wiederhergestellt werden sollen
+                  Object.entries(assignedGroups).forEach(([tid, arr]) => {
+                    arr.forEach((ag, i) => {
+                      if (removeSet.has(assignedKey(tid, i))) {
+                        itemsToRestore.push(ag.group)
+                      }
+                    })
+                  })
+                  // Entferne die Gruppen aus assignedGroups
+                  setAssignedGroups(prev => {
+                    const next: typeof prev = {}
+                    Object.entries(prev).forEach(([tid, arr]) => {
+                      next[tid] = arr.filter((_, i) => !removeSet.has(assignedKey(tid, i)))
+                    })
+                    return next
+                  })
+                  // Füge sie zur verfügbaren Liste hinzu
+                  setGroups(prev => [...prev, ...itemsToRestore])
+                  setSelectedAssignedKeys(new Set())
+                  setMultiSelectAssigned(false)
+                  setBatchRemoveAssignmentModal(null)
+                }}
+                style={{ flex: 1, padding: '10px 14px', background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700' }}
+              >
+                Ja, entfernen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {batchDeleteConfirmModal && (
+        <div className="modal">
+          <div className="modal-content" style={{ minWidth: 380 }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '20px', fontWeight: '600', color: '#1e293b' }}>Bestätigung: Familien löschen</h3>
+            <p style={{ margin: '0 0 24px 0', fontSize: '15px', color: '#475569', lineHeight: 1.6 }}>Sollen wirklich <strong style={{ color: '#dc2626' }}>{batchDeleteConfirmModal.count} Familien</strong> gelöscht werden?</p>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={() => {
+                  setBatchDeleteConfirmModal(null)
+                }}
+                style={{ flex: 1, padding: '10px 14px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700' }}
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={() => {
+                  const deleteSet = new Set(selectedAssignedKeys)
+                  // Entferne die ausgewählten Gruppen aus assignedGroups
+                  setAssignedGroups(prev => {
+                    const next: typeof prev = {}
+                    Object.entries(prev).forEach(([tid, arr]) => {
+                      next[tid] = arr.filter((_, i) => !deleteSet.has(assignedKey(tid, i)))
+                    })
+                    return next
+                  })
+                  setSelectedAssignedKeys(new Set())
+                  setMultiSelectAssigned(false)
+                  setBatchDeleteConfirmModal(null)
+                  setIsDirty(true)
+                }}
+                style={{ flex: 1, padding: '10px 14px', background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700' }}
+              >
+                Ja, löschen
               </button>
             </div>
           </div>
