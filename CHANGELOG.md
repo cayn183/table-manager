@@ -7,6 +7,22 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.6.6] - 2026-01-17
+
+### Added
+- Mehrfachauswahl für unzugewiesene und zugewiesene Familien inkl. Batch-Aktionen (zu Tisch zuweisen, verschieben, Zuweisung entfernen, löschen)
+- UUID-basierte Identifikation aller Familien für stabile Auswahl- und Löschvorgänge
+- Visuelle Auswahl-Indikatoren (Checkbox/✔) in beiden Listen
+
+### Changed
+- Kontextmenüs gestrafft und eindeutige Beschriftungen für Einzel-/Mehrfachaktionen
+- Automatisches Deselektieren beim Listenwechsel (Unzugewiesen ↔ Zugewiesen)
+- Event-Speichern-Button bleibt sichtbar, unabhängig von der aktiven Liste
+
+### Fixed
+- Batch-Löschen und Tischzuweisung-aufheben in der zugewiesenen Liste funktionierten nicht zuverlässig
+- n+1 Zählfehler in Bestätigungs-Dialogs behoben
+- Fehlende IDs bei Drag & Drop und beim Bearbeiten unzugewiesener Familien führten zu Typ-/Auswahlfehlern
 ## [0.6.4] - 2026-01-16
 
 ### Changed
