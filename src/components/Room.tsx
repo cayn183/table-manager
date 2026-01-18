@@ -76,6 +76,7 @@ export default function Room() {
   const [tableSelectModal, setTableSelectModal] = useState<{ group: Group; index: number } | null>(null)
   const [showCsvImportModal, setShowCsvImportModal] = useState(false)
   const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [csvFileEncoding, setCsvFileEncoding] = useState<string | null>(null)
   const [csvPreview, setCsvPreview] = useState<Group[]>([])
   const [dragOverPosition, setDragOverPosition] = useState<{ tableId: string; x: number; y: number } | null>(null)
   const [draggingGroup, setDraggingGroup] = useState<{ group: Group; rotation: number } | null>(null)
@@ -553,13 +554,43 @@ export default function Room() {
     }
     setCsvPreview([])
     setCsvFile(null)
+    setCsvFileEncoding(null)
     setShowCsvImportModal(true)
   }
 
   function handleCsvFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     if (e.target.files && e.target.files[0]) {
       setCsvFile(e.target.files[0])
+      setCsvFileEncoding(null)
       setCsvPreview([])
+    }
+  }
+
+  function detectCsvEncoding(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer)
+    
+    // Check for UTF-16 LE BOM (FF FE)
+    if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE) {
+      return 'utf-16le'
+    }
+    
+    // Check for UTF-16 BE BOM (FE FF)
+    if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF) {
+      return 'utf-16be'
+    }
+    
+    // Check for UTF-8 BOM (EF BB BF)
+    if (bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+      return 'utf-8'
+    }
+    
+    // Try UTF-8 decoding and check for errors
+    try {
+      const decoder = new TextDecoder('utf-8', { fatal: true })
+      decoder.decode(buffer)
+      return 'utf-8'
+    } catch {
+      return 'windows-1252'
     }
   }
 
@@ -569,9 +600,18 @@ export default function Room() {
       return
     }
 
-    Papa.parse(csvFile, {
-      skipEmptyLines: true,
-      complete: (results: any) => {
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const arrayBuffer = event.target?.result as ArrayBuffer
+      const encoding = detectCsvEncoding(arrayBuffer)
+      setCsvFileEncoding(encoding)
+      
+      const decoder = new TextDecoder(encoding)
+      const text = decoder.decode(arrayBuffer)
+
+      Papa.parse(text, {
+        skipEmptyLines: true,
+        complete: (results: any) => {
         const rows = results.data
         const parsed: Group[] = []
         const startIndex = rows[0] && (rows[0][0] === 'Name' || rows[0][0] === 'name') ? 1 : 0
@@ -603,11 +643,13 @@ export default function Room() {
         }
 
         setCsvPreview(parsed)
-      },
-      error: (error: any) => {
-        alert(`Fehler beim Lesen der CSV-Datei: ${error.message}`)
-      }
-    })
+        },
+        error: (error: any) => {
+          alert(`Fehler beim Lesen der CSV-Datei: ${error.message}`)
+        }
+      })
+    }
+    reader.readAsArrayBuffer(csvFile)
   }
 
   function updateCsvPreview(idx: number, patch: Partial<Group>) {
@@ -3187,7 +3229,7 @@ export default function Room() {
             </div>
             {csvFile && (
               <div style={{ padding: '8px 12px', background: '#e0f2fe', borderRadius: '6px', marginBottom: '12px', color: '#0ea5e9', fontWeight: 600 }}>
-                Gewählt: {csvFile.name}
+                Gewählt: {csvFile.name} {csvFileEncoding && `(${csvFileEncoding})`}
               </div>
             )}
             {csvPreview.length > 0 ? (
@@ -3245,7 +3287,7 @@ export default function Room() {
               <span style={{ fontSize: '13px', color: '#475569' }}>{csvPreview.length} Zeilen bereit</span>
               <div style={{ display: 'flex', gap: '8px', flex: 1, justifyContent: 'flex-end' }}>
                 <button
-                  onClick={() => { setShowCsvImportModal(false); setCsvFile(null); setCsvPreview([]) }}
+                  onClick={() => { setShowCsvImportModal(false); setCsvFile(null); setCsvFileEncoding(null); setCsvPreview([]) }}
                   style={{
                     padding: '10px 14px',
                     background: 'white',
