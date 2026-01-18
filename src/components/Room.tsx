@@ -29,6 +29,17 @@ import {
 // MAIN COMPONENT: Room
 // ============================================================================
 
+// Helper function to calculate optimal font size for text based on length
+function getResponsiveFontSize(text: string): number {
+  // Einfache Berechnung basierend auf Textlänge
+  // Kurze Namen (< 15 Zeichen): 14px
+  // Mittlere Namen (15-25 Zeichen): 12px  
+  // Lange Namen (> 25 Zeichen): 10px
+  if (text.length < 15) return 14
+  if (text.length < 25) return 12
+  return 10
+}
+
 export default function Room() {
   const navigate = useNavigate()
   
@@ -1217,6 +1228,7 @@ export default function Room() {
                         const displaySalutation = salutation === 'Fam' ? 'Fam.' : salutation
                         const displayName = `${displaySalutation} ${g.name}`
                         const isSelected = selectedAvailableKeys.has(k)
+                        const fontSize = getResponsiveFontSize(displayName)
                         return (
                           <div
                             key={`${currentPage}-${i}`}
@@ -1271,14 +1283,14 @@ export default function Room() {
                               setContextMenu({ x: e.clientX, y: e.clientY, tableId: '', agIdx: -1, isList: true, listIdx: i })
                             }}
                           >
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
-                              <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: '14px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
+                              <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: fontSize + 'px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 {isSelected && <span aria-hidden style={{ fontSize: '13px', color: '#22c55e' }}>✔</span>}
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
                               </div>
                               <div style={{ gridColumn: '2 / 3', gridRow: '1 / 2', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '4px', alignItems: 'center' }}>
                                 <span aria-hidden style={{ fontSize: '13px' }}>🕐</span>
-                                <span>{g.time ? `Uhrzeit: ${g.time}` : 'Uhrzeit: offen'}</span>
+                                <span>{g.time ? `Zeit: ${g.time}` : 'Zeit: offen'}</span>
                               </div>
                               <div style={{ gridColumn: '1 / 2', gridRow: '2 / 3', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 <span aria-hidden style={{ fontSize: '13px' }}>👥</span>
@@ -1495,6 +1507,7 @@ export default function Room() {
                       const isToGo = tableId === 'TOGO'
                       const key = assignedKey(tableId, idx)
                       const isSelected = selectedAssignedKeys.has(key)
+                      const fontSize = getResponsiveFontSize(displayName)
                       return (
                         <div
                           key={`${tableId}-${idx}`}
@@ -1540,14 +1553,14 @@ export default function Room() {
                             setContextMenu({ x: e.clientX, y: e.clientY, tableId, agIdx: idx, isList: false, isAssignedList: true })
                           }}
                         >
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
-                            <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: '14px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
+                            <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: fontSize + 'px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
                               {isSelected && <span aria-hidden style={{ fontSize: '13px', color: '#22c55e' }}>✔</span>}
                               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
                             </div>
                             <div style={{ gridColumn: '2 / 3', gridRow: '1 / 2', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '4px', alignItems: 'center' }}>
                               <span aria-hidden style={{ fontSize: '13px' }}>🕐</span>
-                              <span>{ag.group.time ? `Uhrzeit: ${ag.group.time}` : 'Uhrzeit: offen'}</span>
+                              <span>{ag.group.time ? `Zeit: ${ag.group.time}` : 'Zeit: offen'}</span>
                             </div>
                             <div style={{ gridColumn: '1 / 2', gridRow: '2 / 3', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <span aria-hidden style={{ fontSize: '13px' }}>👥</span>
