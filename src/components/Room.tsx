@@ -59,6 +59,7 @@ export default function Room() {
   const [isDirty, setIsDirty] = useState(false)
   const [lastSaveTime, setLastSaveTime] = useState<string | null>(null)
   const [lastSaveType, setLastSaveType] = useState<'auto' | 'manual' | null>(null)
+  const [saveToast, setSaveToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [timeInterval, setTimeInterval] = useState(15)
   const [viewMode, setViewMode] = useState<'map' | 'timeline'>('map')
   const [sortAvailable, setSortAvailable] = useState<'name' | 'time' | 'size'>('name')
@@ -117,6 +118,13 @@ export default function Room() {
       setSelectedAssignedKeys(new Set())
     }
   }, [multiSelectAssigned, listView])
+
+  // Auto-hide save toast after 3 seconds
+  useEffect(() => {
+    if (!saveToast) return
+    const timer = setTimeout(() => setSaveToast(null), 3000)
+    return () => clearTimeout(timer)
+  }, [saveToast])
 
   const assignedKey = (tableId: string, idx: number) => `${tableId}|${idx}`
 
@@ -722,7 +730,7 @@ export default function Room() {
     setLastSaveTime(timeStr)
     setLastSaveType('manual')
     setIsDirty(false)
-    alert('Event gespeichert!')
+    setSaveToast({ type: 'success', message: 'Event gespeichert!' })
   }
 
   // Autosave countdown + save after 10 minutes of unsaved changes
@@ -2490,6 +2498,33 @@ export default function Room() {
           )}
         </div>
       )}
+
+      {/* Save Toast Notification */}
+      {saveToast && (
+        <div style={{
+          position: 'fixed',
+          bottom: '20px',
+          right: '20px',
+          padding: '14px 20px',
+          background: saveToast.type === 'success' 
+            ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)'
+            : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+          color: 'white',
+          borderRadius: '8px',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+          fontSize: '14px',
+          fontWeight: '600',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          animation: 'slideIn 0.3s ease-out',
+          zIndex: 9999
+        }}>
+          <span>{saveToast.type === 'success' ? '✓' : '✕'}</span>
+          <span>{saveToast.message}</span>
+        </div>
+      )}
+
       {tableSelectModal && (
         <div className="modal">
           <div className="modal-content" style={{ minWidth: 400 }}>
