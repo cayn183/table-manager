@@ -15,6 +15,7 @@ import {
   paletteColor,
   getPositionsForSize,
   isValidPosition,
+  positionsAreConnected,
   loadRoomFromStorage,
   ensureToGoBucket,
   greedyReLayout,
@@ -106,6 +107,159 @@ export default function Room() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const [uiScale, setUiScale] = useState(1)
   const draggingGroupRef = useRef<{ group: Group; rotation: number } | null>(null)
+
+  // --------------------------------------------------------------------------
+  // HELPER: Find best rotation for optimal gap-filling placement
+  // --------------------------------------------------------------------------
+  const findBestRotation = useCallback((
+    table: Table,
+    group: Group,
+    targetX: number,
+    targetY: number,
+    currentAssigned: Record<string, AssignedGroup[]>,
+    skipAg?: AssignedGroup
+  ): number => {
+    const debug = typeof window !== 'undefined' && localStorage.getItem('debugPlacement') === '1'
+    // Build occupied set for scoring
+    const occupied = new Set<string>()
+    for (const ag of (currentAssigned[table.id] || [])) {
+      if (ag === skipAg) continue
+      const positions = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height, table.rotation)
+      for (const pos of positions) {
+        occupied.add(`${ag.x + pos.x},${ag.y + pos.y}`)
+      }
+    }
+
+    let bestRotation = 0
+    let bestScore = -Infinity
+    const validRotations: Array<{ rot: number; score: number }> = []
+
+    // Test all 8 rotations
+    for (let rot = 0; rot < 8; rot++) {
+      const positions = getPositionsForSize(group.size, rot, table.width, table.height, table.rotation)
+      
+      // Skip layouts that are internally disconnected (would split the family)
+      if (!positionsAreConnected(positions)) continue
+
+      // Check if valid at target position
+      if (!isValidPosition(table, group, rot, targetX, targetY, currentAssigned, skipAg)) {
+        continue
+      }
+
+      // Score based on neighbors and gap filling
+      let score = 0
+      
+      // 1. Adjacency score: Strong bonus for placing next to existing groups
+      for (const pos of positions) {
+        const absX = targetX + pos.x
+        const absY = targetY + pos.y
+        
+        // Check all 4 neighbors
+        const neighbors = [
+          `${absX - 1},${absY}`,
+          `${absX + 1},${absY}`,
+          `${absX},${absY - 1}`,
+          `${absX},${absY + 1}`
+        ]
+        
+        for (const neighbor of neighbors) {
+          if (occupied.has(neighbor)) {
+            score += 25 // Very strong preference for adjacent placement
+          }
+        }
+        
+        // Check diagonal neighbors too (weaker bonus)
+        const diagonals = [
+          `${absX - 1},${absY - 1}`,
+          `${absX + 1},${absY - 1}`,
+          `${absX - 1},${absY + 1}`,
+          `${absX + 1},${absY + 1}`
+        ]
+        
+        for (const diagonal of diagonals) {
+          if (occupied.has(diagonal)) {
+            score += 8 // Bonus for diagonal adjacency
+          }
+        }
+      }
+
+      // 2. Simulate placement and evaluate resulting gaps
+      const tempOccupied = new Set(occupied)
+      for (const pos of positions) {
+        tempOccupied.add(`${targetX + pos.x},${targetY + pos.y}`)
+      }
+
+      // Count isolated empty cells (gaps with few empty neighbors)
+      let isolatedGaps = 0
+      let totalGaps = 0
+      for (let ty = 0; ty < table.height; ty++) {
+        for (let tx = 0; tx < table.width; tx++) {
+          const key = `${tx},${ty}`
+          if (!tempOccupied.has(key)) {
+            totalGaps++
+            const emptyNeighbors = [
+              `${tx - 1},${ty}`,
+              `${tx + 1},${ty}`,
+              `${tx},${ty - 1}`,
+              `${tx},${ty + 1}`
+            ].filter(nk => {
+              const [nx, ny] = nk.split(',').map(Number)
+              return nx >= 0 && nx < table.width && ny >= 0 && ny < table.height && !tempOccupied.has(nk)
+            }).length
+
+            // Heavily penalize isolated single cells
+            if (emptyNeighbors === 0) {
+              isolatedGaps += 3 // Completely isolated
+            } else if (emptyNeighbors === 1) {
+              isolatedGaps += 2 // Nearly isolated
+            } else if (emptyNeighbors === 2) {
+              isolatedGaps += 1 // Somewhat isolated
+            }
+          }
+        }
+      }
+      score -= isolatedGaps * 10 // Strong penalty for fragmentation
+
+      // 3. Compactness bonus: prefer arrangements that cluster people together
+      // Count how many positions touch each other within the group
+      let internalAdjacency = 0
+      for (let i = 0; i < positions.length; i++) {
+        for (let j = i + 1; j < positions.length; j++) {
+          const p1 = positions[i]
+          const p2 = positions[j]
+          const dx = Math.abs(p1.x - p2.x)
+          const dy = Math.abs(p1.y - p2.y)
+          if ((dx === 1 && dy === 0) || (dx === 0 && dy === 1)) {
+            internalAdjacency++
+          }
+        }
+      }
+      score += internalAdjacency * 4
+
+      validRotations.push({ rot, score })
+      if (debug) {
+        console.debug('[findBestRotation]', { table: table.id, group: group.size, rot, targetX, targetY, score })
+      }
+
+      if (score > bestScore) {
+        bestScore = score
+        bestRotation = rot
+      }
+    }
+
+    // Fallback: if no valid rotation found, try first valid one
+    if (validRotations.length === 0) {
+      // Try to find ANY valid rotation
+      for (let rot = 0; rot < 8; rot++) {
+        if (isValidPosition(table, group, rot, targetX, targetY, currentAssigned, skipAg)) {
+          return rot
+        }
+      }
+      return 0 // Last resort
+    }
+
+    return bestRotation
+  }, [])
 
   useEffect(() => {
     if (!multiSelectAvailable || listView !== 'available') {
@@ -271,14 +425,14 @@ export default function Room() {
 
       for (let i = 0; i < ags.length; i++) {
         const ag = ags[i]
-        const positions = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height)
+        const positions = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height, table.rotation)
         const agPositions = positions.map(p => ({ x: ag.x + p.x, y: ag.y + p.y }))
 
         const banned = new Set<string>()
         for (let j = 0; j < ags.length; j++) {
           if (i === j) continue
           const other = ags[j]
-          const otherPositions = getPositionsForSize(other.group.size, other.rotation, table.width, table.height)
+          const otherPositions = getPositionsForSize(other.group.size, other.rotation, table.width, table.height, table.rotation)
           const otherAbsPositions = otherPositions.map(p => ({ x: other.x + p.x, y: other.y + p.y }))
           if (isAdjacent(agPositions, otherAbsPositions)) {
             if (colors[j]) banned.add(colors[j])
@@ -317,29 +471,25 @@ export default function Room() {
     let relY = y - table.y
     const skipAg = draggingMeta?.tableId ? assignedGroups[draggingMeta.tableId]?.[draggingMeta.agIdx ?? -1] : undefined
 
-    // Start from current previewRotation so R-key changes are respected
-    let bestRotation = previewRotation
-    if (!isValidPosition(table, draggingGroup.group, bestRotation, relX, relY, assignedGroups, skipAg)) {
-      // Try all 8 orientations starting from current previewRotation
-      for (let rot = 1; rot < 8; rot++) {
-        const candidate = (previewRotation + rot) % 8
-        if (isValidPosition(table, draggingGroup.group, candidate, relX, relY, assignedGroups, skipAg)) { bestRotation = candidate; break }
-      }
-    }
+    // Use smart rotation finding for best gap-filling placement
+    let bestRotation = findBestRotation(table, draggingGroup.group, relX, relY, assignedGroups, skipAg)
 
     if (!isValidPosition(table, draggingGroup.group, bestRotation, relX, relY, assignedGroups, skipAg)) {
-      const positions = getPositionsForSize(draggingGroup.group.size, bestRotation, table.width, table.height)
+      const positions = getPositionsForSize(draggingGroup.group.size, bestRotation, table.width, table.height, table.rotation)
       const maxX = Math.max(...positions.map(p => p.x))
       const maxY = Math.max(...positions.map(p => p.y))
       relX = Math.min(relX, table.width - 1 - maxX)
       relY = Math.min(relY, table.height - 1 - maxY)
       relX = Math.max(relX, 0)
       relY = Math.max(relY, 0)
+      
+      // Re-calculate best rotation for adjusted position
+      bestRotation = findBestRotation(table, draggingGroup.group, relX, relY, assignedGroups, skipAg)
     }
 
     setPreviewRotation(bestRotation)
     setDragOverPosition({ tableId: table.id, x: relX, y: relY })
-  }, [draggingGroup, draggingMeta, room, assignedGroups, mapScale, previewRotation])
+  }, [draggingGroup, draggingMeta, room, assignedGroups, mapScale, findBestRotation])
 
 
   // Load room definition from localStorage on mount
@@ -420,12 +570,16 @@ export default function Room() {
       if (draggingMeta?.tableId) {
         // Bewegung von existierender Gruppe
         const sourceAg = assignedGroups[draggingMeta.tableId]?.[draggingMeta.agIdx ?? -1]
-        if (sourceAg && isValidPosition(table, draggingGroup.group, previewRotation, relX, relY, assignedGroups, sourceAg)) {
+        
+        // Find optimal rotation for drop position
+        const optimalRotation = sourceAg ? findBestRotation(table, draggingGroup.group, relX, relY, assignedGroups, sourceAg) : 0
+        
+        if (sourceAg && isValidPosition(table, draggingGroup.group, optimalRotation, relX, relY, assignedGroups, sourceAg)) {
           if (draggingMeta.tableId === table.id) {
             // Gleicher Tisch, nur Position ändern
             setAssignedGroups({
               ...assignedGroups,
-              [table.id]: assignedGroups[table.id].map((a, i) => i === draggingMeta.agIdx ? { ...a, x: relX, y: relY, rotation: previewRotation } : a)
+              [table.id]: assignedGroups[table.id].map((a, i) => i === draggingMeta.agIdx ? { ...a, x: relX, y: relY, rotation: optimalRotation } : a)
             })
           } else {
             // Anderer Tisch
@@ -435,7 +589,7 @@ export default function Room() {
             setAssignedGroups({
               ...assignedGroups,
               [draggingMeta.tableId]: newSourceList,
-              [table.id]: [...current, { ...sourceAg, rotation: previewRotation, x: relX, y: relY }]
+              [table.id]: [...current, { ...sourceAg, rotation: optimalRotation, x: relX, y: relY }]
             })
           }
         }
@@ -451,10 +605,14 @@ export default function Room() {
         }
         const current = assignedGroups[table.id] || []
         const totalOccupied = current.reduce((sum, a) => sum + a.group.size, 0) + group.size
-        if (totalOccupied <= table.capacity && isValidPosition(table, group, previewRotation, relX, relY, assignedGroups)) {
+        
+        // Find optimal rotation for new group
+        const optimalRotation = findBestRotation(table, group, relX, relY, assignedGroups)
+        
+        if (totalOccupied <= table.capacity && isValidPosition(table, group, optimalRotation, relX, relY, assignedGroups)) {
           setAssignedGroups({
             ...assignedGroups,
-            [table.id]: [...current, { group, rotation: previewRotation, locked: false, x: relX, y: relY, color: PALETTE[0] }]
+            [table.id]: [...current, { group, rotation: optimalRotation, locked: false, x: relX, y: relY, color: PALETTE[0] }]
           })
           // Entferne Gruppe aus der verfügbaren Liste
           const groupIndex = groups.findIndex(g => g.name === group.name && g.size === group.size)
@@ -816,7 +974,7 @@ export default function Room() {
     const table = room.tables.find(t => t.id === dragOverPosition.tableId)
     if (!table) return null
     const skipAg = draggingMeta?.tableId ? assignedGroups[draggingMeta.tableId]?.[draggingMeta.agIdx ?? -1] : undefined
-    const positions = getPositionsForSize(draggingGroup.group.size, previewRotation, table.width, table.height)
+    const positions = getPositionsForSize(draggingGroup.group.size, previewRotation, table.width, table.height, table.rotation)
     const valid = isValidPosition(table, draggingGroup.group, previewRotation, dragOverPosition.x, dragOverPosition.y, assignedGroups, skipAg)
     return { table, positions, valid }
   }, [room, draggingGroup, dragOverPosition, previewRotation, draggingMeta, assignedGroups])
@@ -1783,12 +1941,16 @@ export default function Room() {
                 const fromTable = data.tableId
                 const agIdx = data.agIdx
                 const ag = assignedGroups[fromTable][agIdx]
+                
+                // Find optimal rotation for this position
+                const optimalRotation = findBestRotation(table, ag.group, relX, relY, assignedGroups, ag)
+                
                 if (fromTable === table.id) {
                   // Same table, just move position and rotation
-                  if (isValidPosition(table, ag.group, previewRotation, relX, relY, assignedGroups, ag)) {
+                  if (isValidPosition(table, ag.group, optimalRotation, relX, relY, assignedGroups, ag)) {
                     setAssignedGroups({
                       ...assignedGroups,
-                      [table.id]: assignedGroups[table.id].map(a => a === ag ? { ...a, x: relX, y: relY, rotation: previewRotation } : a)
+                      [table.id]: assignedGroups[table.id].map(a => a === ag ? { ...a, x: relX, y: relY, rotation: optimalRotation } : a)
                     })
                   }
                 } else {
@@ -1796,11 +1958,11 @@ export default function Room() {
                   const newFrom = assignedGroups[fromTable].filter((_, i) => i !== agIdx)
                   const current = assignedGroups[table.id] || []
                   const totalOccupied = current.reduce((sum, a) => sum + a.group.size, 0) + ag.group.size
-                  if (totalOccupied <= table.capacity && isValidPosition(table, ag.group, previewRotation, relX, relY, assignedGroups)) {
+                  if (totalOccupied <= table.capacity && isValidPosition(table, ag.group, optimalRotation, relX, relY, assignedGroups)) {
                     setAssignedGroups({
                       ...assignedGroups,
                       [fromTable]: newFrom,
-                      [table.id]: [...current, { ...ag, x: relX, y: relY, rotation: previewRotation }]
+                      [table.id]: [...current, { ...ag, x: relX, y: relY, rotation: optimalRotation }]
                     })
                   }
                 }
@@ -1817,10 +1979,14 @@ export default function Room() {
                 const group = { id: data.id || generateUUID(), name: data.name, size: data.size, time: data.time, toGo: data.toGo, salutation: data.salutation || 'Fam' }
                 const current = assignedGroups[table.id] || []
                 const totalOccupied = current.reduce((sum, a) => sum + a.group.size, 0) + group.size
-                if (totalOccupied <= table.capacity && isValidPosition(table, group, previewRotation, relX, relY, assignedGroups)) {
+                
+                // Find optimal rotation for new group
+                const optimalRotation = findBestRotation(table, group, relX, relY, assignedGroups)
+                
+                if (totalOccupied <= table.capacity && isValidPosition(table, group, optimalRotation, relX, relY, assignedGroups)) {
                   setAssignedGroups({
                     ...assignedGroups,
-                    [table.id]: [...current, { group, rotation: previewRotation, locked: false, x: relX, y: relY, color: PALETTE[0] }]
+                    [table.id]: [...current, { group, rotation: optimalRotation, locked: false, x: relX, y: relY, color: PALETTE[0] }]
                   })
                   setGroups(groups.filter((_, idx) => idx !== data.index))
                 }
@@ -1893,7 +2059,7 @@ export default function Room() {
               ags.map((ag, idx) => {
                 const table = room.tables.find(t => t.id === tableId)
                 if (!table) return null
-                const positions = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height)
+                const positions = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height, table.rotation)
                 return positions.map((pos, pidx) => (
                   <div
                     key={`${tableId}-${idx}-${pidx}`}
@@ -2625,7 +2791,7 @@ export default function Room() {
                         if (totalOcc + g.size > table.capacity) continue
                         const placement = tryPlaceOnTable(table, g, occ)
                         if (placement) {
-                          const cells = getPositionsForSize(g.size, placement.rotation, table.width, table.height)
+                          const cells = getPositionsForSize(g.size, placement.rotation, table.width, table.height, table.rotation)
                           for (const c of cells) occ.add(`${placement.x + c.x},${placement.y + c.y}`)
                           placed.push({ group: g, rotation: placement.rotation, locked: false, x: placement.x, y: placement.y, color: PALETTE[0] })
                           totalOcc += g.size

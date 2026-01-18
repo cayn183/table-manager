@@ -1,14 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-
-type Table = {
-  id: string
-  x: number
-  y: number
-  capacity: number
-  width: number
-  height: number
-}
+import type { Table } from '../types/room'
 
 type ViewFrame = { x: number; y: number; width: number; height: number }
 
@@ -41,7 +33,12 @@ export default function RoomEditor() {
       if (!selectedTableId) return
       if (e.key === 'r' || e.key === 'R') {
         e.preventDefault()
-        setTables(prev => prev.map(t => t.id === selectedTableId ? { ...t, width: t.height, height: t.width } : t))
+        setTables(prev => prev.map(t => {
+          if (t.id === selectedTableId) {
+            return { ...t, rotation: ((t.rotation ?? 0) + 1) % 4 }
+          }
+          return t
+        }))
       } else if (e.key === 'Delete') {
         e.preventDefault()
         setTables(prev => prev.filter(t => t.id !== selectedTableId))

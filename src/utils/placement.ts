@@ -1,67 +1,7 @@
+import { generateOptimalSeating, canFit } from './layoutUtils'
+
 export type Group = { name: string; size: number; time?: string; toGo?: boolean }
-export type Table = { id: string; capacity: number; width: number; height: number }
-
-// Generate layouts that fit inside the table grid (e.g., 2x3 + 1), deduped by coordinates
-function generatePossibleLayouts(size: number, maxWidth: number, maxHeight: number): { x: number; y: number }[][] {
-  const layouts: { x: number; y: number }[][] = []
-  const seen = new Set<string>()
-
-  for (let cols = 1; cols <= maxWidth; cols++) {
-    for (let rows = 1; rows <= maxHeight; rows++) {
-      const mainBlock = cols * rows
-      if (mainBlock >= size) {
-        const pos: { x: number; y: number }[] = []
-        for (let i = 0; i < size; i++) pos.push({ x: i % cols, y: Math.floor(i / cols) })
-        const maxX = Math.max(...pos.map(p => p.x))
-        const maxY = Math.max(...pos.map(p => p.y))
-        if (maxX < maxWidth && maxY < maxHeight) {
-          const key = pos.map(p => `${p.x},${p.y}`).sort().join('|')
-          if (!seen.has(key)) {
-            seen.add(key)
-            layouts.push(pos)
-          }
-        }
-      } else if (mainBlock < size && rows < maxHeight) {
-        const pos: { x: number; y: number }[] = []
-        for (let i = 0; i < mainBlock; i++) pos.push({ x: i % cols, y: Math.floor(i / cols) })
-        const remaining = size - mainBlock
-        for (let i = 0; i < Math.min(remaining, cols); i++) pos.push({ x: i, y: rows })
-        if (pos.length === size) {
-          const maxX = Math.max(...pos.map(p => p.x))
-          const maxY = Math.max(...pos.map(p => p.y))
-          if (maxX < maxWidth && maxY < maxHeight) {
-            const key = pos.map(p => `${p.x},${p.y}`).sort().join('|')
-            if (!seen.has(key)) {
-              seen.add(key)
-              layouts.push(pos)
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // keep layouts with minimal bounding-box area for each key shape
-  return layouts.sort((a, b) => {
-    const aArea = (Math.max(...a.map(p => p.x)) + 1) * (Math.max(...a.map(p => p.y)) + 1)
-    const bArea = (Math.max(...b.map(p => p.x)) + 1) * (Math.max(...b.map(p => p.y)) + 1)
-    return aArea - bArea
-  })
-}
-
-// Quick check whether a group can fit the table grid respecting width/height
-function canFit(size: number, tableWidth: number, tableHeight: number): boolean {
-  if (size <= 0) return false
-  if (size > tableWidth * tableHeight) return false
-  // Simple rectangle packing
-  for (let w = 1; w <= tableWidth; w++) {
-    for (let h = 1; h <= tableHeight; h++) {
-      if (w * h >= size) return true
-    }
-  }
-  // Adaptive shapes (e.g., 2x3 + 1)
-  return generatePossibleLayouts(size, tableWidth, tableHeight).length > 0
-}
+export type Table = { id: string; capacity: number; width: number; height: number; rotation?: number }
 
 // Best-Fit Decreasing: sort groups desc, place in table with smallest remaining capacity that fits grid constraints
 export function bestFitAssign(tables: Table[], groups: Group[]) {
@@ -81,7 +21,7 @@ export function bestFitAssign(tables: Table[], groups: Group[]) {
 
     for (const t of tables) {
       const rem = remaining.get(t.id) ?? 0
-      if (rem >= g.size && canFit(g.size, t.width, t.height)) {
+      if (rem >= g.size && canFit(g.size, t.width, t.height, t.rotation ?? 0)) {
         const after = rem - g.size
         const area = t.width * t.height
         if (

@@ -16,6 +16,15 @@ function Root() {
     </div>
   )
 }
+  // For debugging rotation/top3 summaries during development, enable TOP3 logs
+  try {
+    if (typeof localStorage !== 'undefined' && !localStorage.getItem('debugPlacement')) {
+      localStorage.setItem('debugPlacement', '1')
+      console.info('[debugPlacement] defaulted to TOP3 for rotation diagnostics')
+    }
+  } catch (e) {
+    // ignore
+  }
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
