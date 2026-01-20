@@ -151,9 +151,258 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
   }
 }
 
+/* Print view layout */
+.print-view {
+  min-height: 100vh;
+  background: #f1f5f9;
+}
+
+.print-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  background: white;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.print-toggle {
+  display: inline-flex;
+  gap: 6px;
+  padding: 4px;
+  background: #f1f5f9;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+}
+
+.print-toggle button {
+  border: none;
+  background: transparent;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.print-toggle button.is-active {
+  background: white;
+  color: #1e293b;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+}
+
+.print-toggle--compact {
+  padding: 2px;
+  border-radius: 999px;
+}
+
+.print-toggle--compact button {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.print-toolbar button {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #1e293b;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.print-error {
+  margin: 24px auto;
+  padding: 16px 20px;
+  max-width: 720px;
+  background: #fee2e2;
+  color: #b91c1c;
+  border-radius: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.print-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding: 16px;
+}
+
+.print-page-content {
+  width: 100%;
+  height: 100%;
+  padding: 28px 28px 40px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.print-page--map .print-page-content {
+  padding: 16px 18px 24px;
+}
+
+.print-page-content--list {
+  align-items: flex-start;
+  justify-content: flex-start;
+  flex-direction: column;
+  gap: 16px;
+  display: block;
+  height: 100%;
+  overflow: hidden;
+}
+
+.print-map {
+  position: relative;
+  border: 2px solid #94a3b8;
+  border-radius: 10px;
+  background: white;
+  background-image:
+    linear-gradient(to right, #e2e8f0 1px, transparent 1px),
+    linear-gradient(to bottom, #e2e8f0 1px, transparent 1px);
+}
+
+.print-table {
+  position: absolute;
+  border: 2px solid #94a3b8;
+  border-radius: 8px;
+  background: #f8fafc;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.08);
+  z-index: 1;
+}
+
+.print-table-label {
+  position: absolute;
+  top: -18px;
+  left: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #1e293b;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(148,163,184,0.6);
+  z-index: 3;
+}
+
+.print-seat {
+  position: absolute;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  z-index: 2;
+}
+
+.print-seat-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-weight: 700;
+  color: #0f172a;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.4);
+  padding: 2px;
+  line-height: 1.1;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  word-break: break-word;
+  letter-spacing: -0.1px;
+}
+
+.print-seat-size {
+  font-size: 10px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.print-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.print-list {
+  column-count: auto;
+  column-width: 220px;
+  column-gap: 14px;
+  column-fill: auto;
+  height: calc(100% - 68px);
+  width: 100%;
+}
+
+.print-view.is-landscape .print-page--list .print-list {
+  column-width: 200px;
+}
+
+.print-view.is-portrait .print-page--list .print-list {
+  column-width: 220px;
+}
+
+.print-list-section {
+  break-inside: avoid;
+  margin-bottom: 12px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.print-list-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 8px;
+}
+
+.print-list-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 12px;
+}
+
+.print-list-item:last-child {
+  border-bottom: none;
+}
+
+.print-list-name {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.print-list-meta {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.print-list-empty {
+  font-size: 12px;
+  color: #94a3b8;
+  padding: 6px 0;
+}
+
 /* Print Styles */
 @media print {
   @page {
+    /* Force A4 landscape for printed pages to match preview */
     size: A4 landscape;
     margin: 10mm;
   }
@@ -199,6 +448,9 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
     transform-origin: center center;
   }
 
+  /* Ensure print-page uses mm sizing and padding so content doesn't overflow */
+  .print-page { width: 297mm !important; height: 210mm !important; padding: 12mm !important; box-sizing: border-box !important; }
+
   /* Center grid on page */
   .room-layout > div {
     display: flex !important;
@@ -221,4 +473,53 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
   .timeline-row {
     page-break-inside: avoid;
   }
+}
+
+/* Print page header/footer and cloned preview tweaks */
+.print-page { position: relative; box-sizing: border-box; }
+.print-page .print-footer, .print-page .print-header { display: block }
+.print-page .print-footer { position: absolute; bottom: 12px; right: 24px; font-size: 12px; color: #64748b }
+.print-page .print-header { position: absolute; top: 12px; left: 24px; font-size: 14px; font-weight: 700; color: #0f172a }
+.cloned-map-preview { pointer-events: none; }
+
+/* rotate preview for on-screen view (no effect on printed window) */
+.modal .print-preview.rotated {
+  transform: rotate(90deg) scale(0.95);
+  transform-origin: center center;
+}
+.modal .print-preview.rotated .print-page {
+  transform-origin: center center;
+}
+
+/* Print preview isolation: when printing, only the preview pages should appear */
+@media print {
+  /* Show the modal and preview, hide everything else */
+  body * { visibility: hidden !important; }
+  .modal, .modal * { visibility: visible !important; }
+  .print-view, .print-view * { visibility: visible !important; }
+  .modal { position: static !important; background: white !important; box-shadow: none !important; }
+  .modal-content { box-shadow: none !important; border-radius: 0 !important; padding: 0 !important; }
+
+  .print-toolbar { display: none !important; }
+
+  /* Ensure preview container occupies the page and pages break correctly */
+  .print-preview { visibility: visible !important; display: block !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }
+  .print-page { visibility: visible !important; page-break-after: always; width: 100% !important; margin: 0 auto !important; box-shadow: none !important; border: none !important; }
+  .print-page:last-child { page-break-after: auto; }
+
+  .print-view.is-landscape .print-page--list .print-list {
+    column-width: 52mm;
+    column-gap: 8mm;
+  }
+
+  .print-view.is-portrait .print-page--list .print-list {
+    column-width: 65mm;
+    column-gap: 8mm;
+  }
+
+  /* Remove other UI elements inside modal (controls) from print */
+  .modal .modal-content > :not(.print-preview) { display: none !important; }
+
+  /* Make sure colors are printed */
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 }

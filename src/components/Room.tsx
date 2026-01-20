@@ -4,6 +4,7 @@
 import React, { useEffect, useMemo, useCallback, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Importer, { Group } from './Importer'
+import PrintViewPage from './PrintViewPage'
 import Papa from 'papaparse'
 import { bestFitAssign } from '../utils/placement'
 import type { Table, Room as RoomType, AssignedGroup, DraggingMeta } from '../types/room'
@@ -74,6 +75,7 @@ export default function Room() {
   const [batchMoveTableModal, setBatchMoveTableModal] = useState<{ count: number } | null>(null)
   const [batchRemoveAssignmentModal, setBatchRemoveAssignmentModal] = useState<{ count: number } | null>(null)
   const [batchDeleteConfirmModal, setBatchDeleteConfirmModal] = useState<{ count: number } | null>(null)
+  const [showPrintPreview, setShowPrintPreview] = useState(false)
 
   // State: UI and interaction
   const [showModal, setShowModal] = useState(false)
@@ -1832,7 +1834,21 @@ export default function Room() {
               </button>
               
               <button
-                onClick={() => window.print()}
+                onClick={() => {
+                  // Speichere aktuelle Daten in LocalStorage und navigiere zur PrintView
+                  const current = JSON.parse(localStorage.getItem('currentEvent') || '{}');
+                  const name = current.name || `Event ${new Date().toLocaleDateString()}`;
+                  const event = { ...current };
+                  event.name = name;
+                  if (!event.createdAt) event.createdAt = new Date().toLocaleDateString();
+                  const now = new Date();
+                  event.lastModified = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+                  event.assignedGroups = assignedGroups;
+                  event.groups = groups;
+                  event.room = room;
+                  localStorage.setItem('currentEvent', JSON.stringify(event));
+                  setShowPrintPreview(true);
+                }}
                 style={{
                   flex: 1,
                   padding: '12px 20px',
@@ -3610,6 +3626,14 @@ export default function Room() {
           </div>
         </div>
       )}
+      {showPrintPreview && (
+        <div className="modal">
+          <div className="modal-content" style={{ minWidth: '80vw', maxWidth: '96vw', minHeight: '80vh', maxHeight: '96vh', padding: 0 }}>
+            <PrintViewPage embedded onClose={() => setShowPrintPreview(false)} />
+          </div>
+        </div>
+      )}
+      {/* Der separate Drucken-Button am Seitenrand wurde entfernt, da das Druckersymbol verwendet wird */}
     </div>
   )
 }
