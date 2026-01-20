@@ -153,8 +153,9 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
 
 /* Print view layout */
 .print-view {
-  min-height: 100vh;
+  min-height: auto;
   background: #f1f5f9;
+  overflow: visible;
 }
 
 .print-toolbar {
@@ -228,17 +229,18 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
   flex-direction: column;
   align-items: center;
   gap: 24px;
-  padding: 16px;
+  padding: 0;
+  overflow: visible;
 }
 
 .print-page-content {
   width: 100%;
-  height: 100%;
+  height: 792px;
   padding: 28px 28px 40px;
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .print-page--map .print-page-content {
@@ -251,8 +253,8 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
   flex-direction: column;
   gap: 16px;
   display: block;
-  height: 100%;
-  overflow: hidden;
+  height: 792px;
+  overflow: visible;
 }
 
 .print-map {
@@ -276,16 +278,17 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
 
 .print-table-label {
   position: absolute;
-  top: -18px;
-  left: 8px;
+  top: -34px;
   font-size: 10px;
   font-weight: 700;
+  text-align: center;
+  line-height: 1.2;
   color: #1e293b;
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(0, 0, 0, 0.1);
   padding: 2px 6px;
   border-radius: 6px;
   border: 1px solid rgba(148,163,184,0.6);
-  z-index: 3;
+  z-index: 2;
 }
 
 .print-seat {
@@ -342,7 +345,7 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
   column-width: 220px;
   column-gap: 14px;
   column-fill: auto;
-  height: calc(100% - 68px);
+  height: auto;
   width: 100%;
 }
 
@@ -410,13 +413,17 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
   body {
     background: white;
     padding: 0;
+    overflow: visible !important;
+  }
+
+  html, body {
+    height: auto !important;
   }
 
   /* Hide UI elements */
   .no-print,
   .sidebar,
   button,
-  .modal,
   .context-menu,
   header,
   nav {
@@ -448,8 +455,8 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
     transform-origin: center center;
   }
 
-  /* Ensure print-page uses mm sizing and padding so content doesn't overflow */
-  .print-page { width: 297mm !important; height: 210mm !important; padding: 12mm !important; box-sizing: border-box !important; }
+  /* Ensure print-page uses flexible sizing in print view */
+  .print-view .print-page { width: 100% !important; height: auto !important; padding: 12mm !important; box-sizing: border-box !important; }
 
   /* Center grid on page */
   .room-layout > div {
@@ -473,6 +480,16 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
   .timeline-row {
     page-break-inside: avoid;
   }
+
+  .print-view.is-landscape .print-page--list .print-list {
+    column-width: 52mm;
+    column-gap: 8mm;
+  }
+
+  .print-view.is-portrait .print-page--list .print-list {
+    column-width: 65mm;
+    column-gap: 8mm;
+  }
 }
 
 /* Print page header/footer and cloned preview tweaks */
@@ -480,6 +497,10 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
 .print-page .print-footer, .print-page .print-header { display: block }
 .print-page .print-footer { position: absolute; bottom: 12px; right: 24px; font-size: 12px; color: #64748b }
 .print-page .print-header { position: absolute; top: 12px; left: 24px; font-size: 14px; font-weight: 700; color: #0f172a }
+.print-footer { display: none !important; }
+
+/* Make print-header visible in printview */
+.print-header { display: block !important; }
 .cloned-map-preview { pointer-events: none; }
 
 /* rotate preview for on-screen view (no effect on printed window) */
@@ -491,35 +512,3 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
   transform-origin: center center;
 }
 
-/* Print preview isolation: when printing, only the preview pages should appear */
-@media print {
-  /* Show the modal and preview, hide everything else */
-  body * { visibility: hidden !important; }
-  .modal, .modal * { visibility: visible !important; }
-  .print-view, .print-view * { visibility: visible !important; }
-  .modal { position: static !important; background: white !important; box-shadow: none !important; }
-  .modal-content { box-shadow: none !important; border-radius: 0 !important; padding: 0 !important; }
-
-  .print-toolbar { display: none !important; }
-
-  /* Ensure preview container occupies the page and pages break correctly */
-  .print-preview { visibility: visible !important; display: block !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }
-  .print-page { visibility: visible !important; page-break-after: always; width: 100% !important; margin: 0 auto !important; box-shadow: none !important; border: none !important; }
-  .print-page:last-child { page-break-after: auto; }
-
-  .print-view.is-landscape .print-page--list .print-list {
-    column-width: 52mm;
-    column-gap: 8mm;
-  }
-
-  .print-view.is-portrait .print-page--list .print-list {
-    column-width: 65mm;
-    column-gap: 8mm;
-  }
-
-  /* Remove other UI elements inside modal (controls) from print */
-  .modal .modal-content > :not(.print-preview) { display: none !important; }
-
-  /* Make sure colors are printed */
-  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-}

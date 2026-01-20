@@ -4,7 +4,6 @@
 import React, { useEffect, useMemo, useCallback, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Importer, { Group } from './Importer'
-import PrintViewPage from './PrintViewPage'
 import Papa from 'papaparse'
 import { bestFitAssign } from '../utils/placement'
 import type { Table, Room as RoomType, AssignedGroup, DraggingMeta } from '../types/room'
@@ -75,7 +74,6 @@ export default function Room() {
   const [batchMoveTableModal, setBatchMoveTableModal] = useState<{ count: number } | null>(null)
   const [batchRemoveAssignmentModal, setBatchRemoveAssignmentModal] = useState<{ count: number } | null>(null)
   const [batchDeleteConfirmModal, setBatchDeleteConfirmModal] = useState<{ count: number } | null>(null)
-  const [showPrintPreview, setShowPrintPreview] = useState(false)
 
   // State: UI and interaction
   const [showModal, setShowModal] = useState(false)
@@ -1847,7 +1845,7 @@ export default function Room() {
                   event.groups = groups;
                   event.room = room;
                   localStorage.setItem('currentEvent', JSON.stringify(event));
-                  setShowPrintPreview(true);
+                  navigate("/printview");
                 }}
                 style={{
                   flex: 1,
@@ -3623,13 +3621,6 @@ export default function Room() {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-      {showPrintPreview && (
-        <div className="modal">
-          <div className="modal-content" style={{ minWidth: '80vw', maxWidth: '96vw', minHeight: '80vh', maxHeight: '96vh', padding: 0 }}>
-            <PrintViewPage embedded onClose={() => setShowPrintPreview(false)} />
           </div>
         </div>
       )}

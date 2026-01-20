@@ -240,7 +240,7 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
         {activePage === 'map' && (
           <div className="print-page print-page--map">
             <div className="print-header">{eventName} – Sitzplan</div>
-            <div className="print-footer">Stand: {lastModified || new Date().toLocaleString()}</div>
+            <div className="print-footer no-print">Stand: {lastModified || new Date().toLocaleString()}</div>
 
             <div className="print-page-content" ref={mapPageRef}>
               <div
@@ -322,8 +322,7 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
         {activePage === 'list' && (
           <div className="print-page print-page--list">
             <div className="print-header">{eventName} – Übersicht</div>
-            <div className="print-footer">Stand: {lastModified || new Date().toLocaleString()}</div>
-
+            <div className="print-footer no-print">Stand: {lastModified || new Date().toLocaleString()}</div>
             <div className="print-page-content print-page-content--list">
               <div className="print-summary">
                 <div><strong>{tableSections.length}</strong> Tische</div>
