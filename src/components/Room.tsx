@@ -10,7 +10,8 @@ import type { Table, Room as RoomType, AssignedGroup, DraggingMeta } from '../ty
 import {
   PALETTE,
   TOGO_COLOR,
-  GRID_SIZE,
+  GRID_HEIGHT,
+  GRID_WIDTH,
   CELL_SIZE,
   paletteColor,
   getPositionsForSize,
@@ -286,7 +287,7 @@ export default function Room() {
   // Calculate bounding box for tables or explicit view frame
   const gridBounds = useMemo(() => {
     if (!room) {
-      return { minX: 0, minY: 0, maxX: GRID_SIZE, maxY: GRID_SIZE, width: GRID_SIZE, height: GRID_SIZE }
+      return { minX: 0, minY: 0, maxX: GRID_WIDTH, maxY: GRID_HEIGHT, width: GRID_WIDTH, height: GRID_HEIGHT }
     }
 
     // If a custom view frame exists, honor it directly (clamped to grid)
@@ -294,15 +295,15 @@ export default function Room() {
       const vf = room.viewFrame
       const minX = Math.max(0, vf.x)
       const minY = Math.max(0, vf.y)
-      const maxX = Math.min(GRID_SIZE, vf.x + vf.width)
-      const maxY = Math.min(GRID_SIZE, vf.y + vf.height)
+      const maxX = Math.min(GRID_WIDTH, vf.x + vf.width)
+      const maxY = Math.min(GRID_HEIGHT, vf.y + vf.height)
       const width = Math.max(1, maxX - minX)
       const height = Math.max(1, maxY - minY)
       return { minX, minY, maxX, maxY, width, height }
     }
 
     if (room.tables.length === 0) {
-      return { minX: 0, minY: 0, maxX: GRID_SIZE, maxY: GRID_SIZE, width: GRID_SIZE, height: GRID_SIZE }
+      return { minX: 0, minY: 0, maxX: GRID_WIDTH, maxY: GRID_HEIGHT, width: GRID_WIDTH, height: GRID_HEIGHT }
     }
     
     const minX = Math.min(...room.tables.map(t => t.x))
@@ -316,8 +317,8 @@ export default function Room() {
     // Add padding (1 cell on each side)
     const paddedMinX = Math.max(0, minX - 1)
     const paddedMinY = Math.max(0, minY - 1)
-    const paddedMaxX = Math.min(GRID_SIZE, maxX + 1)
-    const paddedMaxY = Math.min(GRID_SIZE, maxY + 1)
+    const paddedMaxX = Math.min(GRID_WIDTH, maxX + 1)
+    const paddedMaxY = Math.min(GRID_HEIGHT, maxY + 1)
     const paddedWidth = paddedMaxX - paddedMinX
     const paddedHeight = paddedMaxY - paddedMinY
 
@@ -1094,9 +1095,9 @@ export default function Room() {
                 boxShadow: viewMode === 'timeline' ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
                 textShadow: '0 1px 2px rgba(0,0,0,0.1)'
               }}
-              title="Planansicht"
+              title="Zeitplanansicht"
             >
-              📋 Planansicht
+              📋 Zeitplanansicht
             </button>
           </div>
 
@@ -1922,11 +1923,11 @@ export default function Room() {
                       className="grid"
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: `repeat(${GRID_SIZE}, ${CELL_SIZE}px)`,
-                      gridTemplateRows: `repeat(${GRID_SIZE}, ${CELL_SIZE}px)`,
+                      gridTemplateColumns: `repeat(${GRID_WIDTH}, ${CELL_SIZE}px)`,
+                      gridTemplateRows: `repeat(${GRID_HEIGHT}, ${CELL_SIZE}px)`,
                       border: '2px solid #cbd5e1',
-                      width: GRID_SIZE * CELL_SIZE + 'px',
-                      height: GRID_SIZE * CELL_SIZE + 'px',
+                      width: GRID_WIDTH * CELL_SIZE + 'px',
+                      height: GRID_HEIGHT * CELL_SIZE + 'px',
                       position: 'relative',
                       borderRadius: '12px',
                       overflow: 'hidden',

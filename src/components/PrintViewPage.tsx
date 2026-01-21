@@ -2,12 +2,20 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Group } from './Importer'
 import type { AssignedGroup, Room as RoomType, Table } from '../types/room'
-import { CELL_SIZE, GRID_SIZE, getPositionsForSize, loadRoomFromStorage, paletteColor, PALETTE } from '../utils/roomUtils'
+import { CELL_SIZE, GRID_WIDTH, GRID_HEIGHT, getPositionsForSize, loadRoomFromStorage, paletteColor, PALETTE } from '../utils/roomUtils'
 
 type EventPayload = {
   name?: string
   createdAt?: string
   lastModified?: string
+  printHeaderTitle?: string
+  printHeaderMapLabel?: string
+  printHeaderListLabel?: string
+  date?: string
+  timeFrom?: string
+  timeTo?: string
+  showPrintDate?: boolean
+  showPrintTimeRange?: boolean
   groups?: Group[]
   assignedGroups?: Record<string, AssignedGroup[]>
   room?: RoomType
@@ -30,9 +38,35 @@ function normalizeSeatColor(color?: string): string {
   return color
 }
 
+function compareTimes(timeA: string, timeB: string): number {
+  if (!timeA && !timeB) return 0
+  if (!timeA) return 1
+  if (!timeB) return -1
+  return timeA.localeCompare(timeB)
+}
+
 type PrintViewPageProps = {
   embedded?: boolean
   onClose?: () => void
+}
+
+function formatDateDE(dateStr?: string | null): string | null {
+  if (!dateStr) return null;
+  // Try to parse ISO or yyyy-mm-dd or dd.mm.yyyy
+  let d: Date | null = null;
+  if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+    d = new Date(dateStr);
+  } else if (/^\d{2}\.\d{2}\.\d{4}/.test(dateStr)) {
+    const [day, month, year] = dateStr.split(".");
+    d = new Date(`${year}-${month}-${day}`);
+  } else {
+    d = new Date(dateStr);
+  }
+  if (!d || isNaN(d.getTime())) return dateStr;
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${dd}.${mm}.${yyyy}`;
 }
 
 export default function PrintViewPage({ embedded = false, onClose }: PrintViewPageProps) {
@@ -41,12 +75,31 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
   const [groups, setGroups] = useState<Group[]>([])
   const [assignedGroups, setAssignedGroups] = useState<Record<string, AssignedGroup[]>>({})
   const [eventName, setEventName] = useState('Event')
+  const [printHeaderTitle, setPrintHeaderTitle] = useState('Event')
+  const [printHeaderMapLabel, setPrintHeaderMapLabel] = useState('Sitzplan')
+  const [printHeaderListLabel, setPrintHeaderListLabel] = useState('Zeitplan')
+  const [eventDate, setEventDate] = useState<string | null>(null)
+  const [eventTimeFrom, setEventTimeFrom] = useState<string | null>(null)
+  const [eventTimeTo, setEventTimeTo] = useState<string | null>(null)
+  const [showDate, setShowDate] = useState(false)
+  const [showTimeRange, setShowTimeRange] = useState(false)
   const [lastModified, setLastModified] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [mapScale, setMapScale] = useState(1)
   const [activePage, setActivePage] = useState<'map' | 'list'>('map')
-  const [printLayout, setPrintLayout] = useState<'landscape' | 'portrait'>('landscape')
   const mapPageRef = useRef<HTMLDivElement | null>(null)
+
+  const persistEventFields = (patch: Partial<EventPayload>) => {
+    const raw = localStorage.getItem('currentEvent')
+    if (!raw) return
+    try {
+      const event = JSON.parse(raw) as EventPayload
+      const next = { ...event, ...patch }
+      localStorage.setItem('currentEvent', JSON.stringify(next))
+    } catch (err) {
+      console.error('Event-Daten konnten nicht aktualisiert werden', err)
+    }
+  }
 
   useEffect(() => {
     const raw = localStorage.getItem('currentEvent')
@@ -58,6 +111,14 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
     try {
       const event = JSON.parse(raw) as EventPayload
       setEventName(event.name || 'Event')
+      setPrintHeaderTitle(event.printHeaderTitle || event.name || 'Event')
+      setPrintHeaderMapLabel(event.printHeaderMapLabel || 'Sitzplan')
+      setPrintHeaderListLabel(event.printHeaderListLabel || 'Zeitplan')
+      setEventDate((event as any).date || event.createdAt || null)
+      setEventTimeFrom((event as any).timeFrom || null)
+      setEventTimeTo((event as any).timeTo || null)
+      setShowDate(!!(event as any).showPrintDate)
+      setShowTimeRange(!!(event as any).showPrintTimeRange)
       setLastModified(event.lastModified || null)
       const roomFromEvent = event.room || loadRoomFromStorage()
       if (!roomFromEvent) {
@@ -75,22 +136,22 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
 
   const gridBounds = useMemo(() => {
     if (!room) {
-      return { minX: 0, minY: 0, maxX: GRID_SIZE, maxY: GRID_SIZE, width: GRID_SIZE, height: GRID_SIZE }
+      return { minX: 0, minY: 0, maxX: GRID_WIDTH, maxY: GRID_HEIGHT, width: GRID_WIDTH, height: GRID_HEIGHT }
     }
 
     if (room.viewFrame) {
       const vf = room.viewFrame
       const minX = Math.max(0, vf.x)
       const minY = Math.max(0, vf.y)
-      const maxX = Math.min(GRID_SIZE, vf.x + vf.width)
-      const maxY = Math.min(GRID_SIZE, vf.y + vf.height)
+      const maxX = Math.min(GRID_WIDTH, vf.x + vf.width)
+      const maxY = Math.min(GRID_HEIGHT, vf.y + vf.height)
       const width = Math.max(1, maxX - minX)
       const height = Math.max(1, maxY - minY)
       return { minX, minY, maxX, maxY, width, height }
     }
 
     if (room.tables.length === 0) {
-      return { minX: 0, minY: 0, maxX: GRID_SIZE, maxY: GRID_SIZE, width: GRID_SIZE, height: GRID_SIZE }
+      return { minX: 0, minY: 0, maxX: GRID_WIDTH, maxY: GRID_HEIGHT, width: GRID_WIDTH, height: GRID_HEIGHT }
     }
 
     const minX = Math.min(...room.tables.map(t => t.x))
@@ -100,8 +161,8 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
 
     const paddedMinX = Math.max(0, minX - 1)
     const paddedMinY = Math.max(0, minY - 1)
-    const paddedMaxX = Math.min(GRID_SIZE, maxX + 1)
-    const paddedMaxY = Math.min(GRID_SIZE, maxY + 1)
+    const paddedMaxX = Math.min(GRID_WIDTH, maxX + 1)
+    const paddedMaxY = Math.min(GRID_HEIGHT, maxY + 1)
 
     return {
       minX: paddedMinX,
@@ -123,7 +184,7 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
       if (!el) return
       const availableW = Math.max(100, el.clientWidth)
       const availableH = Math.max(100, el.clientHeight)
-      const maxScale = 1.25
+      const maxScale = 1.5 //1.25
       const scale = Math.min(maxScale, availableW / contentWidth, availableH / contentHeight)
       setMapScale(Number.isFinite(scale) ? scale : 1)
     }
@@ -187,6 +248,25 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
 
   const unassignedGroups = useMemo(() => groups.filter(g => !g.toGo), [groups])
   const toGoGroups = useMemo(() => assignedGroups['TOGO'] || [], [assignedGroups])
+  const timeSections = useMemo(() => {
+    const items = Object.entries(assignedGroups)
+      .filter(([tableId]) => tableId !== 'TOGO')
+      .flatMap(([tableId, ags]) => ags.map(ag => ({ tableId, ag })))
+
+    const grouped = new Map<string, Array<{ tableId: string; ag: AssignedGroup }>>()
+    items.forEach(item => {
+      const timeKey = (item.ag.group.time || '').trim()
+      if (!grouped.has(timeKey)) grouped.set(timeKey, [])
+      grouped.get(timeKey)?.push(item)
+    })
+
+    return Array.from(grouped.entries())
+      .map(([time, list]) => ({
+        time,
+        items: list.sort((a, b) => a.ag.group.name.localeCompare(b.ag.group.name))
+      }))
+      .sort((a, b) => compareTimes(a.time, b.time))
+  }, [assignedGroups])
 
   if (loadError) {
     return (
@@ -204,7 +284,7 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
   }
 
   return (
-    <div className={`print-view ${printLayout === 'portrait' ? 'is-portrait' : 'is-landscape'}`}>
+    <div className="print-view is-landscape">
       <div className="print-toolbar no-print">
         {embedded ? (
           <button onClick={onClose}>Schließen</button>
@@ -221,25 +301,48 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
             onClick={() => setActivePage('list')}
           >Übersicht</button>
         </div>
-        {activePage === 'list' && (
-          <div className="print-toggle print-toggle--compact" role="group" aria-label="Layout auswählen">
-            <button
-              className={printLayout === 'portrait' ? 'is-active' : ''}
-              onClick={() => setPrintLayout('portrait')}
-            >Hochformat</button>
-            <button
-              className={printLayout === 'landscape' ? 'is-active' : ''}
-              onClick={() => setPrintLayout('landscape')}
-            >Querformat</button>
-          </div>
-        )}
-        <button onClick={() => window.print()}>Drucken</button>
+        <div className="print-header-editor" aria-label="Print-Optionen">
+          <label>
+            <input
+              type="checkbox"
+              checked={showDate}
+              onChange={(e) => {
+                setShowDate(e.target.checked)
+                persistEventFields({ showPrintDate: e.target.checked })
+              }}
+            />
+            Datum anzeigen
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={showTimeRange}
+              onChange={(e) => {
+                setShowTimeRange(e.target.checked)
+                persistEventFields({ showPrintTimeRange: e.target.checked })
+              }}
+            />
+            Uhrzeit anzeigen
+          </label>
+        </div>
+        <button className="print-btn" onClick={() => window.print()}>Drucken</button>
       </div>
 
       <div className="print-preview">
         {activePage === 'map' && (
           <div className="print-page print-page--map">
-            <div className="print-header">{eventName} – Sitzplan</div>
+            <div className="print-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div className="print-header-title">{printHeaderTitle}</div>
+                <div style={{ fontSize: 12, color: '#475569', fontWeight: 600 }}>
+                  {showDate && eventDate ? <span>{formatDateDE(eventDate)}</span> : null}
+                  {showTimeRange && (eventTimeFrom || eventTimeTo) ? (
+                    <span style={{ marginLeft: 8 }}>{`${eventTimeFrom || ''}${eventTimeFrom && eventTimeTo ? ' – ' : ''}${eventTimeTo || ''}`}</span>
+                  ) : null}
+                </div>
+              </div>
+              <div className="print-header-subtitle">{printHeaderMapLabel}</div>
+            </div>
             <div className="print-footer no-print">Stand: {lastModified || new Date().toLocaleString()}</div>
 
             <div className="print-page-content" ref={mapPageRef}>
@@ -275,7 +378,7 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
                         }}
                       >
                         <div className="print-table-label">
-                          Tisch {table.id} • {occupied}/{table.capacity}
+                          Tisch {table.id.replace(/^T/, '')} • {occupied}/{table.capacity}
                         </div>
                       </div>
                     )
@@ -321,27 +424,40 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
 
         {activePage === 'list' && (
           <div className="print-page print-page--list">
-            <div className="print-header">{eventName} – Übersicht</div>
+            <div className="print-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div className="print-header-title">{printHeaderTitle}</div>
+                <div style={{ fontSize: 12, color: '#475569', fontWeight: 600 }}>
+                  {showDate && eventDate ? <span>{eventDate}</span> : null}
+                  {showTimeRange && (eventTimeFrom || eventTimeTo) ? (
+                    <span style={{ marginLeft: 8 }}>{`${eventTimeFrom || ''}${eventTimeFrom && eventTimeTo ? ' – ' : ''}${eventTimeTo || ''}`}</span>
+                  ) : null}
+                </div>
+              </div>
+              <div className="print-header-subtitle">{printHeaderListLabel}</div>
+            </div>
             <div className="print-footer no-print">Stand: {lastModified || new Date().toLocaleString()}</div>
             <div className="print-page-content print-page-content--list">
-              <div className="print-summary">
-                <div><strong>{tableSections.length}</strong> Tische</div>
-                <div><strong>{tableSections.reduce((sum, t) => sum + t.assigned.length, 0)}</strong> Gruppen zugeordnet</div>
-                <div><strong>{unassignedGroups.length}</strong> unzugeordnet</div>
-                <div><strong>{toGoGroups.length}</strong> ToGo</div>
+              <div className="print-summary-box">
+                <div className="print-summary">
+                  <div><strong>{tableSections.length}</strong> Tische</div>
+                  <div><strong>{tableSections.reduce((sum, t) => sum + t.assigned.length, 0)}</strong> Gruppen zugeordnet</div>
+                  <div><strong>{unassignedGroups.length}</strong> unzugeordnet</div>
+                  <div><strong>{toGoGroups.length}</strong> ToGo</div>
+                </div>
               </div>
 
               <div className="print-list">
-                {tableSections.map(section => (
-                  <div key={section.table.id} className="print-list-section">
-                    <div className="print-list-title">Tisch {section.table.id}</div>
-                    {section.assigned.length === 0 ? (
+                {timeSections.map(section => (
+                  <div key={`time-${section.time || 'none'}`} className="print-list-section">
+                    <div className="print-list-title">{section.time || 'Ohne Zeit'}</div>
+                    {section.items.length === 0 ? (
                       <div className="print-list-empty">Keine Gruppen</div>
                     ) : (
-                      section.assigned.map((ag, idx) => (
-                        <div key={`${section.table.id}-${idx}`} className="print-list-item">
-                          <span className="print-list-name">{ag.group.name}</span>
-                          <span className="print-list-meta">👥 {ag.group.size}{ag.group.time ? ` • ${ag.group.time}` : ''}</span>
+                      section.items.map((item, idx) => (
+                        <div key={`${item.tableId}-${idx}`} className="print-list-item">
+                          <span className="print-list-name">{item.ag.group.name}</span>
+                          <span className="print-list-meta">Tisch {item.tableId.replace(/^T/, '')} • 👥 {item.ag.group.size}</span>
                         </div>
                       ))
                     )}
