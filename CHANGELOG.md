@@ -5,7 +5,25 @@ Alle bemerkenswerten Änderungen an diesem Projekt werden in dieser Datei dokume
 Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
-## [Unreleased]
+
+## [0.6.7] - 2026-01-22
+
+### Added
+- Verbesserte PrintView mit Zeitplan, Datum, Button-Styling, Listen-Sortierung
+- Save-Toast nach Speichern (ersetzt Alert)
+- Responsive Schriftgrößen für Familiennamen
+- Automatische Zeichensatz-Erkennung beim CSV-Import (UTF-8, Windows-1252, UTF-16)
+
+### Changed
+- Infoboxen: Weißer Hintergrund für Labels
+- Kompakte Labels für vertikale 2er-Gruppen (wie Einzelpersonen, inkl. Personenzahl)
+- Platzierungs-Algorithmus: verhindert Gruppensplits, bessere Kompaktheit, TOP3-Debug
+- PrintView-Header sichtbar, Print-Footer ausgeblendet, Button- und Listen-UI überarbeitet
+
+### Fixed
+- Drag & Drop: Fehler bei fehlenden IDs und Typen behoben
+- PrintView: Listen-Sortierung, Zeitplan, Button-Styling
+- CSV-Import: Zeichensatzprobleme werden automatisch erkannt und korrigiert
 
 ## [0.6.6] - 2026-01-17
 
