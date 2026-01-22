@@ -10,11 +10,13 @@ import type { Table, Room as RoomType, AssignedGroup, DraggingMeta } from '../ty
 import {
   PALETTE,
   TOGO_COLOR,
-  GRID_SIZE,
+  GRID_HEIGHT,
+  GRID_WIDTH,
   CELL_SIZE,
   paletteColor,
   getPositionsForSize,
   isValidPosition,
+  positionsAreConnected,
   loadRoomFromStorage,
   ensureToGoBucket,
   greedyReLayout,
@@ -28,6 +30,17 @@ import {
 // ============================================================================
 // MAIN COMPONENT: Room
 // ============================================================================
+
+// Helper function to calculate optimal font size for text based on length
+function getResponsiveFontSize(text: string): number {
+  // Einfache Berechnung basierend auf Textlänge
+  // Kurze Namen (< 15 Zeichen): 14px
+  // Mittlere Namen (15-25 Zeichen): 12px  
+  // Lange Namen (> 25 Zeichen): 10px
+  if (text.length < 15) return 14
+  if (text.length < 25) return 12
+  return 10
+}
 
 export default function Room() {
   const navigate = useNavigate()
@@ -48,6 +61,7 @@ export default function Room() {
   const [isDirty, setIsDirty] = useState(false)
   const [lastSaveTime, setLastSaveTime] = useState<string | null>(null)
   const [lastSaveType, setLastSaveType] = useState<'auto' | 'manual' | null>(null)
+  const [saveToast, setSaveToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [timeInterval, setTimeInterval] = useState(15)
   const [viewMode, setViewMode] = useState<'map' | 'timeline'>('map')
   const [sortAvailable, setSortAvailable] = useState<'name' | 'time' | 'size'>('name')
@@ -76,6 +90,7 @@ export default function Room() {
   const [tableSelectModal, setTableSelectModal] = useState<{ group: Group; index: number } | null>(null)
   const [showCsvImportModal, setShowCsvImportModal] = useState(false)
   const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [csvFileEncoding, setCsvFileEncoding] = useState<string | null>(null)
   const [csvPreview, setCsvPreview] = useState<Group[]>([])
   const [dragOverPosition, setDragOverPosition] = useState<{ tableId: string; x: number; y: number } | null>(null)
   const [draggingGroup, setDraggingGroup] = useState<{ group: Group; rotation: number } | null>(null)
@@ -94,6 +109,159 @@ export default function Room() {
   const [uiScale, setUiScale] = useState(1)
   const draggingGroupRef = useRef<{ group: Group; rotation: number } | null>(null)
 
+  // --------------------------------------------------------------------------
+  // HELPER: Find best rotation for optimal gap-filling placement
+  // --------------------------------------------------------------------------
+  const findBestRotation = useCallback((
+    table: Table,
+    group: Group,
+    targetX: number,
+    targetY: number,
+    currentAssigned: Record<string, AssignedGroup[]>,
+    skipAg?: AssignedGroup
+  ): number => {
+    const debug = typeof window !== 'undefined' && localStorage.getItem('debugPlacement') === '1'
+    // Build occupied set for scoring
+    const occupied = new Set<string>()
+    for (const ag of (currentAssigned[table.id] || [])) {
+      if (ag === skipAg) continue
+      const positions = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height, table.rotation)
+      for (const pos of positions) {
+        occupied.add(`${ag.x + pos.x},${ag.y + pos.y}`)
+      }
+    }
+
+    let bestRotation = 0
+    let bestScore = -Infinity
+    const validRotations: Array<{ rot: number; score: number }> = []
+
+    // Test all 8 rotations
+    for (let rot = 0; rot < 8; rot++) {
+      const positions = getPositionsForSize(group.size, rot, table.width, table.height, table.rotation)
+      
+      // Skip layouts that are internally disconnected (would split the family)
+      if (!positionsAreConnected(positions)) continue
+
+      // Check if valid at target position
+      if (!isValidPosition(table, group, rot, targetX, targetY, currentAssigned, skipAg)) {
+        continue
+      }
+
+      // Score based on neighbors and gap filling
+      let score = 0
+      
+      // 1. Adjacency score: Strong bonus for placing next to existing groups
+      for (const pos of positions) {
+        const absX = targetX + pos.x
+        const absY = targetY + pos.y
+        
+        // Check all 4 neighbors
+        const neighbors = [
+          `${absX - 1},${absY}`,
+          `${absX + 1},${absY}`,
+          `${absX},${absY - 1}`,
+          `${absX},${absY + 1}`
+        ]
+        
+        for (const neighbor of neighbors) {
+          if (occupied.has(neighbor)) {
+            score += 25 // Very strong preference for adjacent placement
+          }
+        }
+        
+        // Check diagonal neighbors too (weaker bonus)
+        const diagonals = [
+          `${absX - 1},${absY - 1}`,
+          `${absX + 1},${absY - 1}`,
+          `${absX - 1},${absY + 1}`,
+          `${absX + 1},${absY + 1}`
+        ]
+        
+        for (const diagonal of diagonals) {
+          if (occupied.has(diagonal)) {
+            score += 8 // Bonus for diagonal adjacency
+          }
+        }
+      }
+
+      // 2. Simulate placement and evaluate resulting gaps
+      const tempOccupied = new Set(occupied)
+      for (const pos of positions) {
+        tempOccupied.add(`${targetX + pos.x},${targetY + pos.y}`)
+      }
+
+      // Count isolated empty cells (gaps with few empty neighbors)
+      let isolatedGaps = 0
+      let totalGaps = 0
+      for (let ty = 0; ty < table.height; ty++) {
+        for (let tx = 0; tx < table.width; tx++) {
+          const key = `${tx},${ty}`
+          if (!tempOccupied.has(key)) {
+            totalGaps++
+            const emptyNeighbors = [
+              `${tx - 1},${ty}`,
+              `${tx + 1},${ty}`,
+              `${tx},${ty - 1}`,
+              `${tx},${ty + 1}`
+            ].filter(nk => {
+              const [nx, ny] = nk.split(',').map(Number)
+              return nx >= 0 && nx < table.width && ny >= 0 && ny < table.height && !tempOccupied.has(nk)
+            }).length
+
+            // Heavily penalize isolated single cells
+            if (emptyNeighbors === 0) {
+              isolatedGaps += 3 // Completely isolated
+            } else if (emptyNeighbors === 1) {
+              isolatedGaps += 2 // Nearly isolated
+            } else if (emptyNeighbors === 2) {
+              isolatedGaps += 1 // Somewhat isolated
+            }
+          }
+        }
+      }
+      score -= isolatedGaps * 10 // Strong penalty for fragmentation
+
+      // 3. Compactness bonus: prefer arrangements that cluster people together
+      // Count how many positions touch each other within the group
+      let internalAdjacency = 0
+      for (let i = 0; i < positions.length; i++) {
+        for (let j = i + 1; j < positions.length; j++) {
+          const p1 = positions[i]
+          const p2 = positions[j]
+          const dx = Math.abs(p1.x - p2.x)
+          const dy = Math.abs(p1.y - p2.y)
+          if ((dx === 1 && dy === 0) || (dx === 0 && dy === 1)) {
+            internalAdjacency++
+          }
+        }
+      }
+      score += internalAdjacency * 4
+
+      validRotations.push({ rot, score })
+      if (debug) {
+        console.debug('[findBestRotation]', { table: table.id, group: group.size, rot, targetX, targetY, score })
+      }
+
+      if (score > bestScore) {
+        bestScore = score
+        bestRotation = rot
+      }
+    }
+
+    // Fallback: if no valid rotation found, try first valid one
+    if (validRotations.length === 0) {
+      // Try to find ANY valid rotation
+      for (let rot = 0; rot < 8; rot++) {
+        if (isValidPosition(table, group, rot, targetX, targetY, currentAssigned, skipAg)) {
+          return rot
+        }
+      }
+      return 0 // Last resort
+    }
+
+    return bestRotation
+  }, [])
+
   useEffect(() => {
     if (!multiSelectAvailable || listView !== 'available') {
       setSelectedAvailableKeys(new Set())
@@ -106,13 +274,20 @@ export default function Room() {
     }
   }, [multiSelectAssigned, listView])
 
+  // Auto-hide save toast after 3 seconds
+  useEffect(() => {
+    if (!saveToast) return
+    const timer = setTimeout(() => setSaveToast(null), 3000)
+    return () => clearTimeout(timer)
+  }, [saveToast])
+
   const assignedKey = (tableId: string, idx: number) => `${tableId}|${idx}`
 
 
   // Calculate bounding box for tables or explicit view frame
   const gridBounds = useMemo(() => {
     if (!room) {
-      return { minX: 0, minY: 0, maxX: GRID_SIZE, maxY: GRID_SIZE, width: GRID_SIZE, height: GRID_SIZE }
+      return { minX: 0, minY: 0, maxX: GRID_WIDTH, maxY: GRID_HEIGHT, width: GRID_WIDTH, height: GRID_HEIGHT }
     }
 
     // If a custom view frame exists, honor it directly (clamped to grid)
@@ -120,15 +295,15 @@ export default function Room() {
       const vf = room.viewFrame
       const minX = Math.max(0, vf.x)
       const minY = Math.max(0, vf.y)
-      const maxX = Math.min(GRID_SIZE, vf.x + vf.width)
-      const maxY = Math.min(GRID_SIZE, vf.y + vf.height)
+      const maxX = Math.min(GRID_WIDTH, vf.x + vf.width)
+      const maxY = Math.min(GRID_HEIGHT, vf.y + vf.height)
       const width = Math.max(1, maxX - minX)
       const height = Math.max(1, maxY - minY)
       return { minX, minY, maxX, maxY, width, height }
     }
 
     if (room.tables.length === 0) {
-      return { minX: 0, minY: 0, maxX: GRID_SIZE, maxY: GRID_SIZE, width: GRID_SIZE, height: GRID_SIZE }
+      return { minX: 0, minY: 0, maxX: GRID_WIDTH, maxY: GRID_HEIGHT, width: GRID_WIDTH, height: GRID_HEIGHT }
     }
     
     const minX = Math.min(...room.tables.map(t => t.x))
@@ -142,8 +317,8 @@ export default function Room() {
     // Add padding (1 cell on each side)
     const paddedMinX = Math.max(0, minX - 1)
     const paddedMinY = Math.max(0, minY - 1)
-    const paddedMaxX = Math.min(GRID_SIZE, maxX + 1)
-    const paddedMaxY = Math.min(GRID_SIZE, maxY + 1)
+    const paddedMaxX = Math.min(GRID_WIDTH, maxX + 1)
+    const paddedMaxY = Math.min(GRID_HEIGHT, maxY + 1)
     const paddedWidth = paddedMaxX - paddedMinX
     const paddedHeight = paddedMaxY - paddedMinY
 
@@ -251,14 +426,14 @@ export default function Room() {
 
       for (let i = 0; i < ags.length; i++) {
         const ag = ags[i]
-        const positions = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height)
+        const positions = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height, table.rotation)
         const agPositions = positions.map(p => ({ x: ag.x + p.x, y: ag.y + p.y }))
 
         const banned = new Set<string>()
         for (let j = 0; j < ags.length; j++) {
           if (i === j) continue
           const other = ags[j]
-          const otherPositions = getPositionsForSize(other.group.size, other.rotation, table.width, table.height)
+          const otherPositions = getPositionsForSize(other.group.size, other.rotation, table.width, table.height, table.rotation)
           const otherAbsPositions = otherPositions.map(p => ({ x: other.x + p.x, y: other.y + p.y }))
           if (isAdjacent(agPositions, otherAbsPositions)) {
             if (colors[j]) banned.add(colors[j])
@@ -273,6 +448,36 @@ export default function Room() {
     })
 
     return result
+  }, [assignedGroups, room])
+
+  // Globales Label-Außenmaß (außer 1er), orientiert an der größten Breite
+  const labelBoxMax = useMemo(() => {
+    if (!room) return { width: 0, height: 0 }
+    let maxWidth = 0
+    let maxHeight = 0
+
+    Object.entries(assignedGroups).forEach(([tableId, ags]) => {
+      const table = room.tables.find(t => t.id === tableId)
+      if (!table) return
+      ags.forEach(ag => {
+        if (ag.group.size === 1) return
+        const positions = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height, table.rotation)
+        const columns = positions.map(pos => table.x + ag.x + pos.x)
+        const rows = positions.map(pos => table.y + ag.y + pos.y)
+        const minColumn = Math.min(...columns)
+        const maxColumn = Math.max(...columns)
+        const minRow = Math.min(...rows)
+        const maxRow = Math.max(...rows)
+        const bboxWidth = (maxColumn - minColumn + 1) * CELL_SIZE
+        const bboxHeight = (maxRow - minRow + 1) * CELL_SIZE
+        const candidateWidth = Math.max(18, bboxWidth - 6)
+        const candidateHeight = Math.max(16, bboxHeight - 4)
+        if (candidateWidth > maxWidth) maxWidth = candidateWidth
+        if (candidateHeight > maxHeight) maxHeight = candidateHeight
+      })
+    })
+
+    return { width: maxWidth, height: maxHeight }
   }, [assignedGroups, room])
 
   // Track dirty state: when groups or assignedGroups change, mark as dirty and clamp pagination
@@ -297,29 +502,25 @@ export default function Room() {
     let relY = y - table.y
     const skipAg = draggingMeta?.tableId ? assignedGroups[draggingMeta.tableId]?.[draggingMeta.agIdx ?? -1] : undefined
 
-    // Start from current previewRotation so R-key changes are respected
-    let bestRotation = previewRotation
-    if (!isValidPosition(table, draggingGroup.group, bestRotation, relX, relY, assignedGroups, skipAg)) {
-      // Try all 8 orientations starting from current previewRotation
-      for (let rot = 1; rot < 8; rot++) {
-        const candidate = (previewRotation + rot) % 8
-        if (isValidPosition(table, draggingGroup.group, candidate, relX, relY, assignedGroups, skipAg)) { bestRotation = candidate; break }
-      }
-    }
+    // Use smart rotation finding for best gap-filling placement
+    let bestRotation = findBestRotation(table, draggingGroup.group, relX, relY, assignedGroups, skipAg)
 
     if (!isValidPosition(table, draggingGroup.group, bestRotation, relX, relY, assignedGroups, skipAg)) {
-      const positions = getPositionsForSize(draggingGroup.group.size, bestRotation, table.width, table.height)
+      const positions = getPositionsForSize(draggingGroup.group.size, bestRotation, table.width, table.height, table.rotation)
       const maxX = Math.max(...positions.map(p => p.x))
       const maxY = Math.max(...positions.map(p => p.y))
       relX = Math.min(relX, table.width - 1 - maxX)
       relY = Math.min(relY, table.height - 1 - maxY)
       relX = Math.max(relX, 0)
       relY = Math.max(relY, 0)
+      
+      // Re-calculate best rotation for adjusted position
+      bestRotation = findBestRotation(table, draggingGroup.group, relX, relY, assignedGroups, skipAg)
     }
 
     setPreviewRotation(bestRotation)
     setDragOverPosition({ tableId: table.id, x: relX, y: relY })
-  }, [draggingGroup, draggingMeta, room, assignedGroups, mapScale, previewRotation])
+  }, [draggingGroup, draggingMeta, room, assignedGroups, mapScale, findBestRotation])
 
 
   // Load room definition from localStorage on mount
@@ -400,12 +601,16 @@ export default function Room() {
       if (draggingMeta?.tableId) {
         // Bewegung von existierender Gruppe
         const sourceAg = assignedGroups[draggingMeta.tableId]?.[draggingMeta.agIdx ?? -1]
-        if (sourceAg && isValidPosition(table, draggingGroup.group, previewRotation, relX, relY, assignedGroups, sourceAg)) {
+        
+        // Find optimal rotation for drop position
+        const optimalRotation = sourceAg ? findBestRotation(table, draggingGroup.group, relX, relY, assignedGroups, sourceAg) : 0
+        
+        if (sourceAg && isValidPosition(table, draggingGroup.group, optimalRotation, relX, relY, assignedGroups, sourceAg)) {
           if (draggingMeta.tableId === table.id) {
             // Gleicher Tisch, nur Position ändern
             setAssignedGroups({
               ...assignedGroups,
-              [table.id]: assignedGroups[table.id].map((a, i) => i === draggingMeta.agIdx ? { ...a, x: relX, y: relY, rotation: previewRotation } : a)
+              [table.id]: assignedGroups[table.id].map((a, i) => i === draggingMeta.agIdx ? { ...a, x: relX, y: relY, rotation: optimalRotation } : a)
             })
           } else {
             // Anderer Tisch
@@ -415,7 +620,7 @@ export default function Room() {
             setAssignedGroups({
               ...assignedGroups,
               [draggingMeta.tableId]: newSourceList,
-              [table.id]: [...current, { ...sourceAg, rotation: previewRotation, x: relX, y: relY }]
+              [table.id]: [...current, { ...sourceAg, rotation: optimalRotation, x: relX, y: relY }]
             })
           }
         }
@@ -431,10 +636,14 @@ export default function Room() {
         }
         const current = assignedGroups[table.id] || []
         const totalOccupied = current.reduce((sum, a) => sum + a.group.size, 0) + group.size
-        if (totalOccupied <= table.capacity && isValidPosition(table, group, previewRotation, relX, relY, assignedGroups)) {
+        
+        // Find optimal rotation for new group
+        const optimalRotation = findBestRotation(table, group, relX, relY, assignedGroups)
+        
+        if (totalOccupied <= table.capacity && isValidPosition(table, group, optimalRotation, relX, relY, assignedGroups)) {
           setAssignedGroups({
             ...assignedGroups,
-            [table.id]: [...current, { group, rotation: previewRotation, locked: false, x: relX, y: relY, color: PALETTE[0] }]
+            [table.id]: [...current, { group, rotation: optimalRotation, locked: false, x: relX, y: relY, color: PALETTE[0] }]
           })
           // Entferne Gruppe aus der verfügbaren Liste
           const groupIndex = groups.findIndex(g => g.name === group.name && g.size === group.size)
@@ -553,13 +762,43 @@ export default function Room() {
     }
     setCsvPreview([])
     setCsvFile(null)
+    setCsvFileEncoding(null)
     setShowCsvImportModal(true)
   }
 
   function handleCsvFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     if (e.target.files && e.target.files[0]) {
       setCsvFile(e.target.files[0])
+      setCsvFileEncoding(null)
       setCsvPreview([])
+    }
+  }
+
+  function detectCsvEncoding(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer)
+    
+    // Check for UTF-16 LE BOM (FF FE)
+    if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE) {
+      return 'utf-16le'
+    }
+    
+    // Check for UTF-16 BE BOM (FE FF)
+    if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF) {
+      return 'utf-16be'
+    }
+    
+    // Check for UTF-8 BOM (EF BB BF)
+    if (bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+      return 'utf-8'
+    }
+    
+    // Try UTF-8 decoding and check for errors
+    try {
+      const decoder = new TextDecoder('utf-8', { fatal: true })
+      decoder.decode(buffer)
+      return 'utf-8'
+    } catch {
+      return 'windows-1252'
     }
   }
 
@@ -569,9 +808,18 @@ export default function Room() {
       return
     }
 
-    Papa.parse(csvFile, {
-      skipEmptyLines: true,
-      complete: (results: any) => {
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const arrayBuffer = event.target?.result as ArrayBuffer
+      const encoding = detectCsvEncoding(arrayBuffer)
+      setCsvFileEncoding(encoding)
+      
+      const decoder = new TextDecoder(encoding)
+      const text = decoder.decode(arrayBuffer)
+
+      Papa.parse(text, {
+        skipEmptyLines: true,
+        complete: (results: any) => {
         const rows = results.data
         const parsed: Group[] = []
         const startIndex = rows[0] && (rows[0][0] === 'Name' || rows[0][0] === 'name') ? 1 : 0
@@ -603,11 +851,13 @@ export default function Room() {
         }
 
         setCsvPreview(parsed)
-      },
-      error: (error: any) => {
-        alert(`Fehler beim Lesen der CSV-Datei: ${error.message}`)
-      }
-    })
+        },
+        error: (error: any) => {
+          alert(`Fehler beim Lesen der CSV-Datei: ${error.message}`)
+        }
+      })
+    }
+    reader.readAsArrayBuffer(csvFile)
   }
 
   function updateCsvPreview(idx: number, patch: Partial<Group>) {
@@ -669,7 +919,7 @@ export default function Room() {
     setLastSaveTime(timeStr)
     setLastSaveType('manual')
     setIsDirty(false)
-    alert('Event gespeichert!')
+    setSaveToast({ type: 'success', message: 'Event gespeichert!' })
   }
 
   // Autosave countdown + save after 10 minutes of unsaved changes
@@ -755,7 +1005,7 @@ export default function Room() {
     const table = room.tables.find(t => t.id === dragOverPosition.tableId)
     if (!table) return null
     const skipAg = draggingMeta?.tableId ? assignedGroups[draggingMeta.tableId]?.[draggingMeta.agIdx ?? -1] : undefined
-    const positions = getPositionsForSize(draggingGroup.group.size, previewRotation, table.width, table.height)
+    const positions = getPositionsForSize(draggingGroup.group.size, previewRotation, table.width, table.height, table.rotation)
     const valid = isValidPosition(table, draggingGroup.group, previewRotation, dragOverPosition.x, dragOverPosition.y, assignedGroups, skipAg)
     return { table, positions, valid }
   }, [room, draggingGroup, dragOverPosition, previewRotation, draggingMeta, assignedGroups])
@@ -875,9 +1125,9 @@ export default function Room() {
                 boxShadow: viewMode === 'timeline' ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
                 textShadow: '0 1px 2px rgba(0,0,0,0.1)'
               }}
-              title="Planansicht"
+              title="Zeitplanansicht"
             >
-              📋 Planansicht
+              📋 Zeitplanansicht
             </button>
           </div>
 
@@ -1175,6 +1425,7 @@ export default function Room() {
                         const displaySalutation = salutation === 'Fam' ? 'Fam.' : salutation
                         const displayName = `${displaySalutation} ${g.name}`
                         const isSelected = selectedAvailableKeys.has(k)
+                        const fontSize = getResponsiveFontSize(displayName)
                         return (
                           <div
                             key={`${currentPage}-${i}`}
@@ -1229,14 +1480,14 @@ export default function Room() {
                               setContextMenu({ x: e.clientX, y: e.clientY, tableId: '', agIdx: -1, isList: true, listIdx: i })
                             }}
                           >
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
-                              <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: '14px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
+                              <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: fontSize + 'px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 {isSelected && <span aria-hidden style={{ fontSize: '13px', color: '#22c55e' }}>✔</span>}
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
                               </div>
                               <div style={{ gridColumn: '2 / 3', gridRow: '1 / 2', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '4px', alignItems: 'center' }}>
                                 <span aria-hidden style={{ fontSize: '13px' }}>🕐</span>
-                                <span>{g.time ? `Uhrzeit: ${g.time}` : 'Uhrzeit: offen'}</span>
+                                <span>{g.time ? `Zeit: ${g.time}` : 'Zeit: offen'}</span>
                               </div>
                               <div style={{ gridColumn: '1 / 2', gridRow: '2 / 3', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 <span aria-hidden style={{ fontSize: '13px' }}>👥</span>
@@ -1453,6 +1704,7 @@ export default function Room() {
                       const isToGo = tableId === 'TOGO'
                       const key = assignedKey(tableId, idx)
                       const isSelected = selectedAssignedKeys.has(key)
+                      const fontSize = getResponsiveFontSize(displayName)
                       return (
                         <div
                           key={`${tableId}-${idx}`}
@@ -1498,14 +1750,14 @@ export default function Room() {
                             setContextMenu({ x: e.clientX, y: e.clientY, tableId, agIdx: idx, isList: false, isAssignedList: true })
                           }}
                         >
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
-                            <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: '14px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
+                            <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: fontSize + 'px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
                               {isSelected && <span aria-hidden style={{ fontSize: '13px', color: '#22c55e' }}>✔</span>}
                               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
                             </div>
                             <div style={{ gridColumn: '2 / 3', gridRow: '1 / 2', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '4px', alignItems: 'center' }}>
                               <span aria-hidden style={{ fontSize: '13px' }}>🕐</span>
-                              <span>{ag.group.time ? `Uhrzeit: ${ag.group.time}` : 'Uhrzeit: offen'}</span>
+                              <span>{ag.group.time ? `Zeit: ${ag.group.time}` : 'Zeit: offen'}</span>
                             </div>
                             <div style={{ gridColumn: '1 / 2', gridRow: '2 / 3', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <span aria-hidden style={{ fontSize: '13px' }}>👥</span>
@@ -1611,7 +1863,21 @@ export default function Room() {
               </button>
               
               <button
-                onClick={() => window.print()}
+                onClick={() => {
+                  // Speichere aktuelle Daten in LocalStorage und navigiere zur PrintView
+                  const current = JSON.parse(localStorage.getItem('currentEvent') || '{}');
+                  const name = current.name || `Event ${new Date().toLocaleDateString()}`;
+                  const event = { ...current };
+                  event.name = name;
+                  if (!event.createdAt) event.createdAt = new Date().toLocaleDateString();
+                  const now = new Date();
+                  event.lastModified = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+                  event.assignedGroups = assignedGroups;
+                  event.groups = groups;
+                  event.room = room;
+                  localStorage.setItem('currentEvent', JSON.stringify(event));
+                  navigate("/printview");
+                }}
                 style={{
                   flex: 1,
                   padding: '12px 20px',
@@ -1687,11 +1953,11 @@ export default function Room() {
                       className="grid"
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: `repeat(${GRID_SIZE}, ${CELL_SIZE}px)`,
-                      gridTemplateRows: `repeat(${GRID_SIZE}, ${CELL_SIZE}px)`,
+                      gridTemplateColumns: `repeat(${GRID_WIDTH}, ${CELL_SIZE}px)`,
+                      gridTemplateRows: `repeat(${GRID_HEIGHT}, ${CELL_SIZE}px)`,
                       border: '2px solid #cbd5e1',
-                      width: GRID_SIZE * CELL_SIZE + 'px',
-                      height: GRID_SIZE * CELL_SIZE + 'px',
+                      width: GRID_WIDTH * CELL_SIZE + 'px',
+                      height: GRID_HEIGHT * CELL_SIZE + 'px',
                       position: 'relative',
                       borderRadius: '12px',
                       overflow: 'hidden',
@@ -1720,12 +1986,16 @@ export default function Room() {
                 const fromTable = data.tableId
                 const agIdx = data.agIdx
                 const ag = assignedGroups[fromTable][agIdx]
+                
+                // Find optimal rotation for this position
+                const optimalRotation = findBestRotation(table, ag.group, relX, relY, assignedGroups, ag)
+                
                 if (fromTable === table.id) {
                   // Same table, just move position and rotation
-                  if (isValidPosition(table, ag.group, previewRotation, relX, relY, assignedGroups, ag)) {
+                  if (isValidPosition(table, ag.group, optimalRotation, relX, relY, assignedGroups, ag)) {
                     setAssignedGroups({
                       ...assignedGroups,
-                      [table.id]: assignedGroups[table.id].map(a => a === ag ? { ...a, x: relX, y: relY, rotation: previewRotation } : a)
+                      [table.id]: assignedGroups[table.id].map(a => a === ag ? { ...a, x: relX, y: relY, rotation: optimalRotation } : a)
                     })
                   }
                 } else {
@@ -1733,11 +2003,11 @@ export default function Room() {
                   const newFrom = assignedGroups[fromTable].filter((_, i) => i !== agIdx)
                   const current = assignedGroups[table.id] || []
                   const totalOccupied = current.reduce((sum, a) => sum + a.group.size, 0) + ag.group.size
-                  if (totalOccupied <= table.capacity && isValidPosition(table, ag.group, previewRotation, relX, relY, assignedGroups)) {
+                  if (totalOccupied <= table.capacity && isValidPosition(table, ag.group, optimalRotation, relX, relY, assignedGroups)) {
                     setAssignedGroups({
                       ...assignedGroups,
                       [fromTable]: newFrom,
-                      [table.id]: [...current, { ...ag, x: relX, y: relY, rotation: previewRotation }]
+                      [table.id]: [...current, { ...ag, x: relX, y: relY, rotation: optimalRotation }]
                     })
                   }
                 }
@@ -1754,10 +2024,14 @@ export default function Room() {
                 const group = { id: data.id || generateUUID(), name: data.name, size: data.size, time: data.time, toGo: data.toGo, salutation: data.salutation || 'Fam' }
                 const current = assignedGroups[table.id] || []
                 const totalOccupied = current.reduce((sum, a) => sum + a.group.size, 0) + group.size
-                if (totalOccupied <= table.capacity && isValidPosition(table, group, previewRotation, relX, relY, assignedGroups)) {
+                
+                // Find optimal rotation for new group
+                const optimalRotation = findBestRotation(table, group, relX, relY, assignedGroups)
+                
+                if (totalOccupied <= table.capacity && isValidPosition(table, group, optimalRotation, relX, relY, assignedGroups)) {
                   setAssignedGroups({
                     ...assignedGroups,
-                    [table.id]: [...current, { group, rotation: previewRotation, locked: false, x: relX, y: relY, color: PALETTE[0] }]
+                    [table.id]: [...current, { group, rotation: optimalRotation, locked: false, x: relX, y: relY, color: PALETTE[0] }]
                   })
                   setGroups(groups.filter((_, idx) => idx !== data.index))
                 }
@@ -1830,55 +2104,189 @@ export default function Room() {
               ags.map((ag, idx) => {
                 const table = room.tables.find(t => t.id === tableId)
                 if (!table) return null
-                const positions = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height)
-                return positions.map((pos, pidx) => (
+                const positions = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height, table.rotation)
+                const gridCells = positions.map((pos, pidx) => {
+                  const col0 = table.x + ag.x + pos.x
+                  const row0 = table.y + ag.y + pos.y
+                  return { col0, row0, pidx }
+                })
+                const columns = gridCells.map(c => c.col0)
+                const rows = gridCells.map(c => c.row0)
+                const minColumn = Math.min(...columns)
+                const maxColumn = Math.max(...columns)
+                const minRow = Math.min(...rows)
+                const maxRow = Math.max(...rows)
+                const bboxWidth = (maxColumn - minColumn + 1) * CELL_SIZE
+                const bboxHeight = (maxRow - minRow + 1) * CELL_SIZE
+                const uniqueColumns = new Set(columns)
+                const uniqueRows = new Set(rows)
+                const isVerticalTwo = ag.group.size === 2 && uniqueColumns.size === 1 && uniqueRows.size === 2
+
+                // ------------------------------------------------------------------
+                // LABEL POSITIONING
+                // - size 3: center over the two horizontal cells (same row)
+                // - others: use centroid of all occupied cells
+                // ------------------------------------------------------------------
+                const defaultCenterX = gridCells.reduce((sum, c) => sum + (c.col0 + 0.5) * CELL_SIZE, 0) / gridCells.length
+                const defaultCenterY = gridCells.reduce((sum, c) => sum + (c.row0 + 0.5) * CELL_SIZE, 0) / gridCells.length
+
+                let centerX = defaultCenterX
+                let centerY = defaultCenterY
+
+                if (ag.group.size === 3) {
+                  // Find the row that has the horizontal pair
+                  const rowGroups = new Map<number, number[]>()
+                  for (const cell of gridCells) {
+                    const cols = rowGroups.get(cell.row0) ?? []
+                    cols.push(cell.col0)
+                    rowGroups.set(cell.row0, cols)
+                  }
+
+                  let bestRow: number | null = null
+                  let bestCols: number[] = []
+
+                  for (const [row, cols] of rowGroups.entries()) {
+                    if (cols.length >= 2 && cols.length > bestCols.length) {
+                      bestRow = row
+                      bestCols = cols
+                    }
+                  }
+
+                  if (bestRow !== null && bestCols.length >= 2) {
+                    const minCol = Math.min(...bestCols)
+                    const maxCol = Math.max(...bestCols)
+                    centerX = (minCol + maxCol + 1) * CELL_SIZE / 2
+                    centerY = (bestRow + 0.5) * CELL_SIZE
+                  }
+                }
+
+                // ------------------------------------------------------------------
+                // LABEL SIZING & COLORS
+                // ------------------------------------------------------------------
+                const displayName = ag.group.name
+                const defaultLabelWidth = Math.max(18, bboxWidth - 6)
+                const defaultLabelHeight = Math.max(16, bboxHeight - 4)
+                const labelMaxWidth = ag.group.size === 1
+                  ? defaultLabelWidth
+                  : (labelBoxMax.width || defaultLabelWidth)
+                const labelMaxHeight = ag.group.size === 1
+                  ? defaultLabelHeight
+                  : (labelBoxMax.height || defaultLabelHeight)
+                const labelColor = assignedColors[tableId]?.[idx] || paletteColor(PALETTE[0])
+
+                // Name font size: responsive but clamped to min/max
+                const baseNameSize = Math.round(getResponsiveFontSize(displayName) * 0.6)
+                const approxCharWidth = 0.6
+                const maxSizeByWidth = Math.floor((labelMaxWidth - 4) / Math.max(displayName.length, 1) / approxCharWidth)
+                const nameFontSize = Math.max(5, Math.min(9, baseNameSize, maxSizeByWidth))
+
+                // Meta font size: keep consistent (fixed), except for size 1
+                const useCompactName = ag.group.size === 1 || isVerticalTwo
+                const metaFontSize = useCompactName ? 5 : 6
+
+                return [
+                  ...gridCells.map(({ col0, row0, pidx }) => (
+                    <div
+                      key={`${tableId}-${idx}-${pidx}`}
+                      draggable={!ag.locked}
+                      onDragStart={e => {
+                        if (!ag.locked) {
+                          e.dataTransfer.setData('text/plain', JSON.stringify({ tableId, agIdx: idx, ...ag.group }))
+                          setDraggingGroup({ group: ag.group, rotation: ag.rotation })
+                          setDraggingMeta({ tableId, agIdx: idx })
+                          setPreviewRotation(ag.rotation)
+                        }
+                      }}
+                      onContextMenu={e => {
+                        e.preventDefault()
+                        setContextMenu({ x: e.clientX, y: e.clientY, tableId, agIdx: idx, isList: false })
+                      }}
+                      style={{
+                        gridColumn: col0 + 1,
+                        gridRow: row0 + 1,
+                        background: assignedColors[tableId]?.[idx] || paletteColor(PALETTE[0]),
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '9px',
+                        cursor: ag.locked ? 'default' : 'move',
+                        zIndex: 10,
+                        border: '1px solid rgba(0,0,0,0.15)',
+                        borderRadius: '6px',
+                        padding: '4px',
+                        textAlign: 'center',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.12)'
+                      }}
+                      onDoubleClick={() => {
+                        setAssignedGroups({
+                          ...assignedGroups,
+                          [tableId]: ags.map(a => a === ag ? { ...a, locked: !a.locked } : a)
+                        })
+                      }}
+                    />
+                  )),
                   <div
-                    key={`${tableId}-${idx}-${pidx}`}
-                    draggable={!ag.locked}
-                    onDragStart={e => {
-                      if (!ag.locked) {
-                        e.dataTransfer.setData('text/plain', JSON.stringify({ tableId, agIdx: idx, ...ag.group }))
-                        setDraggingGroup({ group: ag.group, rotation: ag.rotation })
-                        setDraggingMeta({ tableId, agIdx: idx })
-                        setPreviewRotation(ag.rotation)
-                      }
-                    }}
-                    onContextMenu={e => {
-                      e.preventDefault()
-                      setContextMenu({ x: e.clientX, y: e.clientY, tableId, agIdx: idx, isList: false })
-                    }}
+                    key={`${tableId}-${idx}-label`}
                     style={{
-                      gridColumn: (table.x + ag.x + pos.x + 1),
-                      gridRow: (table.y + ag.y + pos.y + 1),
-                      background: assignedColors[tableId]?.[idx] || paletteColor(PALETTE[0]),
+                      position: 'absolute',
+                      left: `${centerX}px`,
+                      top: `${centerY}px`,
+                      transform: 'translate(-50%, -50%)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: '9px',
-                      cursor: ag.locked ? 'default' : 'move',
-                      zIndex: 10,
-                      border: '1px solid rgba(0,0,0,0.15)',
-                      borderRadius: '6px',
-                      padding: '4px',
-                      textAlign: 'center',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.12)'
-                    }}
-                    onDoubleClick={() => {
-                      setAssignedGroups({
-                        ...assignedGroups,
-                        [tableId]: ags.map(a => a === ag ? { ...a, locked: !a.locked } : a)
-                      })
+                      zIndex: 15,
+                      pointerEvents: 'none'
                     }}
                   >
-                    {pidx === 0 ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', width: '100%', height: '100%', textAlign: 'center', overflow: 'hidden' }}>
-                        <div style={{ fontSize: '7px', fontWeight: '700', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'normal', maxWidth: '100%', letterSpacing: '0.2px', wordBreak: 'break-word', lineHeight: '1.1' }}>{ag.locked ? '🔒 ' : ''}{ag.group.name}</div>
-                        {ag.group.time && <div style={{ fontSize: '6px', opacity: 0.9, lineHeight: '1' }}>🕐 {ag.group.time.slice(0, 5)}</div>}
-                        <div style={{ fontSize: '7px', fontWeight: '600' }}>👥 {ag.group.size}</div>
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '3px',
+                      padding: ag.group.size <= 3 ? '1px 3px' : '2px 4px',
+                      maxWidth: `${labelMaxWidth}px`,
+                      maxHeight: `${labelMaxHeight}px`,
+                      overflow: 'hidden',
+                      borderRadius: '6px',
+                      background: '#ffffff',
+                      textAlign: 'center'
+                    }}>
+                      {/* Name */}
+                      <div
+                        style={{
+                          fontSize: `${nameFontSize}px`,
+                          fontWeight: '700',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: useCompactName ? 'normal' : 'normal',
+                          display: useCompactName ? '-webkit-box' : 'block',
+                          WebkitLineClamp: useCompactName ? 2 : 'unset',
+                          WebkitBoxOrient: useCompactName ? 'vertical' : 'unset',
+                          maxWidth: '100%',
+                          letterSpacing: '0.2px',
+                          wordBreak: 'break-word',
+                          lineHeight: '1.1'
+                        }}
+                      >
+                        {ag.locked ? '🔒 ' : ''}{displayName}
                       </div>
-                    ) : ''}
+
+                      {/* Meta info (fixed sizes) */}
+                      {ag.group.time && (
+                        <div style={{ fontSize: `${metaFontSize}px`, lineHeight: '1' }}>
+                          🕐 {ag.group.time.slice(0, 5)}
+                        </div>
+                      )}
+                      {ag.group.size > 1 && (
+                        <div style={{ fontSize: `${metaFontSize}px`, fontWeight: '600' }}>
+                          👥 {ag.group.size}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                ))
+                ]
               })
             )}
             {preview && preview.positions.map((pos, pidx) => (
@@ -2435,6 +2843,33 @@ export default function Room() {
           )}
         </div>
       )}
+
+      {/* Save Toast Notification */}
+      {saveToast && (
+        <div style={{
+          position: 'fixed',
+          bottom: '20px',
+          right: '20px',
+          padding: '14px 20px',
+          background: saveToast.type === 'success' 
+            ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)'
+            : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+          color: 'white',
+          borderRadius: '8px',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+          fontSize: '14px',
+          fontWeight: '600',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          animation: 'slideIn 0.3s ease-out',
+          zIndex: 9999
+        }}>
+          <span>{saveToast.type === 'success' ? '✓' : '✕'}</span>
+          <span>{saveToast.message}</span>
+        </div>
+      )}
+
       {tableSelectModal && (
         <div className="modal">
           <div className="modal-content" style={{ minWidth: 400 }}>
@@ -2535,7 +2970,7 @@ export default function Room() {
                         if (totalOcc + g.size > table.capacity) continue
                         const placement = tryPlaceOnTable(table, g, occ)
                         if (placement) {
-                          const cells = getPositionsForSize(g.size, placement.rotation, table.width, table.height)
+                          const cells = getPositionsForSize(g.size, placement.rotation, table.width, table.height, table.rotation)
                           for (const c of cells) occ.add(`${placement.x + c.x},${placement.y + c.y}`)
                           placed.push({ group: g, rotation: placement.rotation, locked: false, x: placement.x, y: placement.y, color: PALETTE[0] })
                           totalOcc += g.size
@@ -3187,7 +3622,7 @@ export default function Room() {
             </div>
             {csvFile && (
               <div style={{ padding: '8px 12px', background: '#e0f2fe', borderRadius: '6px', marginBottom: '12px', color: '#0ea5e9', fontWeight: 600 }}>
-                Gewählt: {csvFile.name}
+                Gewählt: {csvFile.name} {csvFileEncoding && `(${csvFileEncoding})`}
               </div>
             )}
             {csvPreview.length > 0 ? (
@@ -3245,7 +3680,7 @@ export default function Room() {
               <span style={{ fontSize: '13px', color: '#475569' }}>{csvPreview.length} Zeilen bereit</span>
               <div style={{ display: 'flex', gap: '8px', flex: 1, justifyContent: 'flex-end' }}>
                 <button
-                  onClick={() => { setShowCsvImportModal(false); setCsvFile(null); setCsvPreview([]) }}
+                  onClick={() => { setShowCsvImportModal(false); setCsvFile(null); setCsvFileEncoding(null); setCsvPreview([]) }}
                   style={{
                     padding: '10px 14px',
                     background: 'white',
@@ -3354,6 +3789,7 @@ export default function Room() {
           </div>
         </div>
       )}
+      {/* Der separate Drucken-Button am Seitenrand wurde entfernt, da das Druckersymbol verwendet wird */}
     </div>
   )
 }

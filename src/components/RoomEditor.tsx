@@ -1,14 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-
-type Table = {
-  id: string
-  x: number
-  y: number
-  capacity: number
-  width: number
-  height: number
-}
+import type { Table } from '../types/room'
 
 type ViewFrame = { x: number; y: number; width: number; height: number }
 
@@ -32,7 +24,8 @@ export default function RoomEditor() {
   const gridRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
 
-  const gridSize = 20
+  const gridWidth = 28
+  const gridHeight = 20
   const cellSize = 40
 
   // Keyboard: rotate selected table with 'R', delete with 'Delete'
@@ -41,7 +34,12 @@ export default function RoomEditor() {
       if (!selectedTableId) return
       if (e.key === 'r' || e.key === 'R') {
         e.preventDefault()
-        setTables(prev => prev.map(t => t.id === selectedTableId ? { ...t, width: t.height, height: t.width } : t))
+        setTables(prev => prev.map(t => {
+          if (t.id === selectedTableId) {
+            return { ...t, rotation: ((t.rotation ?? 0) + 1) % 4 }
+          }
+          return t
+        }))
       } else if (e.key === 'Delete') {
         e.preventDefault()
         setTables(prev => prev.filter(t => t.id !== selectedTableId))
@@ -80,8 +78,8 @@ export default function RoomEditor() {
     const height = 2
     const newTable: Table = {
       id: `T${nextId}`,
-      x: Math.floor(Math.random() * (gridSize - width)),
-      y: Math.floor(Math.random() * (gridSize - height)),
+      x: Math.floor(Math.random() * (gridWidth - width)),
+      y: Math.floor(Math.random() * (gridHeight - height)),
       capacity,
       width,
       height
@@ -104,7 +102,7 @@ export default function RoomEditor() {
     const rect = gridRef.current!.getBoundingClientRect()
     const x = Math.floor((e.clientX - rect.left) / cellSize)
     const y = Math.floor((e.clientY - rect.top) / cellSize)
-    setTables(tables.map(t => t.id === tableId ? { ...t, x: Math.max(0, Math.min(gridSize - t.width, x)), y: Math.max(0, Math.min(gridSize - t.height, y)) } : t))
+    setTables(tables.map(t => t.id === tableId ? { ...t, x: Math.max(0, Math.min(gridWidth - t.width, x)), y: Math.max(0, Math.min(gridHeight - t.height, y)) } : t))
     setDraggingTable(null)
     setDragPreviewPos(null)
   }
@@ -128,8 +126,8 @@ export default function RoomEditor() {
     const rect = gridRef.current.getBoundingClientRect()
     const x = Math.floor((e.clientX - rect.left) / cellSize)
     const y = Math.floor((e.clientY - rect.top) / cellSize)
-    const clampedX = Math.max(0, Math.min(gridSize - draggingTable.width, x))
-    const clampedY = Math.max(0, Math.min(gridSize - draggingTable.height, y))
+    const clampedX = Math.max(0, Math.min(gridWidth - draggingTable.width, x))
+    const clampedY = Math.max(0, Math.min(gridHeight - draggingTable.height, y))
     setDragPreviewPos({ x: clampedX, y: clampedY })
   }
 
@@ -153,7 +151,7 @@ export default function RoomEditor() {
     const rect = gridRef.current.getBoundingClientRect()
     const x = Math.floor(((e as any).clientX - rect.left) / cellSize)
     const y = Math.floor(((e as any).clientY - rect.top) / cellSize)
-    if (x < 0 || y < 0 || x >= gridSize || y >= gridSize) return null
+    if (x < 0 || y < 0 || x >= gridWidth || y >= gridHeight) return null
     return { x, y }
   }
 
@@ -346,12 +344,12 @@ export default function RoomEditor() {
             onMouseDown={startFrame}
             style={{
               display: 'grid',
-              gridTemplateColumns: `repeat(${gridSize}, ${cellSize}px)`,
-              gridTemplateRows: `repeat(${gridSize}, ${cellSize}px)`,
+              gridTemplateColumns: `repeat(${gridWidth}, ${cellSize}px)`,
+              gridTemplateRows: `repeat(${gridHeight}, ${cellSize}px)`,
               border: '2px solid #e2e8f0',
               borderRadius: '12px',
-              width: gridSize * cellSize + 'px',
-              height: gridSize * cellSize + 'px',
+              width: gridWidth * cellSize + 'px',
+              height: gridHeight * cellSize + 'px',
               position: 'relative',
               background: 'white',
               boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
