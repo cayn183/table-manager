@@ -450,6 +450,36 @@ export default function Room() {
     return result
   }, [assignedGroups, room])
 
+  // Globales Label-Außenmaß (außer 1er), orientiert an der größten Breite
+  const labelBoxMax = useMemo(() => {
+    if (!room) return { width: 0, height: 0 }
+    let maxWidth = 0
+    let maxHeight = 0
+
+    Object.entries(assignedGroups).forEach(([tableId, ags]) => {
+      const table = room.tables.find(t => t.id === tableId)
+      if (!table) return
+      ags.forEach(ag => {
+        if (ag.group.size === 1) return
+        const positions = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height, table.rotation)
+        const columns = positions.map(pos => table.x + ag.x + pos.x)
+        const rows = positions.map(pos => table.y + ag.y + pos.y)
+        const minColumn = Math.min(...columns)
+        const maxColumn = Math.max(...columns)
+        const minRow = Math.min(...rows)
+        const maxRow = Math.max(...rows)
+        const bboxWidth = (maxColumn - minColumn + 1) * CELL_SIZE
+        const bboxHeight = (maxRow - minRow + 1) * CELL_SIZE
+        const candidateWidth = Math.max(18, bboxWidth - 6)
+        const candidateHeight = Math.max(16, bboxHeight - 4)
+        if (candidateWidth > maxWidth) maxWidth = candidateWidth
+        if (candidateHeight > maxHeight) maxHeight = candidateHeight
+      })
+    })
+
+    return { width: maxWidth, height: maxHeight }
+  }, [assignedGroups, room])
+
   // Track dirty state: when groups or assignedGroups change, mark as dirty and clamp pagination
   useEffect(() => {
     setIsDirty(true)
@@ -2075,54 +2105,188 @@ export default function Room() {
                 const table = room.tables.find(t => t.id === tableId)
                 if (!table) return null
                 const positions = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height, table.rotation)
-                return positions.map((pos, pidx) => (
+                const gridCells = positions.map((pos, pidx) => {
+                  const col0 = table.x + ag.x + pos.x
+                  const row0 = table.y + ag.y + pos.y
+                  return { col0, row0, pidx }
+                })
+                const columns = gridCells.map(c => c.col0)
+                const rows = gridCells.map(c => c.row0)
+                const minColumn = Math.min(...columns)
+                const maxColumn = Math.max(...columns)
+                const minRow = Math.min(...rows)
+                const maxRow = Math.max(...rows)
+                const bboxWidth = (maxColumn - minColumn + 1) * CELL_SIZE
+                const bboxHeight = (maxRow - minRow + 1) * CELL_SIZE
+                const uniqueColumns = new Set(columns)
+                const uniqueRows = new Set(rows)
+                const isVerticalTwo = ag.group.size === 2 && uniqueColumns.size === 1 && uniqueRows.size === 2
+
+                // ------------------------------------------------------------------
+                // LABEL POSITIONING
+                // - size 3: center over the two horizontal cells (same row)
+                // - others: use centroid of all occupied cells
+                // ------------------------------------------------------------------
+                const defaultCenterX = gridCells.reduce((sum, c) => sum + (c.col0 + 0.5) * CELL_SIZE, 0) / gridCells.length
+                const defaultCenterY = gridCells.reduce((sum, c) => sum + (c.row0 + 0.5) * CELL_SIZE, 0) / gridCells.length
+
+                let centerX = defaultCenterX
+                let centerY = defaultCenterY
+
+                if (ag.group.size === 3) {
+                  // Find the row that has the horizontal pair
+                  const rowGroups = new Map<number, number[]>()
+                  for (const cell of gridCells) {
+                    const cols = rowGroups.get(cell.row0) ?? []
+                    cols.push(cell.col0)
+                    rowGroups.set(cell.row0, cols)
+                  }
+
+                  let bestRow: number | null = null
+                  let bestCols: number[] = []
+
+                  for (const [row, cols] of rowGroups.entries()) {
+                    if (cols.length >= 2 && cols.length > bestCols.length) {
+                      bestRow = row
+                      bestCols = cols
+                    }
+                  }
+
+                  if (bestRow !== null && bestCols.length >= 2) {
+                    const minCol = Math.min(...bestCols)
+                    const maxCol = Math.max(...bestCols)
+                    centerX = (minCol + maxCol + 1) * CELL_SIZE / 2
+                    centerY = (bestRow + 0.5) * CELL_SIZE
+                  }
+                }
+
+                // ------------------------------------------------------------------
+                // LABEL SIZING & COLORS
+                // ------------------------------------------------------------------
+                const displayName = ag.group.name
+                const defaultLabelWidth = Math.max(18, bboxWidth - 6)
+                const defaultLabelHeight = Math.max(16, bboxHeight - 4)
+                const labelMaxWidth = ag.group.size === 1
+                  ? defaultLabelWidth
+                  : (labelBoxMax.width || defaultLabelWidth)
+                const labelMaxHeight = ag.group.size === 1
+                  ? defaultLabelHeight
+                  : (labelBoxMax.height || defaultLabelHeight)
+                const labelColor = assignedColors[tableId]?.[idx] || paletteColor(PALETTE[0])
+
+                // Name font size: responsive but clamped to min/max
+                const baseNameSize = Math.round(getResponsiveFontSize(displayName) * 0.6)
+                const approxCharWidth = 0.6
+                const maxSizeByWidth = Math.floor((labelMaxWidth - 4) / Math.max(displayName.length, 1) / approxCharWidth)
+                const nameFontSize = Math.max(5, Math.min(9, baseNameSize, maxSizeByWidth))
+
+                // Meta font size: keep consistent (fixed), except for size 1
+                const useCompactName = ag.group.size === 1 || isVerticalTwo
+                const metaFontSize = useCompactName ? 5 : 6
+
+                return [
+                  ...gridCells.map(({ col0, row0, pidx }) => (
+                    <div
+                      key={`${tableId}-${idx}-${pidx}`}
+                      draggable={!ag.locked}
+                      onDragStart={e => {
+                        if (!ag.locked) {
+                          e.dataTransfer.setData('text/plain', JSON.stringify({ tableId, agIdx: idx, ...ag.group }))
+                          setDraggingGroup({ group: ag.group, rotation: ag.rotation })
+                          setDraggingMeta({ tableId, agIdx: idx })
+                          setPreviewRotation(ag.rotation)
+                        }
+                      }}
+                      onContextMenu={e => {
+                        e.preventDefault()
+                        setContextMenu({ x: e.clientX, y: e.clientY, tableId, agIdx: idx, isList: false })
+                      }}
+                      style={{
+                        gridColumn: col0 + 1,
+                        gridRow: row0 + 1,
+                        background: assignedColors[tableId]?.[idx] || paletteColor(PALETTE[0]),
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '9px',
+                        cursor: ag.locked ? 'default' : 'move',
+                        zIndex: 10,
+                        border: '1px solid rgba(0,0,0,0.15)',
+                        borderRadius: '6px',
+                        padding: '4px',
+                        textAlign: 'center',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.12)'
+                      }}
+                      onDoubleClick={() => {
+                        setAssignedGroups({
+                          ...assignedGroups,
+                          [tableId]: ags.map(a => a === ag ? { ...a, locked: !a.locked } : a)
+                        })
+                      }}
+                    />
+                  )),
                   <div
-                    key={`${tableId}-${idx}-${pidx}`}
-                    draggable={!ag.locked}
-                    onDragStart={e => {
-                      if (!ag.locked) {
-                        e.dataTransfer.setData('text/plain', JSON.stringify({ tableId, agIdx: idx, ...ag.group }))
-                        setDraggingGroup({ group: ag.group, rotation: ag.rotation })
-                        setDraggingMeta({ tableId, agIdx: idx })
-                        setPreviewRotation(ag.rotation)
-                      }
-                    }}
-                    onContextMenu={e => {
-                      e.preventDefault()
-                      setContextMenu({ x: e.clientX, y: e.clientY, tableId, agIdx: idx, isList: false })
-                    }}
+                    key={`${tableId}-${idx}-label`}
                     style={{
-                      gridColumn: (table.x + ag.x + pos.x + 1),
-                      gridRow: (table.y + ag.y + pos.y + 1),
-                      background: assignedColors[tableId]?.[idx] || paletteColor(PALETTE[0]),
+                      position: 'absolute',
+                      left: `${centerX}px`,
+                      top: `${centerY}px`,
+                      transform: 'translate(-50%, -50%)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: '9px',
-                      cursor: ag.locked ? 'default' : 'move',
-                      zIndex: 10,
-                      border: '1px solid rgba(0,0,0,0.15)',
-                      borderRadius: '6px',
-                      padding: '4px',
-                      textAlign: 'center',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.12)'
-                    }}
-                    onDoubleClick={() => {
-                      setAssignedGroups({
-                        ...assignedGroups,
-                        [tableId]: ags.map(a => a === ag ? { ...a, locked: !a.locked } : a)
-                      })
+                      zIndex: 15,
+                      pointerEvents: 'none'
                     }}
                   >
-                    {pidx === 0 ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', width: '100%', height: '100%', textAlign: 'center', overflow: 'hidden' }}>
-                        <div style={{ fontSize: '7px', fontWeight: '700', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'normal', maxWidth: '100%', letterSpacing: '0.2px', wordBreak: 'break-word', lineHeight: '1.1' }}>{ag.locked ? '🔒 ' : ''}{ag.group.name}</div>
-                        {ag.group.time && <div style={{ fontSize: '6px', opacity: 0.9, lineHeight: '1' }}>🕐 {ag.group.time.slice(0, 5)}</div>}
-                        <div style={{ fontSize: '7px', fontWeight: '600' }}>👥 {ag.group.size}</div>
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '3px',
+                      padding: ag.group.size <= 3 ? '1px 3px' : '2px 4px',
+                      maxWidth: `${labelMaxWidth}px`,
+                      maxHeight: `${labelMaxHeight}px`,
+                      overflow: 'hidden',
+                      borderRadius: '6px',
+                      background: '#ffffff',
+                      textAlign: 'center'
+                    }}>
+                      {/* Name */}
+                      <div
+                        style={{
+                          fontSize: `${nameFontSize}px`,
+                          fontWeight: '700',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: useCompactName ? 'normal' : 'normal',
+                          display: useCompactName ? '-webkit-box' : 'block',
+                          WebkitLineClamp: useCompactName ? 2 : 'unset',
+                          WebkitBoxOrient: useCompactName ? 'vertical' : 'unset',
+                          maxWidth: '100%',
+                          letterSpacing: '0.2px',
+                          wordBreak: 'break-word',
+                          lineHeight: '1.1'
+                        }}
+                      >
+                        {ag.locked ? '🔒 ' : ''}{displayName}
                       </div>
-                    ) : ''}
+
+                      {/* Meta info (fixed sizes) */}
+                      {ag.group.time && (
+                        <div style={{ fontSize: `${metaFontSize}px`, lineHeight: '1' }}>
+                          🕐 {ag.group.time.slice(0, 5)}
+                        </div>
+                      )}
+                      {ag.group.size > 1 && (
+                        <div style={{ fontSize: `${metaFontSize}px`, fontWeight: '600' }}>
+                          👥 {ag.group.size}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                ))
+                ]
               })
             )}
             {preview && preview.positions.map((pos, pidx) => (
