@@ -2129,7 +2129,7 @@ export default function Room() {
                 const displayName = ag.group.name
                 const defaultLabelWidth = Math.max(18, bboxWidth - 6)
                 const defaultLabelHeight = Math.max(16, bboxHeight - 4)
-                const labelMaxWidth = ag.group.size === 1
+                const labelMaxWidth = ag.group.size === 1 || isVerticalTwo
                   ? defaultLabelWidth
                   : (labelBoxMax.width || defaultLabelWidth)
                 const labelMaxHeight = ag.group.size === 1
