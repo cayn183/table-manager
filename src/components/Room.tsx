@@ -7,6 +7,7 @@ import Importer, { Group } from './Importer'
 import Papa from 'papaparse'
 import { bestFitAssign } from '../utils/placement'
 import type { Table, Room as RoomType, AssignedGroup, DraggingMeta } from '../types/room'
+import { generateOptimalSeating, getPerpendicularOrientation } from '../utils/layoutUtils'
 import {
   PALETTE,
   TOGO_COLOR,
@@ -14,6 +15,7 @@ import {
   GRID_WIDTH,
   CELL_SIZE,
   paletteColor,
+  STORAGE_KEY,
   getPositionsForSize,
   isValidPosition,
   positionsAreConnected,
@@ -84,6 +86,7 @@ export default function Room() {
   const [newGroupTime, setNewGroupTime] = useState('')
   const [newGroupToGo, setNewGroupToGo] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tableId: string; agIdx: number; isList: boolean; listIdx?: number; isAssignedList?: boolean } | null>(null)
+  const [tableContextMenu, setTableContextMenu] = useState<{ x: number; y: number; tableId: string } | null>(null)
   const [editModal, setEditModal] = useState<{ tableId: string; agIdx: number; isList: boolean; listIdx?: number } | null>(null)
   const [resizeModal, setResizeModal] = useState<{ tableId: string; agIdx: number; maxSize: number } | null>(null)
   const [resizeValue, setResizeValue] = useState('1')
@@ -123,6 +126,35 @@ export default function Room() {
     skipAg?: AssignedGroup
   ): number => {
     const debug = typeof window !== 'undefined' && localStorage.getItem('debugPlacement') === '1'
+    const isVertical = getPerpendicularOrientation(table.rotation ?? 0) === 'VERTICAL'
+    const countIsolatedGaps = (occ: Set<string>) => {
+      let gaps = 0
+      for (let ty = 0; ty < table.height; ty++) {
+        for (let tx = 0; tx < table.width; tx++) {
+          const key = `${tx},${ty}`
+          if (!occ.has(key)) {
+            const emptyNeighbors = [
+              `${tx - 1},${ty}`,
+              `${tx + 1},${ty}`,
+              `${tx},${ty - 1}`,
+              `${tx},${ty + 1}`
+            ].filter(nk => {
+              const [nx, ny] = nk.split(',').map(Number)
+              return nx >= 0 && nx < table.width && ny >= 0 && ny < table.height && !occ.has(nk)
+            }).length
+
+            if (emptyNeighbors === 0) {
+              gaps += 3
+            } else if (emptyNeighbors === 1) {
+              gaps += 2
+            } else if (emptyNeighbors === 2) {
+              gaps += 1
+            }
+          }
+        }
+      }
+      return gaps
+    }
     // Build occupied set for scoring
     const occupied = new Set<string>()
     for (const ag of (currentAssigned[table.id] || [])) {
@@ -132,6 +164,7 @@ export default function Room() {
         occupied.add(`${ag.x + pos.x},${ag.y + pos.y}`)
       }
     }
+    const isolatedGapsBefore = countIsolatedGaps(occupied)
 
     let bestRotation = 0
     let bestScore = -Infinity
@@ -192,36 +225,8 @@ export default function Room() {
         tempOccupied.add(`${targetX + pos.x},${targetY + pos.y}`)
       }
 
-      // Count isolated empty cells (gaps with few empty neighbors)
-      let isolatedGaps = 0
-      let totalGaps = 0
-      for (let ty = 0; ty < table.height; ty++) {
-        for (let tx = 0; tx < table.width; tx++) {
-          const key = `${tx},${ty}`
-          if (!tempOccupied.has(key)) {
-            totalGaps++
-            const emptyNeighbors = [
-              `${tx - 1},${ty}`,
-              `${tx + 1},${ty}`,
-              `${tx},${ty - 1}`,
-              `${tx},${ty + 1}`
-            ].filter(nk => {
-              const [nx, ny] = nk.split(',').map(Number)
-              return nx >= 0 && nx < table.width && ny >= 0 && ny < table.height && !tempOccupied.has(nk)
-            }).length
-
-            // Heavily penalize isolated single cells
-            if (emptyNeighbors === 0) {
-              isolatedGaps += 3 // Completely isolated
-            } else if (emptyNeighbors === 1) {
-              isolatedGaps += 2 // Nearly isolated
-            } else if (emptyNeighbors === 2) {
-              isolatedGaps += 1 // Somewhat isolated
-            }
-          }
-        }
-      }
-      score -= isolatedGaps * 10 // Strong penalty for fragmentation
+      const isolatedGapsAfter = countIsolatedGaps(tempOccupied)
+      score -= isolatedGapsAfter * 10 // Strong penalty for fragmentation
 
       // 3. Compactness bonus: prefer arrangements that cluster people together
       // Count how many positions touch each other within the group
@@ -238,6 +243,27 @@ export default function Room() {
         }
       }
       score += internalAdjacency * 4
+
+      // 2-person preference: opposite first, adjacent only if it fills gaps
+      if (positions.length === 2) {
+        const [a, b] = positions
+        const gapReduction = isolatedGapsBefore - isolatedGapsAfter
+        if (isVertical) {
+          const isOpposite = a.y === b.y && a.x !== b.x
+          const isAdjacent = a.x === b.x && Math.abs(a.y - b.y) === 1
+          const isDiagonal = a.x !== b.x && a.y !== b.y
+          if (isOpposite) score += 30
+          if (isAdjacent) score += gapReduction > 0 ? 4 : -18
+          if (isDiagonal) score -= 8
+        } else {
+          const isOpposite = a.x === b.x && a.y !== b.y
+          const isAdjacent = a.y === b.y && Math.abs(a.x - b.x) === 1
+          const isDiagonal = a.x !== b.x && a.y !== b.y
+          if (isOpposite) score += 30
+          if (isAdjacent) score += gapReduction > 0 ? 4 : -18
+          if (isDiagonal) score -= 8
+        }
+      }
 
       validRotations.push({ rot, score })
       if (debug) {
@@ -499,6 +525,7 @@ export default function Room() {
     const y = Math.floor((coords.clientY - rect.top) / (CELL_SIZE * mapScale))
     const table = room.tables.find(t => x >= t.x && x < t.x + t.width && y >= t.y && y < t.y + t.height)
     if (!table) return null
+    if (table.locked) return null
 
     let relX = x - table.x
     let relY = y - table.y
@@ -552,6 +579,31 @@ export default function Room() {
     setHeldCursor(null)
   }, [])
 
+  const toggleTableLock = useCallback((tableId: string) => {
+    if (!room) return
+    const target = room.tables.find(t => t.id === tableId)
+    const nextLocked = !target?.locked
+    const nextRoom: RoomType = {
+      ...room,
+      tables: room.tables.map(t => t.id === tableId ? { ...t, locked: !t.locked } : t)
+    }
+    setRoom(nextRoom)
+    if (nextLocked) {
+      setSelectedAssignedKeys(prev => {
+        const next = new Set<string>()
+        prev.forEach(k => {
+          if (!k.startsWith(`${tableId}|`)) next.add(k)
+        })
+        return next
+      })
+    }
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(nextRoom))
+    } catch (err) {
+      console.error('Tisch-Sperre konnte nicht gespeichert werden', err)
+    }
+  }, [room])
+
   const placeDraggingGroup = useCallback((coords: { clientX: number; clientY: number }) => {
     if (!draggingGroup || !room) return
     const placement = computePlacementFromClient(coords)
@@ -561,6 +613,10 @@ export default function Room() {
     }
 
     const { table, relX, relY, rotation, skipAg } = placement
+    if (table.locked) {
+      cancelDragging()
+      return
+    }
 
     if (draggingMeta?.tableId) {
       // Bewegung von existierender Gruppe
@@ -958,6 +1014,8 @@ export default function Room() {
   function autoAssign() {
     if (!room) return
     const tables = room.tables
+    const lockedTables = tables.filter(t => t.locked)
+    const tablesForAssign = tables.filter(t => !t.locked)
 
     const availableMovable = groups.filter(g => !g.toGo)
     const toGoAvail = groups.filter(g => g.toGo)
@@ -966,7 +1024,7 @@ export default function Room() {
 
     const lockedByTable: Record<string, AssignedGroup[]> = {}
     const previouslyPlaced: AssignedGroup[] = []
-    for (const t of tables) {
+    for (const t of tablesForAssign) {
       const ags = assignedGroups[t.id] || []
       lockedByTable[t.id] = ags.filter(a => a.locked)
       previouslyPlaced.push(...ags.filter(a => !a.locked && !a.group.toGo))
@@ -974,7 +1032,7 @@ export default function Room() {
 
     const prevKeys = new Set(previouslyPlaced.map(ag => groupKey(ag.group)))
     const movable = [...availableMovable, ...previouslyPlaced.map(ag => ag.group)]
-    const { nextByTable: proposal, placedKeys, notPlaced } = greedyReLayout(tables, lockedByTable, movable)
+    const { nextByTable: proposal, placedKeys, notPlaced } = greedyReLayout(tablesForAssign, lockedByTable, movable)
     const lostSomePrev = [...prevKeys].some(k => !placedKeys.has(k))
 
     let finalAssigned: Record<string, AssignedGroup[]>
@@ -985,8 +1043,8 @@ export default function Room() {
       finalAvailable = notPlaced
     } else {
       const keepByTable: Record<string, AssignedGroup[]> = {}
-      for (const t of tables) keepByTable[t.id] = [...(assignedGroups[t.id] || [])]
-      const { nextByTable, notPlaced: remaining } = fillOnly(tables, keepByTable, availableMovable)
+      for (const t of tablesForAssign) keepByTable[t.id] = [...(assignedGroups[t.id] || [])]
+      const { nextByTable, notPlaced: remaining } = fillOnly(tablesForAssign, keepByTable, availableMovable)
       finalAssigned = nextByTable
       finalAvailable = remaining
     }
@@ -1006,7 +1064,8 @@ export default function Room() {
     }
 
     const nextAssigned: Record<string, AssignedGroup[]> = {}
-    for (const t of tables) nextAssigned[t.id] = finalAssigned[t.id] || []
+    for (const t of tablesForAssign) nextAssigned[t.id] = finalAssigned[t.id] || []
+    for (const t of lockedTables) nextAssigned[t.id] = [...(assignedGroups[t.id] || [])]
     nextAssigned['TOGO'] = togoEntries
 
     setAssignedGroups(nextAssigned)
@@ -1739,6 +1798,7 @@ export default function Room() {
                       const displaySalutation = salutation === 'Fam' ? 'Fam.' : salutation
                       const displayName = `${displaySalutation} ${ag.group.name}`
                       const isToGo = tableId === 'TOGO'
+                      const tableLocked = !isToGo && !!room?.tables.find(t => t.id === tableId)?.locked
                       const key = assignedKey(tableId, idx)
                       const isSelected = selectedAssignedKeys.has(key)
                       const fontSize = getResponsiveFontSize(displayName)
@@ -1758,6 +1818,7 @@ export default function Room() {
                           onMouseOver={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'}
                           onMouseOut={e => e.currentTarget.style.boxShadow = 'none'}
                           onClick={() => {
+                            if (tableLocked) return
                             if (!multiSelectAssigned) return
                             setSelectedAssignedKeys(prev => {
                               const next = new Set(prev)
@@ -1766,6 +1827,7 @@ export default function Room() {
                             })
                           }}
                           onDoubleClick={() => {
+                            if (tableLocked) return
                             if (!multiSelectAssigned) return
                             const k = key
                             setSelectedAssignedKeys(prev => {
@@ -1776,6 +1838,7 @@ export default function Room() {
                           }}
                           onContextMenu={e => {
                             e.preventDefault()
+                            if (tableLocked) return
                             if (multiSelectAssigned) {
                               const k = key
                               setSelectedAssignedKeys(prev => {
@@ -1802,7 +1865,7 @@ export default function Room() {
                             </div>
                             <div style={{ gridColumn: '2 / 3', gridRow: '2 / 3', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
                               <span aria-hidden style={{ fontSize: '13px' }}>{isToGo ? '🥘' : '🪑'}</span>
-                              <span>{isToGo ? 'ToGo' : `Tisch: ${tableId.slice(1)}`}</span>
+                              <span>{isToGo ? 'ToGo' : `${tableLocked ? '🔒 ' : ''}Tisch: ${tableId.slice(1)}`}</span>
                             </div>
                           </div>
                         </div>
@@ -2015,6 +2078,7 @@ export default function Room() {
             {room.tables.map(table => {
               const ags = assignedGroups[table.id] || []
               const occupied = ags.reduce((sum, ag) => sum + ag.group.size, 0)
+              const isTableLocked = !!table.locked
               return (
                 <div
                   key={table.id}
@@ -2022,7 +2086,7 @@ export default function Room() {
                     gridColumn: `${table.x + 1} / span ${table.width}`,
                     gridRow: `${table.y + 1} / span ${table.height}`,
                     background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-                    border: '2px solid #94a3b8',
+                    border: isTableLocked ? '2px solid #ef4444' : '2px solid #94a3b8',
                     display: 'flex',
                     flexDirection: 'column',
                     position: 'relative',
@@ -2039,34 +2103,90 @@ export default function Room() {
                     boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.08)'
                   }}
                 >
-                  <div style={{
-                    fontSize: '10px',
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    color: '#fff',
-                    padding: '4px 10px',
-                    borderRadius: '6px',
-                    fontWeight: '700',
-                    position: 'absolute',
-                    top: '-28px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    textAlign: 'center',
-                    lineHeight: '1.2',
-                    whiteSpace: 'nowrap',
-                    boxShadow: '0 2px 8px rgba(102,126,234,0.3)',
-                    letterSpacing: '0.3px',
-                    zIndex: 5
-                  }}>
-                    🪑 Tisch {table.id.slice(1)} • {occupied}/{table.capacity}
+                  <div
+                    onContextMenu={e => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setContextMenu(null)
+                      setTableContextMenu({ x: e.clientX, y: e.clientY, tableId: table.id })
+                    }}
+                    title={isTableLocked ? 'Rechtsklick: Tisch entsperren' : 'Rechtsklick: Tisch sperren'}
+                    style={{
+                      fontSize: '10px',
+                      background: isTableLocked ? 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      color: '#fff',
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      fontWeight: '700',
+                      position: 'absolute',
+                      top: '-28px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      textAlign: 'center',
+                      lineHeight: '1.2',
+                      whiteSpace: 'nowrap',
+                      boxShadow: isTableLocked ? '0 2px 8px rgba(239,68,68,0.35)' : '0 2px 8px rgba(102,126,234,0.3)',
+                      letterSpacing: '0.3px',
+                      zIndex: 5,
+                      cursor: 'context-menu'
+                    }}
+                  >
+                    {isTableLocked ? '🔒' : '🪑'} Tisch {table.id.slice(1)} • {occupied}/{table.capacity}
                   </div>
                 </div>
               )
+            })}
+            {/* Locked seat placeholders */}
+            {room.tables.filter(t => t.locked).flatMap(table => {
+              const ags = assignedGroups[table.id] || []
+              const occupied = new Set<string>()
+              for (const ag of ags) {
+                const positions = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height, table.rotation)
+                for (const pos of positions) {
+                  occupied.add(`${pos.x},${pos.y}`)
+                }
+              }
+              const seats = generateOptimalSeating(table.capacity, table.width, table.height, table.rotation ?? 0)
+              return seats
+                .filter(pos => !occupied.has(`${pos.x},${pos.y}`))
+                .map((pos, idx) => (
+                  <div
+                    key={`${table.id}-locked-${idx}`}
+                    style={{
+                      gridColumn: table.x + pos.x + 1,
+                      gridRow: table.y + pos.y + 1,
+                      background: '#e2e8f0',
+                      border: '1px dashed #cbd5e1',
+                      borderRadius: '6px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '6px',
+                      color: '#64748b',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.3px',
+                      pointerEvents: 'none',
+                      width: 40,
+                      height: 40,
+                      minWidth: 40,
+                      minHeight: 40,
+                      maxWidth: 40,
+                      maxHeight: 40,
+                      margin: 0,
+                      boxSizing: 'border-box',
+                      padding: 4
+                    }}
+                  >
+                    Gesperrt
+                  </div>
+                ))
             })}
             {/* Render all assigned groups directly on the grid */}
             {Object.entries(assignedGroups).map(([tableId, ags]) =>
               ags.map((ag, idx) => {
                 const table = room.tables.find(t => t.id === tableId)
                 if (!table) return null
+                const tableLocked = !!table.locked
                 const positions = getPositionsForSize(ag.group.size, ag.rotation, table.width, table.height, table.rotation)
                 const gridCells = positions.map((pos, pidx) => {
                   const col0 = table.x + ag.x + pos.x
@@ -2152,12 +2272,13 @@ export default function Room() {
                     <div
                       key={`${tableId}-${idx}-${pidx}`}
                       onClick={() => {
-                        if (!ag.locked) {
+                        if (!ag.locked && !tableLocked) {
                           startPickGroup(ag.group, { tableId, agIdx: idx }, ag.rotation)
                         }
                       }}
                       onContextMenu={e => {
                         e.preventDefault()
+                        if (tableLocked) return
                         setContextMenu({ x: e.clientX, y: e.clientY, tableId, agIdx: idx, isList: false })
                       }}
                       style={{
@@ -2177,6 +2298,7 @@ export default function Room() {
                         boxShadow: '0 1px 3px rgba(0,0,0,0.12)'
                       }}
                       onDoubleClick={() => {
+                        if (tableLocked) return
                         setAssignedGroups({
                           ...assignedGroups,
                           [tableId]: ags.map(a => a === ag ? { ...a, locked: !a.locked } : a)
@@ -2277,6 +2399,52 @@ export default function Room() {
           </div>
         </div>
       </div>
+      {tableContextMenu && (
+        <div
+          className="context-menu"
+          style={{
+            position: 'fixed',
+            left: tableContextMenu.x,
+            top: tableContextMenu.y,
+            background: 'white',
+            border: '1px solid #e2e8f0',
+            borderRadius: '8px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+            zIndex: 9999,
+            overflow: 'hidden',
+            backdropFilter: 'blur(10px)'
+          }}
+          onMouseLeave={() => setTableContextMenu(null)}
+        >
+          {(() => {
+            const isLocked = !!room?.tables.find(t => t.id === tableContextMenu.tableId)?.locked
+            return (
+              <button
+                onClick={() => {
+                  toggleTableLock(tableContextMenu.tableId)
+                  setTableContextMenu(null)
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  background: 'transparent',
+                  color: isLocked ? '#16a34a' : '#ef4444',
+                  border: 'none',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={e => e.currentTarget.style.background = isLocked ? '#f0fdf4' : '#fef2f2'}
+                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+              >
+                {isLocked ? '🔓 Tisch entsperren' : '🔒 Tisch sperren'}
+              </button>
+            )
+          })()}
+        </div>
+      )}
       {contextMenu && (
         <div
           className="context-menu"
@@ -2840,11 +3008,12 @@ export default function Room() {
                 const occupied = current.reduce((sum, a) => sum + a.group.size, 0)
                 const available = table.capacity - occupied
                 const canFit = available >= tableSelectModal.group.size
+                const isLocked = !!table.locked
                 return (
                   <button
                     key={table.id}
                     onClick={() => {
-                      if (tableSelectModal.group.toGo || !canFit) return
+                      if (tableSelectModal.group.toGo || !canFit || isLocked) return
                       setAssignedGroups({
                         ...assignedGroups,
                         [table.id]: [...current, { group: tableSelectModal.group, rotation: 0, locked: false, x: 0, y: 0, color: PALETTE[0] }]
@@ -2854,11 +3023,11 @@ export default function Room() {
                     }}
                     style={{
                       padding: '12px',
-                      background: canFit ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#e2e8f0',
-                      color: canFit ? 'white' : '#94a3b8',
+                      background: isLocked ? '#fee2e2' : (canFit ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#e2e8f0'),
+                      color: isLocked ? '#991b1b' : (canFit ? 'white' : '#94a3b8'),
                       border: 'none',
                       borderRadius: '6px',
-                      cursor: canFit ? 'pointer' : 'not-allowed',
+                      cursor: (!isLocked && canFit) ? 'pointer' : 'not-allowed',
                       fontSize: '13px',
                       fontWeight: '600',
                       transition: 'all 0.2s',
@@ -2868,13 +3037,13 @@ export default function Room() {
                       gap: '4px'
                     }}
                     onMouseOver={e => {
-                      if (canFit) e.currentTarget.style.transform = 'translateY(-2px)'
+                      if (canFit && !isLocked) e.currentTarget.style.transform = 'translateY(-2px)'
                     }}
                     onMouseOut={e => {
                       e.currentTarget.style.transform = 'translateY(0)'
                     }}
                   >
-                    Tisch {table.id.slice(1)}
+                    {isLocked ? '🔒 ' : ''}Tisch {table.id.slice(1)}
                     <span style={{ fontSize: '11px', opacity: 0.8 }}>{occupied}/{table.capacity} Plätze</span>
                   </button>
                 )
@@ -2915,10 +3084,12 @@ export default function Room() {
                 const occupied = current.reduce((sum, a) => sum + a.group.size, 0)
                 const available = table.capacity - occupied
                 const anyFit = batchTableSelectModal.some(g => !g.toGo && g.size <= available)
+                const isLocked = !!table.locked
                 return (
                   <button
                     key={table.id}
                     onClick={() => {
+                      if (isLocked) return
                       const currentAssigned = assignedGroups[table.id] || []
                       let occ = buildOccupied(table, currentAssigned)
                       let totalOcc = currentAssigned.reduce((sum, a) => sum + a.group.size, 0)
@@ -2948,11 +3119,11 @@ export default function Room() {
                     }}
                     style={{
                       padding: '12px',
-                      background: anyFit ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#e2e8f0',
-                      color: anyFit ? 'white' : '#94a3b8',
+                      background: isLocked ? '#fee2e2' : (anyFit ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#e2e8f0'),
+                      color: isLocked ? '#991b1b' : (anyFit ? 'white' : '#94a3b8'),
                       border: 'none',
                       borderRadius: '6px',
-                      cursor: anyFit ? 'pointer' : 'not-allowed',
+                      cursor: (!isLocked && anyFit) ? 'pointer' : 'not-allowed',
                       fontSize: '13px',
                       fontWeight: '600',
                       transition: 'all 0.2s',
@@ -2962,13 +3133,13 @@ export default function Room() {
                       gap: '4px'
                     }}
                     onMouseOver={e => {
-                      if (anyFit) e.currentTarget.style.transform = 'translateY(-2px)'
+                      if (anyFit && !isLocked) e.currentTarget.style.transform = 'translateY(-2px)'
                     }}
                     onMouseOut={e => {
                       e.currentTarget.style.transform = 'translateY(0)'
                     }}
                   >
-                    Tisch {table.id.slice(1)}
+                    {isLocked ? '🔒 ' : ''}Tisch {table.id.slice(1)}
                     <span style={{ fontSize: '11px', opacity: 0.8 }}>{occupied}/{table.capacity} Plätze</span>
                   </button>
                 )
@@ -3015,10 +3186,12 @@ export default function Room() {
                   const occupied = (assignedGroups[tid] || []).reduce((sum, ag) => sum + ag.group.size, 0)
                   const table = room?.tables.find(t => t.id === tid)
                   const capacity = table?.capacity || 10
+                  const isLocked = !!table?.locked
                   return (
                     <button
                       key={tid}
                       onClick={() => {
+                        if (isLocked) return
                         const moveSet = new Set(selectedAssignedKeys)
                         const canFit = capacity >= occupied + batchMoveTableModal.count
                         if (canFit) {
@@ -3047,28 +3220,29 @@ export default function Room() {
                       }}
                       style={{
                         padding: '12px 10px',
-                        background: '#f1f5f9',
-                        color: '#1e293b',
-                        border: '2px solid #cbd5e1',
+                        background: isLocked ? '#fee2e2' : '#f1f5f9',
+                        color: isLocked ? '#991b1b' : '#1e293b',
+                        border: isLocked ? '2px solid #fecaca' : '2px solid #cbd5e1',
                         borderRadius: '8px',
-                        cursor: 'pointer',
+                        cursor: isLocked ? 'not-allowed' : 'pointer',
                         fontSize: '13px',
                         fontWeight: '600',
                         transition: 'all 0.2s',
                         textAlign: 'center'
                       }}
                       onMouseOver={e => {
+                        if (isLocked) return
                         e.currentTarget.style.background = '#0ea5e9'
                         e.currentTarget.style.color = 'white'
                         e.currentTarget.style.borderColor = '#0ea5e9'
                       }}
                       onMouseOut={e => {
-                        e.currentTarget.style.background = '#f1f5f9'
-                        e.currentTarget.style.color = '#1e293b'
-                        e.currentTarget.style.borderColor = '#cbd5e1'
+                        e.currentTarget.style.background = isLocked ? '#fee2e2' : '#f1f5f9'
+                        e.currentTarget.style.color = isLocked ? '#991b1b' : '#1e293b'
+                        e.currentTarget.style.borderColor = isLocked ? '#fecaca' : '#cbd5e1'
                       }}
                     >
-                      T{tableNum} ({occupied}/{capacity})
+                      {isLocked ? '🔒 ' : ''}T{tableNum} ({occupied}/{capacity})
                     </button>
                   )
                 })}
@@ -3076,7 +3250,16 @@ export default function Room() {
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
                 onClick={() => setBatchMoveTableModal(null)}
-                style={{ flex: 1, padding: '10px 14px', background: 'white', color: '#64748b', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}
+                style={{
+                  flex: 1,
+                  padding: '10px 14px',
+                  background: 'white',
+                  color: '#64748b',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
               >Abbrechen</button>
             </div>
           </div>
@@ -3092,21 +3275,21 @@ export default function Room() {
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
                 onClick={() => setBatchRemoveAssignmentModal(null)}
-                style={{ flex: 1, padding: '10px 14px', background: 'white', color: '#64748b', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}
+                style={{
+                  flex: 1,
+                  padding: '10px 14px',
+                  background: 'white',
+                  color: '#64748b',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
               >Abbrechen</button>
               <button
                 onClick={() => {
                   const removeSet = new Set(selectedAssignedKeys)
-                  const itemsToRestore: Group[] = []
-                  // Sammle alle Gruppen die wiederhergestellt werden sollen
-                  Object.entries(assignedGroups).forEach(([tid, arr]) => {
-                    arr.forEach((ag, i) => {
-                      if (removeSet.has(assignedKey(tid, i))) {
-                        itemsToRestore.push(ag.group)
-                      }
-                    })
-                  })
-                  // Entferne die Gruppen aus assignedGroups
+                  // Entferne die ausgewählten Gruppen aus assignedGroups
                   setAssignedGroups(prev => {
                     const next: typeof prev = {}
                     Object.entries(prev).forEach(([tid, arr]) => {
@@ -3114,13 +3297,21 @@ export default function Room() {
                     })
                     return next
                   })
-                  // Füge sie zur verfügbaren Liste hinzu
-                  setGroups(prev => [...prev, ...itemsToRestore])
                   setSelectedAssignedKeys(new Set())
                   setMultiSelectAssigned(false)
                   setBatchRemoveAssignmentModal(null)
+                  setIsDirty(true)
                 }}
-                style={{ flex: 1, padding: '10px 14px', background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '700' }}
+                style={{
+                  flex: 1,
+                  padding: '10px 14px',
+                  background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '700'
+                }}
               >
                 Ja, entfernen
               </button>
@@ -3302,12 +3493,8 @@ export default function Room() {
                     fontWeight: '600',
                     transition: 'all 0.2s'
                   }}
-                  onMouseOver={e => {
-                    e.currentTarget.style.background = '#f1f5f9'
-                  }}
-                  onMouseOut={e => {
-                    e.currentTarget.style.background = 'white'
-                  }}
+                  onMouseOver={e => e.currentTarget.style.background = '#f1f5f9'}
+                  onMouseOut={e => e.currentTarget.style.background = 'white'}
                 >
                   Abbrechen
                 </button>
@@ -3484,7 +3671,7 @@ export default function Room() {
                   placeholder="z.B. 4"
                   value={resizeValue}
                   onChange={e => setResizeValue(e.target.value)}
-                  min="1"
+                  min={1}
                   max={resizeModal.maxSize}
                   style={{
                     width: '100%',

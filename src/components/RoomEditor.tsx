@@ -116,7 +116,8 @@ export default function RoomEditor() {
       y: Math.floor(Math.random() * (gridHeight - height)),
       capacity,
       width,
-      height
+      height,
+      locked: false
     }
     setTables([...tables, newTable])
     setNextId(nextId + 1)

@@ -9,6 +9,7 @@ export type Table = {
   width: number
   height: number
   rotation?: number  // 0 = 0°, 1 = 90°, 2 = 180°, 3 = 270°
+  locked?: boolean
 }
 
 export type ViewFrame = {
