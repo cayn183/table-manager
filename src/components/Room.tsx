@@ -96,6 +96,8 @@ export default function Room() {
   const [draggingGroup, setDraggingGroup] = useState<{ group: Group; rotation: number } | null>(null)
   const [draggingMeta, setDraggingMeta] = useState<DraggingMeta>(null)
   const [previewRotation, setPreviewRotation] = useState<number>(0)
+  const [rotationOverride, setRotationOverride] = useState<number | null>(null)
+  const [heldCursor, setHeldCursor] = useState<{ x: number; y: number } | null>(null)
   const [editName, setEditName] = useState('')
   const [editSalutation, setEditSalutation] = useState<'Fam' | 'Frau' | 'Herr'>('Fam')
   const [editSize, setEditSize] = useState('')
@@ -487,40 +489,141 @@ export default function Room() {
     setAssignedPage(prev => Math.min(prev, totalPages - 1))
   }, [groups, assignedGroups])
 
-  const updatePreviewPosition = useCallback((coords: { clientX: number; clientY: number }) => {
-    if (!draggingGroup || !room) return
+  const computePlacementFromClient = useCallback((coords: { clientX: number; clientY: number }) => {
+    if (!draggingGroup || !room) return null
     const gridElement = document.querySelector('.grid') as HTMLElement
-    if (!gridElement) return
+    if (!gridElement) return null
 
     const rect = gridElement.getBoundingClientRect()
     const x = Math.floor((coords.clientX - rect.left) / (CELL_SIZE * mapScale))
     const y = Math.floor((coords.clientY - rect.top) / (CELL_SIZE * mapScale))
     const table = room.tables.find(t => x >= t.x && x < t.x + t.width && y >= t.y && y < t.y + t.height)
-    if (!table) { setDragOverPosition(null); return }
+    if (!table) return null
 
     let relX = x - table.x
     let relY = y - table.y
     const skipAg = draggingMeta?.tableId ? assignedGroups[draggingMeta.tableId]?.[draggingMeta.agIdx ?? -1] : undefined
 
-    // Use smart rotation finding for best gap-filling placement
-    let bestRotation = findBestRotation(table, draggingGroup.group, relX, relY, assignedGroups, skipAg)
+    // Use smart rotation finding for best gap-filling placement unless user overrides rotation
+    let rotation = rotationOverride ?? findBestRotation(table, draggingGroup.group, relX, relY, assignedGroups, skipAg)
 
-    if (!isValidPosition(table, draggingGroup.group, bestRotation, relX, relY, assignedGroups, skipAg)) {
-      const positions = getPositionsForSize(draggingGroup.group.size, bestRotation, table.width, table.height, table.rotation)
+    if (!isValidPosition(table, draggingGroup.group, rotation, relX, relY, assignedGroups, skipAg)) {
+      const positions = getPositionsForSize(draggingGroup.group.size, rotation, table.width, table.height, table.rotation)
       const maxX = Math.max(...positions.map(p => p.x))
       const maxY = Math.max(...positions.map(p => p.y))
       relX = Math.min(relX, table.width - 1 - maxX)
       relY = Math.min(relY, table.height - 1 - maxY)
       relX = Math.max(relX, 0)
       relY = Math.max(relY, 0)
-      
-      // Re-calculate best rotation for adjusted position
-      bestRotation = findBestRotation(table, draggingGroup.group, relX, relY, assignedGroups, skipAg)
+
+      // Re-calculate best rotation for adjusted position when not overridden
+      if (rotationOverride === null) {
+        rotation = findBestRotation(table, draggingGroup.group, relX, relY, assignedGroups, skipAg)
+      }
     }
 
-    setPreviewRotation(bestRotation)
-    setDragOverPosition({ tableId: table.id, x: relX, y: relY })
-  }, [draggingGroup, draggingMeta, room, assignedGroups, mapScale, findBestRotation])
+    return { table, relX, relY, rotation, skipAg }
+  }, [draggingGroup, room, mapScale, draggingMeta, assignedGroups, rotationOverride, findBestRotation])
+
+  const updatePreviewPosition = useCallback((coords: { clientX: number; clientY: number }) => {
+    const placement = computePlacementFromClient(coords)
+    if (!placement) {
+      setDragOverPosition(null)
+      return
+    }
+    setPreviewRotation(placement.rotation)
+    setDragOverPosition({ tableId: placement.table.id, x: placement.relX, y: placement.relY })
+  }, [computePlacementFromClient])
+
+  const startPickGroup = useCallback((group: Group, meta: DraggingMeta, rotation: number) => {
+    if (group.toGo) return
+    setDraggingGroup({ group, rotation })
+    setDraggingMeta(meta)
+    setPreviewRotation(rotation)
+    setRotationOverride(null)
+  }, [])
+
+  const cancelDragging = useCallback(() => {
+    setDragOverPosition(null)
+    setDraggingGroup(null)
+    setDraggingMeta(null)
+    setPreviewRotation(0)
+    setRotationOverride(null)
+    setHeldCursor(null)
+  }, [])
+
+  const placeDraggingGroup = useCallback((coords: { clientX: number; clientY: number }) => {
+    if (!draggingGroup || !room) return
+    const placement = computePlacementFromClient(coords)
+    if (!placement) {
+      cancelDragging()
+      return
+    }
+
+    const { table, relX, relY, rotation, skipAg } = placement
+
+    if (draggingMeta?.tableId) {
+      // Bewegung von existierender Gruppe
+      const sourceAg = assignedGroups[draggingMeta.tableId]?.[draggingMeta.agIdx ?? -1]
+      if (!sourceAg) {
+        cancelDragging()
+        return
+      }
+
+      const valid = isValidPosition(table, draggingGroup.group, rotation, relX, relY, assignedGroups, skipAg)
+      if (!valid) {
+        cancelDragging()
+        return
+      }
+
+      if (draggingMeta.tableId === table.id) {
+        setAssignedGroups({
+          ...assignedGroups,
+          [table.id]: assignedGroups[table.id].map((a, i) => i === draggingMeta.agIdx ? { ...a, x: relX, y: relY, rotation } : a)
+        })
+      } else {
+        const newSourceList = [...(assignedGroups[draggingMeta.tableId] || [])]
+        newSourceList.splice(draggingMeta.agIdx ?? -1, 1)
+        const current = assignedGroups[table.id] || []
+        const totalOccupied = current.reduce((sum, a) => sum + a.group.size, 0) + draggingGroup.group.size
+        if (totalOccupied <= table.capacity) {
+          setAssignedGroups({
+            ...assignedGroups,
+            [draggingMeta.tableId]: newSourceList,
+            [table.id]: [...current, { ...sourceAg, rotation, x: relX, y: relY }]
+          })
+        } else {
+          cancelDragging()
+          return
+        }
+      }
+    } else {
+      // Neue Gruppe von der Liste
+      const group = draggingGroup.group
+      if (group.toGo) {
+        cancelDragging()
+        return
+      }
+      const current = assignedGroups[table.id] || []
+      const totalOccupied = current.reduce((sum, a) => sum + a.group.size, 0) + group.size
+      const valid = totalOccupied <= table.capacity && isValidPosition(table, group, rotation, relX, relY, assignedGroups)
+      if (!valid) {
+        cancelDragging()
+        return
+      }
+
+      setAssignedGroups({
+        ...assignedGroups,
+        [table.id]: [...current, { group, rotation, locked: false, x: relX, y: relY, color: PALETTE[0] }]
+      })
+      const groupIndex = groups.findIndex(g => g.name === group.name && g.size === group.size)
+      if (groupIndex !== -1) {
+        setGroups(groups.filter((_, idx) => idx !== groupIndex))
+      }
+    }
+
+    cancelDragging()
+  }, [draggingGroup, draggingMeta, room, assignedGroups, groups, computePlacementFromClient, cancelDragging])
 
 
   // Load room definition from localStorage on mount
@@ -557,120 +660,20 @@ export default function Room() {
     }
   }, [])
 
-  // Drag tracking for preview; skip collision against the item being moved.
+  // Hover tracking for preview; skip collision against the item being moved.
   useEffect(() => {
     if (!draggingGroup) return
 
     const handleMouseMove = (e: MouseEvent) => {
+      setHeldCursor({ x: e.clientX, y: e.clientY })
       updatePreviewPosition({ clientX: e.clientX, clientY: e.clientY })
     }
-
-    const handleGlobalDragOver = (e: DragEvent) => {
-      e.preventDefault()
-      updatePreviewPosition({ clientX: e.clientX, clientY: e.clientY })
-    }
-
-    const handleContextMenu = (e: MouseEvent) => {
-      // Verhindere Kontextmenü während Drag
-      e.preventDefault()
-      e.stopPropagation()
-    }
-
-    const handleDragEnd = (e: DragEvent) => {
-      // Globaler Drop-Handler: Wenn losgelassen wird und Position gültig ist (grün), dann platzieren
-      if (!dragOverPosition || !room) {
-        setDraggingGroup(null)
-        setDragOverPosition(null)
-        setDraggingMeta(null)
-        setPreviewRotation(0)
-        return
-      }
-
-      const table = room.tables.find(t => t.id === dragOverPosition.tableId)
-      if (!table) {
-        setDraggingGroup(null)
-        setDragOverPosition(null)
-        setDraggingMeta(null)
-        setPreviewRotation(0)
-        return
-      }
-
-      const relX = dragOverPosition.x
-      const relY = dragOverPosition.y
-
-      if (draggingMeta?.tableId) {
-        // Bewegung von existierender Gruppe
-        const sourceAg = assignedGroups[draggingMeta.tableId]?.[draggingMeta.agIdx ?? -1]
-        
-        // Find optimal rotation for drop position
-        const optimalRotation = sourceAg ? findBestRotation(table, draggingGroup.group, relX, relY, assignedGroups, sourceAg) : 0
-        
-        if (sourceAg && isValidPosition(table, draggingGroup.group, optimalRotation, relX, relY, assignedGroups, sourceAg)) {
-          if (draggingMeta.tableId === table.id) {
-            // Gleicher Tisch, nur Position ändern
-            setAssignedGroups({
-              ...assignedGroups,
-              [table.id]: assignedGroups[table.id].map((a, i) => i === draggingMeta.agIdx ? { ...a, x: relX, y: relY, rotation: optimalRotation } : a)
-            })
-          } else {
-            // Anderer Tisch
-            const newSourceList = [...(assignedGroups[draggingMeta.tableId] || [])]
-            newSourceList.splice(draggingMeta.agIdx ?? -1, 1)
-            const current = assignedGroups[table.id] || []
-            setAssignedGroups({
-              ...assignedGroups,
-              [draggingMeta.tableId]: newSourceList,
-              [table.id]: [...current, { ...sourceAg, rotation: optimalRotation, x: relX, y: relY }]
-            })
-          }
-        }
-      } else {
-        // Neue Gruppe von der Liste
-        const group = draggingGroup.group
-        if (group.toGo) {
-          setDraggingGroup(null)
-          setDragOverPosition(null)
-          setDraggingMeta(null)
-          setPreviewRotation(0)
-          return
-        }
-        const current = assignedGroups[table.id] || []
-        const totalOccupied = current.reduce((sum, a) => sum + a.group.size, 0) + group.size
-        
-        // Find optimal rotation for new group
-        const optimalRotation = findBestRotation(table, group, relX, relY, assignedGroups)
-        
-        if (totalOccupied <= table.capacity && isValidPosition(table, group, optimalRotation, relX, relY, assignedGroups)) {
-          setAssignedGroups({
-            ...assignedGroups,
-            [table.id]: [...current, { group, rotation: optimalRotation, locked: false, x: relX, y: relY, color: PALETTE[0] }]
-          })
-          // Entferne Gruppe aus der verfügbaren Liste
-          const groupIndex = groups.findIndex(g => g.name === group.name && g.size === group.size)
-          if (groupIndex !== -1) {
-            setGroups(groups.filter((_, idx) => idx !== groupIndex))
-          }
-        }
-      }
-
-      setDragOverPosition(null)
-      setDraggingGroup(null)
-      setDraggingMeta(null)
-      setPreviewRotation(0)
-    }
-
     document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('dragover', handleGlobalDragOver)
-    document.addEventListener('contextmenu', handleContextMenu, true)
-    document.addEventListener('dragend', handleDragEnd)
     
     return () => {
       document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('dragover', handleGlobalDragOver)
-      document.removeEventListener('contextmenu', handleContextMenu, true)
-      document.removeEventListener('dragend', handleDragEnd)
     }
-  }, [draggingGroup, draggingMeta, room, assignedGroups, dragOverPosition, previewRotation, groups])
+  }, [draggingGroup, updatePreviewPosition])
 
   useEffect(() => {
     draggingGroupRef.current = draggingGroup
@@ -681,7 +684,18 @@ export default function Room() {
       if (!draggingGroupRef.current) return
       if (e.key === 'r' || e.key === 'R') {
         e.preventDefault()
-        setPreviewRotation(prev => (prev + 1) % 8)
+        setPreviewRotation(prev => {
+          const next = (prev + 1) % 8
+          setRotationOverride(next)
+          return next
+        })
+      } else if (e.key === 't' || e.key === 'T') {
+        e.preventDefault()
+        setPreviewRotation(prev => {
+          const next = prev >= 4 ? prev - 4 : prev + 4
+          setRotationOverride(next)
+          return next
+        })
       }
     }
 
@@ -1033,6 +1047,34 @@ export default function Room() {
       transform: `scale(${uiScale})`,
       ...(uiScale !== 1 && { width: `${100 / uiScale}%`, height: `${100 / uiScale}%` })
     }}>
+      {draggingGroup && !dragOverPosition && heldCursor && (
+        <div
+          style={{
+            position: 'fixed',
+            left: heldCursor.x + 12,
+            top: heldCursor.y + 12,
+            background: 'rgba(255,255,255,0.95)',
+            border: '2px dashed #38bdf8',
+            borderRadius: '10px',
+            padding: '10px 12px',
+            boxShadow: '0 6px 16px rgba(0,0,0,0.12)',
+            zIndex: 9999,
+            pointerEvents: 'none',
+            minWidth: '180px'
+          }}
+        >
+          <div style={{ fontSize: '11px', fontWeight: 700, color: '#0284c7', marginBottom: '6px' }}>
+            ✋ Gehalten
+          </div>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+            {(draggingGroup.group.salutation || 'Fam') === 'Fam' ? 'Fam.' : draggingGroup.group.salutation} {draggingGroup.group.name}
+          </div>
+          <div style={{ fontSize: '12px', color: '#475569', display: 'flex', gap: '8px' }}>
+            <span>👥 {draggingGroup.group.size}</span>
+            <span>🕐 {draggingGroup.group.time ? draggingGroup.group.time : 'offen'}</span>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div style={{ 
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
@@ -1436,27 +1478,22 @@ export default function Room() {
                               borderRadius: '8px',
                               border: '2px solid ' + (isSelected ? '#22c55e' : (g.toGo ? '#fbbf24' : '#e2e8f0')),
                               background: isSelected ? '#ecfdf5' : 'transparent',
-                              cursor: g.toGo ? 'default' : (multiSelectAvailable ? 'pointer' : 'move'),
+                              cursor: g.toGo ? 'default' : 'pointer',
                               transition: 'all 0.2s',
                               fontSize: '13px'
                             }}
                             onMouseOver={e => !g.toGo && (e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)')}
                             onMouseOut={e => e.currentTarget.style.boxShadow = 'none'}
-                            draggable={!g.toGo && !multiSelectAvailable}
-                            onDragStart={e => {
-                              if (g.toGo) return
-                              e.dataTransfer.setData('text/plain', JSON.stringify({ index: i, ...g }))
-                              setDraggingGroup({ group: g, rotation: 0 })
-                              setDraggingMeta(null)
-                              setPreviewRotation(0)
-                            }}
                             onClick={() => {
-                              if (!multiSelectAvailable) return
-                              setSelectedAvailableKeys(prev => {
-                                const next = new Set(prev)
-                                if (next.has(k)) next.delete(k); else next.add(k)
-                                return next
-                              })
+                              if (multiSelectAvailable) {
+                                setSelectedAvailableKeys(prev => {
+                                  const next = new Set(prev)
+                                  if (next.has(k)) next.delete(k); else next.add(k)
+                                  return next
+                                })
+                                return
+                              }
+                              startPickGroup(g, null, 0)
                             }}
                             onDoubleClick={() => {
                               if (!multiSelectAvailable) return
@@ -1970,84 +2007,10 @@ export default function Room() {
                       backgroundSize: `${CELL_SIZE}px ${CELL_SIZE}px`,
                       backgroundOrigin: 'content-box'
                     }}
-                    onDrop={e => {
-              e.preventDefault()
-              const rect = e.currentTarget.getBoundingClientRect()
-              const x = Math.floor((e.clientX - rect.left) / (CELL_SIZE * mapScale))
-              const y = Math.floor((e.clientY - rect.top) / (CELL_SIZE * mapScale))
-              // Find which table this position is in
-              const table = room.tables.find(t => x >= t.x && x < t.x + t.width && y >= t.y && y < t.y + t.height)
-              if (!table) return
-              const relX = x - table.x
-              const relY = y - table.y
-              const data = JSON.parse(e.dataTransfer.getData('text/plain'))
-              if (data.tableId) {
-                // Moving existing group
-                const fromTable = data.tableId
-                const agIdx = data.agIdx
-                const ag = assignedGroups[fromTable][agIdx]
-                
-                // Find optimal rotation for this position
-                const optimalRotation = findBestRotation(table, ag.group, relX, relY, assignedGroups, ag)
-                
-                if (fromTable === table.id) {
-                  // Same table, just move position and rotation
-                  if (isValidPosition(table, ag.group, optimalRotation, relX, relY, assignedGroups, ag)) {
-                    setAssignedGroups({
-                      ...assignedGroups,
-                      [table.id]: assignedGroups[table.id].map(a => a === ag ? { ...a, x: relX, y: relY, rotation: optimalRotation } : a)
-                    })
-                  }
-                } else {
-                  // Different table
-                  const newFrom = assignedGroups[fromTable].filter((_, i) => i !== agIdx)
-                  const current = assignedGroups[table.id] || []
-                  const totalOccupied = current.reduce((sum, a) => sum + a.group.size, 0) + ag.group.size
-                  if (totalOccupied <= table.capacity && isValidPosition(table, ag.group, optimalRotation, relX, relY, assignedGroups)) {
-                    setAssignedGroups({
-                      ...assignedGroups,
-                      [fromTable]: newFrom,
-                      [table.id]: [...current, { ...ag, x: relX, y: relY, rotation: optimalRotation }]
-                    })
-                  }
-                }
-              } else {
-                // New group from list
-                if (data.toGo) {
-                  setDragOverPosition(null)
-                  setDraggingGroup(null)
-                  setDraggingMeta(null)
-                  setPreviewRotation(0)
-                  return
-                }
-                // Ensure dragged-in groups always carry an id for selection and assignment logic
-                const group = { id: data.id || generateUUID(), name: data.name, size: data.size, time: data.time, toGo: data.toGo, salutation: data.salutation || 'Fam' }
-                const current = assignedGroups[table.id] || []
-                const totalOccupied = current.reduce((sum, a) => sum + a.group.size, 0) + group.size
-                
-                // Find optimal rotation for new group
-                const optimalRotation = findBestRotation(table, group, relX, relY, assignedGroups)
-                
-                if (totalOccupied <= table.capacity && isValidPosition(table, group, optimalRotation, relX, relY, assignedGroups)) {
-                  setAssignedGroups({
-                    ...assignedGroups,
-                    [table.id]: [...current, { group, rotation: optimalRotation, locked: false, x: relX, y: relY, color: PALETTE[0] }]
-                  })
-                  setGroups(groups.filter((_, idx) => idx !== data.index))
-                }
-              }
-              setDragOverPosition(null)
-              setDraggingGroup(null)
-              setDraggingMeta(null)
-              setPreviewRotation(0)
-            }}
-            onDragOver={e => {
-              e.preventDefault()
-              updatePreviewPosition({ clientX: e.clientX, clientY: e.clientY })
-            }}
-            onDragLeave={() => {
-              setDragOverPosition(null)
-            }}
+                    onClick={e => {
+                      if (!draggingGroup) return
+                      placeDraggingGroup({ clientX: e.clientX, clientY: e.clientY })
+                    }}
           >
             {room.tables.map(table => {
               const ags = assignedGroups[table.id] || []
@@ -2188,13 +2151,9 @@ export default function Room() {
                   ...gridCells.map(({ col0, row0, pidx }) => (
                     <div
                       key={`${tableId}-${idx}-${pidx}`}
-                      draggable={!ag.locked}
-                      onDragStart={e => {
+                      onClick={() => {
                         if (!ag.locked) {
-                          e.dataTransfer.setData('text/plain', JSON.stringify({ tableId, agIdx: idx, ...ag.group }))
-                          setDraggingGroup({ group: ag.group, rotation: ag.rotation })
-                          setDraggingMeta({ tableId, agIdx: idx })
-                          setPreviewRotation(ag.rotation)
+                          startPickGroup(ag.group, { tableId, agIdx: idx }, ag.rotation)
                         }
                       }}
                       onContextMenu={e => {
@@ -2209,7 +2168,7 @@ export default function Room() {
                         alignItems: 'center',
                         justifyContent: 'center',
                         fontSize: '9px',
-                        cursor: ag.locked ? 'default' : 'move',
+                        cursor: ag.locked ? 'default' : 'pointer',
                         zIndex: 10,
                         border: '1px solid rgba(0,0,0,0.15)',
                         borderRadius: '6px',

@@ -1,6 +1,6 @@
 import type { Group } from '../components/Importer'
 import type { Table, Room, AssignedGroup } from '../types/room'
-import { generateOptimalSeating, getPerpendicularOrientation, getLayoutVariations, canFit, getLayoutByRotation } from './layoutUtils'
+import { generateOptimalSeating, getPerpendicularOrientation, canFit, getLayoutByRotation } from './layoutUtils'
 
 export const GRID_WIDTH = 28
 export const GRID_HEIGHT = 20

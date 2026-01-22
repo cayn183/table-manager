@@ -364,29 +364,39 @@ export function getLayoutByRotation(
   tableHeight: number,
   tableRotation: number = 0
 ): { x: number; y: number }[] {
-  const variations = getLayoutVariations(size, tableWidth, tableHeight, tableRotation)
+  const base = generateOptimalSeating(size, tableWidth, tableHeight, tableRotation)
+  if (base.length === 0) return []
 
-  if (variations.length === 0) {
-    return [] // Kein Layout passt
+  const normalizedRotation = groupRotation % 4
+
+  const rotate = (points: { x: number; y: number }[], rot: number) => {
+    const maxX = Math.max(...points.map(p => p.x))
+    const maxY = Math.max(...points.map(p => p.y))
+    switch (rot) {
+      case 1:
+        // 90°
+        return points.map(p => ({ x: p.y, y: maxX - p.x }))
+      case 2:
+        // 180°
+        return points.map(p => ({ x: maxX - p.x, y: maxY - p.y }))
+      case 3:
+        // 270°
+        return points.map(p => ({ x: maxY - p.y, y: p.x }))
+      default:
+        return points
+    }
   }
 
-  // Group rotation 0-3 wählen verschiedene Variationen
-  const normalizedGroupRotation = groupRotation % 4
-  const variationIndex = Math.min(normalizedGroupRotation, variations.length - 1)
+  let layout = rotate(base, normalizedRotation)
 
-  let layout = [...variations[variationIndex]]
-
-  // Apply mirroring for group rotation 4-7 based on perpendicular orientation
+  // Mirror toggle (groupRotation 4-7)
   if (groupRotation >= 4) {
     const isVertical = getPerpendicularOrientation(tableRotation) === 'VERTICAL'
     const maxX = Math.max(...layout.map(p => p.x))
     const maxY = Math.max(...layout.map(p => p.y))
-
     if (isVertical) {
-      // Vertical seating (2 columns): mirror across X (left/right)
       layout = layout.map(p => ({ x: maxX - p.x, y: p.y }))
     } else {
-      // Horizontal seating (2 rows): mirror across Y (top/bottom)
       layout = layout.map(p => ({ x: p.x, y: maxY - p.y }))
     }
   }

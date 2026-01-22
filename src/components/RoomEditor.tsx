@@ -21,6 +21,7 @@ export default function RoomEditor() {
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tableId: string } | null>(null)
   const [sizeModal, setSizeModal] = useState<{ tableId: string; capacity: string } | null>(null)
+  const [renameModal, setRenameModal] = useState<{ tableId: string; newId: string; error?: string; warning?: string } | null>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
 
@@ -59,9 +60,42 @@ export default function RoomEditor() {
           setTables(room.tables)
           const maxId = Math.max(...room.tables.map((t: Table) => parseInt(t.id.slice(1), 10) || 0))
           setNextId(maxId + 1)
-          setIsEditingExisting(true)
-          setRoomName('Bearbeiteter Raum')
-          setSaveRoomName('Bearbeiteter Raum')
+
+          // Try to find a matching saved room entry to determine if we're editing an existing room
+          const roomsRaw = localStorage.getItem('rooms')
+          let matchedName: string | null = null
+          if (roomsRaw) {
+            try {
+              const list = JSON.parse(roomsRaw)
+              for (const entry of list) {
+                try {
+                  if (entry && entry.data && entry.data.tables) {
+                    // simple deep-compare of tables arrays
+                    if (JSON.stringify(entry.data.tables) === JSON.stringify(room.tables)) {
+                      matchedName = entry.name
+                      break
+                    }
+                  }
+                } catch (e) {
+                  // ignore
+                }
+              }
+            } catch (e) {
+              // ignore
+            }
+          }
+
+          if (matchedName) {
+            setIsEditingExisting(true)
+            setRoomName(matchedName)
+            setSaveRoomName(matchedName)
+          } else {
+            // No matching saved room found: treat as new room
+            setIsEditingExisting(false)
+            setRoomName('Neuer Raum')
+            setSaveRoomName('Neuer Raum')
+          }
+
           if (room.viewFrame) {
             setViewFrame(room.viewFrame)
           }
@@ -102,7 +136,19 @@ export default function RoomEditor() {
     const rect = gridRef.current!.getBoundingClientRect()
     const x = Math.floor((e.clientX - rect.left) / cellSize)
     const y = Math.floor((e.clientY - rect.top) / cellSize)
-    setTables(tables.map(t => t.id === tableId ? { ...t, x: Math.max(0, Math.min(gridWidth - t.width, x)), y: Math.max(0, Math.min(gridHeight - t.height, y)) } : t))
+    const clampedX = Math.max(0, Math.min(gridWidth - table.width, x))
+    const clampedY = Math.max(0, Math.min(gridHeight - table.height, y))
+
+    // disallow overlap with other tables
+    const overlaps = tables.some(t => {
+      if (t.id === tableId) return false
+      return !(clampedX + table.width <= t.x || clampedX >= t.x + t.width || clampedY + table.height <= t.y || clampedY >= t.y + t.height)
+    })
+    if (overlaps) return
+
+    // allow moving even if new rect intersects previous rect of same table
+
+    setTables(tables.map(t => t.id === tableId ? { ...t, x: clampedX, y: clampedY } : t))
     setDraggingTable(null)
     setDragPreviewPos(null)
   }
@@ -317,12 +363,10 @@ export default function RoomEditor() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <div><strong>Desktop:</strong></div>
-                <div>• Tisch verschieben: Ziehen mit Maus</div>
-                <div>• Tisch drehen: Taste <strong>R</strong> (Tisch vorher anklicken)</div>
+                <div>• Tisch verschieben: Tisch anklicken zum Aufnehmen, auf Ziel klicken zum Absetzen</div>
+                <div>• Tisch drehen: Taste <strong>R</strong> (während Tisch aufgenommen)</div>
                 <div>• Rechtsklick: Kontextmenü zum <strong>Größe ändern</strong> oder <strong>Löschen</strong></div>
-                <div style={{ marginTop: '6px' }}><strong>Tablet/Phone:</strong></div>
-                <div>• Tisch verschieben: Ziehen mit Finger</div>
-                <div>• Tisch drehen: <strong>Länger gedrückt halten</strong> (0.5s)</div>
+                {/* Tablet/Phone instructions removed (deprecated) */}
               </div>
             </div>
           )}
@@ -342,6 +386,28 @@ export default function RoomEditor() {
             onDragOver={handleDragOver}
             onDragLeave={() => setDragPreviewPos(null)}
             onMouseDown={startFrame}
+            onMouseMove={(e) => updateDragPreview(e)}
+            onClick={(e) => {
+              // Click to drop when a table is picked up
+              if (!draggingTable) return
+              const cell = eventToCell(e as React.MouseEvent)
+              if (!cell) return
+              const clampedX = Math.max(0, Math.min(gridWidth - draggingTable.width, cell.x))
+              const clampedY = Math.max(0, Math.min(gridHeight - draggingTable.height, cell.y))
+
+              // disallow overlap with other tables
+              const overlaps = tables.some(t => {
+                if (t.id === draggingTable.id) return false
+                return !(clampedX + draggingTable.width <= t.x || clampedX >= t.x + t.width || clampedY + draggingTable.height <= t.y || clampedY >= t.y + t.height)
+              })
+              if (overlaps) return
+
+              // allow moving even if new rect intersects previous rect of same table
+
+              setTables(tables.map(t => t.id === draggingTable.id ? { ...t, x: clampedX, y: clampedY } : t))
+              setDraggingTable(null)
+              setDragPreviewPos(null)
+            }}
             style={{
               display: 'grid',
               gridTemplateColumns: `repeat(${gridWidth}, ${cellSize}px)`,
@@ -406,25 +472,36 @@ export default function RoomEditor() {
             {tables.map(table => (
               <div
                 key={table.id}
-                draggable
                 data-table="true"
-                onDragStart={e => handleDragStart(e, table.id)}
                 onContextMenu={e => {
                   e.preventDefault()
                   setSelectedTableId(table.id)
                   setContextMenu({ x: e.clientX, y: e.clientY, tableId: table.id })
                 }}
-                onClick={() => setSelectedTableId(table.id)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  // Click to pick up table (if not already dragging)
+                  if (!draggingTable) {
+                    setDraggingTable(table)
+                    setDragPreviewPos({ x: table.x, y: table.y })
+                    setSelectedTableId(table.id)
+                    return
+                  }
+                  // If already dragging something, just select
+                  setSelectedTableId(table.id)
+                }}
                 style={{
                   gridColumn: `${table.x + 1} / span ${table.width}`,
                   gridRow: `${table.y + 1} / span ${table.height}`,
                   background: 'linear-gradient(135deg, #a5b4fc 0%, #818cf8 100%)',
-                  border: selectedTableId === table.id ? '3px solid #22c55e' : '2px solid #6366f1',
+                  border: '2px solid #6366f1',
+                  pointerEvents: draggingTable && draggingTable.id === table.id ? 'none' : undefined,
                   borderRadius: '8px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   cursor: 'move',
+                  opacity: draggingTable && draggingTable.id === table.id ? 0.35 : 1,
                   fontWeight: '600',
                   fontSize: '14px',
                   color: 'white',
@@ -435,9 +512,19 @@ export default function RoomEditor() {
                 onMouseOut={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.zIndex = '1'; }}
                 title="Tisch anklicken und R zum Rotieren; Rechtsklick öffnet Menü"
               >
-                {table.id} ({table.capacity})
+                {(() => {
+                  const m = table.id.match(/(\d+)$/)
+                  const num = m ? m[1] : table.id
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <div>{`Tisch ${num}`}</div>
+                      <div style={{ fontSize: '12px', opacity: 0.9 }}>{`(${table.capacity})`}</div>
+                    </div>
+                  )
+                })()}
               </div>
             ))}
+            
           </div>
         </div>
       </div>
@@ -447,9 +534,14 @@ export default function RoomEditor() {
         <div style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, background: 'white', border: '1px solid #cbd5e1', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', borderRadius: 8, zIndex: 2000, minWidth: 180 }}
              onMouseLeave={() => setContextMenu(null)}>
           <div style={{ padding: '8px 12px', fontWeight: 700, fontSize: 13, color: '#0f172a', borderBottom: '1px solid #e2e8f0' }}>🪑 {contextMenu.tableId}</div>
-          <button onClick={() => { setTables(prev => prev.map(t => t.id === contextMenu.tableId ? { ...t, width: t.height, height: t.width } : t)); setContextMenu(null) }}
+          <button onClick={() => {
+            const id = contextMenu.tableId
+            const num = (id.match(/(\d+)$/) || [])[1] || ''
+            setRenameModal({ tableId: id, newId: num })
+            setContextMenu(null)
+          }}
                   style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', background: 'white', border: 'none', cursor: 'pointer', fontSize: 13 }}>
-            🔄 Rotieren (R)
+            ✏️ Tischnummer ändern
           </button>
           <button onClick={() => { const t = tables.find(t => t.id === contextMenu.tableId); setSizeModal({ tableId: contextMenu.tableId, capacity: String(t?.capacity ?? 4) }); setContextMenu(null) }}
                   style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', background: 'white', border: 'none', cursor: 'pointer', fontSize: 13 }}>
@@ -459,6 +551,78 @@ export default function RoomEditor() {
                   style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', background: 'white', border: 'none', cursor: 'pointer', fontSize: 13, color: '#ef4444' }}>
             🗑️ Tisch löschen
           </button>
+        </div>
+      )}
+
+      {/* Rename Table Modal */}
+      {renameModal && (
+        <div className="modal" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2150 }} onClick={() => setRenameModal(null)}>
+          <div style={{ background: 'white', borderRadius: 12, padding: 20, minWidth: 360, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: 0, marginBottom: 12, fontSize: 18, fontWeight: 700, color: '#0f172a' }}>✏️ Tischnummer ändern – {renameModal.tableId}</h3>
+            <label style={{ display: 'block', fontSize: 13, color: '#334155', fontWeight: 600, marginBottom: 6 }}>Neue Tischnummer</label>
+            <input type="text" value={renameModal.newId} onChange={e => {
+              const val = e.target.value
+              const full = (/^\d+$/.test(val) ? `T${val}` : val)
+              // detect collision and set warning
+              const collision = tables.some(t => t.id === full && t.id !== renameModal.tableId)
+              setRenameModal({ ...renameModal, newId: val, error: undefined, warning: collision ? 'Tischnummer bereits vergeben — der andere Tisch erhält eine neue Nummer' : undefined })
+            }}
+                   style={{ width: '100%', padding: '10px 12px', border: '2px solid #e2e8f0', borderRadius: 8, fontSize: 14 }}/>
+            {renameModal.error && <div style={{ color: '#b91c1c', marginTop: 8, fontSize: 13 }}>{renameModal.error}</div>}
+            {renameModal.warning && <div style={{ color: '#b45309', marginTop: 8, fontSize: 13 }}>{renameModal.warning}</div>}
+            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+              <button onClick={() => setRenameModal(null)}
+                      style={{ flex: 1, padding: '10px 14px', background: 'white', color: '#64748b', border: '2px solid #e2e8f0', borderRadius: 8, cursor: 'pointer' }}>Abbrechen</button>
+              <button onClick={() => {
+                        const raw = (renameModal.newId || '').trim()
+                        if (!raw) { setRenameModal({ ...renameModal, error: 'Tischnummer darf nicht leer sein' }); return }
+                        const newId = (/^\d+$/.test(raw) ? `T${raw}` : raw)
+
+                        // Helper: escape regexp
+                        const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+                        const existing = tables.find(t => t.id === newId && t.id !== renameModal.tableId)
+                        if (existing) {
+                          // compute new id for the existing table based on its prefix (if numeric suffix exists)
+                          const m = existing.id.match(/^(.*?)(\d+)$/)
+                          const prefix = m ? m[1] : 'T'
+                          // collect numbers with same prefix
+                          const nums = tables.map(t => {
+                            const mm = t.id.match(new RegExp('^' + escapeRegExp(prefix) + '(\\d+)$'))
+                            return mm ? parseInt(mm[1], 10) : null
+                          }).filter(n => n !== null) as number[]
+                          const maxNum = nums.length ? Math.max(...nums) : 0
+                          let candidate = `${prefix}${maxNum + 1}`
+                          // ensure uniqueness
+                          while (tables.some(t => t.id === candidate)) {
+                            const nn = parseInt(candidate.replace(/[^0-9]/g, ''), 10) || (maxNum + 1)
+                            candidate = `${prefix}${nn + 1}`
+                          }
+
+                          const otherOldId = existing.id
+                          const otherNewId = candidate
+
+                          setTables(prev => prev.map(t => {
+                            if (t.id === otherOldId) return { ...t, id: otherNewId }
+                            if (t.id === renameModal.tableId) return { ...t, id: newId }
+                            return t
+                          }))
+
+                          if (selectedTableId === renameModal.tableId) setSelectedTableId(newId)
+                          if (selectedTableId === otherOldId) setSelectedTableId(otherNewId)
+                          setRenameModal(null)
+                          return
+                        }
+
+                        // No collision: simple rename
+                        setTables(prev => prev.map(t => t.id === renameModal.tableId ? { ...t, id: newId } : t))
+                        if (selectedTableId === renameModal.tableId) setSelectedTableId(newId)
+                        setRenameModal(null)
+                      }}
+                      disabled={!renameModal.newId || renameModal.newId.trim() === ''}
+                      style={{ flex: 1, padding: '10px 14px', background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700 }}>Speichern</button>
+            </div>
+          </div>
         </div>
       )}
 
