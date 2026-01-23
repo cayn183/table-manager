@@ -515,6 +515,53 @@ export default function Room() {
     setAssignedPage(prev => Math.min(prev, totalPages - 1))
   }, [groups, assignedGroups])
 
+  // ----- Statistiken für Header (Tische, Plätze, Familien, ToGo) -----
+  const headerStats = useMemo(() => {
+    const tableCount = room?.tables.length ?? 0
+    const totalSeats = room?.tables.reduce((s, t) => s + (t.capacity ?? 0), 0) ?? 0
+
+    let assignedCount = 0
+    let toGoPersons = 0
+
+    // Build occupancy per table (exclude TOGO bucket)
+    const occupancyByTable: Record<string, number> = {}
+    Object.entries(assignedGroups).forEach(([key, arr]) => {
+      if (key === 'TOGO') {
+        for (const ag of arr) {
+          assignedCount++
+          toGoPersons += ag.group.size
+        }
+      } else {
+        let sum = occupancyByTable[key] || 0
+        for (const ag of arr) {
+          assignedCount++
+          if (ag.group.toGo) {
+            toGoPersons += ag.group.size
+          } else {
+            sum += ag.group.size
+          }
+        }
+        occupancyByTable[key] = sum
+      }
+    })
+
+    // Free seats are per-unlocked-table: capacity - occupied
+    let freeSeats = 0
+    for (const t of room?.tables || []) {
+      if (t.locked) continue
+      const occ = occupancyByTable[t.id] || 0
+      freeSeats += Math.max(0, (t.capacity ?? 0) - occ)
+    }
+
+    const familyCount = (groups?.length ?? 0) + assignedCount
+
+    // occupied (for display) = totalSeats - lockedSeats - freeSeats
+    const lockedSeats = (room?.tables || []).filter(t => t.locked).reduce((s, t) => s + (t.capacity ?? 0), 0)
+    const occupied = Math.max(0, totalSeats - lockedSeats - freeSeats)
+
+    return { tableCount, totalSeats, occupied, freeSeats, familyCount, toGoPersons }
+  }, [room, assignedGroups, groups])
+
   const computePlacementFromClient = useCallback((coords: { clientX: number; clientY: number }) => {
     if (!draggingGroup || !room) return null
     const gridElement = document.querySelector('.grid') as HTMLElement
@@ -1255,6 +1302,35 @@ export default function Room() {
               <option value={15} style={{ background: '#667eea' }}>⏱️ 15 Min</option>
             </select>
           )}
+
+          {/* Header-Statistik-Box (passt zum Button-Design) */}
+          <div style={{
+            display: 'inline-flex',
+            flexDirection: 'row',
+            gap: '12px',
+            alignItems: 'center',
+            padding: '8px 14px',
+            background: 'rgba(255,255,255,0.12)',
+            border: '1px solid rgba(255,255,255,0.18)',
+            borderRadius: '10px',
+            color: 'white',
+            fontSize: '13px',
+            minWidth: '280px',
+            marginLeft: '120px',
+            flexShrink: 0
+          }}>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>🪑 {headerStats.tableCount} Tische</div>
+                <div style={{ color: 'rgba(255,255,255,0.9)' }}>{headerStats.freeSeats} von {headerStats.totalSeats} Plätzen frei</div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                <div style={{ fontWeight: 700 }}>👪 {headerStats.familyCount} Familien</div>
+                <div style={{ color: 'rgba(255,255,255,0.9)' }}>🥡 {headerStats.toGoPersons} ToGo</div>
+              </div>
+            </div>
+          </div>
 
           <button 
             onClick={() => navigate('/new-room')}
