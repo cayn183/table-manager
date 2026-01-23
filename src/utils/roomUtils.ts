@@ -1,6 +1,6 @@
 import type { Group } from '../components/Importer'
 import type { Table, Room, AssignedGroup } from '../types/room'
-import { generateOptimalSeating, getPerpendicularOrientation, getLayoutVariations, canFit, getLayoutByRotation } from './layoutUtils'
+import { generateOptimalSeating, getPerpendicularOrientation, canFit, getLayoutByRotation } from './layoutUtils'
 
 export const GRID_WIDTH = 28
 export const GRID_HEIGHT = 20
@@ -146,6 +146,35 @@ function scorePlacement(
 ): number {
   let score = 0
 
+  const countIsolatedGaps = (occ: Set<string>) => {
+    let gaps = 0
+    for (let ty = 0; ty < table.height; ty++) {
+      for (let tx = 0; tx < table.width; tx++) {
+        const key = `${tx},${ty}`
+        if (!occ.has(key)) {
+          const emptyNeighbors = [
+            `${tx - 1},${ty}`,
+            `${tx + 1},${ty}`,
+            `${tx},${ty - 1}`,
+            `${tx},${ty + 1}`
+          ].filter(nk => {
+            const [nx, ny] = nk.split(',').map(Number)
+            return nx >= 0 && nx < table.width && ny >= 0 && ny < table.height && !occ.has(nk)
+          }).length
+
+          if (emptyNeighbors === 0) {
+            gaps += 5
+          } else if (emptyNeighbors === 1) {
+            gaps += 3
+          } else if (emptyNeighbors === 2) {
+            gaps += 2
+          }
+        }
+      }
+    }
+    return gaps
+  }
+
   // 1. Adjacency score: Strong bonus for placing next to existing groups
   for (const pos of positions) {
     const absX = x + pos.x
@@ -256,34 +285,9 @@ function scorePlacement(
     tempOccupied.add(`${x + pos.x},${y + pos.y}`)
   }
 
-  // Count isolated empty cells (gaps with few empty neighbors)
-  let isolatedGaps = 0
-  for (let ty = 0; ty < table.height; ty++) {
-    for (let tx = 0; tx < table.width; tx++) {
-      const key = `${tx},${ty}`
-      if (!tempOccupied.has(key)) {
-        const emptyNeighbors = [
-          `${tx - 1},${ty}`,
-          `${tx + 1},${ty}`,
-          `${tx},${ty - 1}`,
-          `${tx},${ty + 1}`
-        ].filter(nk => {
-          const [nx, ny] = nk.split(',').map(Number)
-          return nx >= 0 && nx < table.width && ny >= 0 && ny < table.height && !tempOccupied.has(nk)
-        }).length
-
-        // Heavily penalize isolated single cells
-        if (emptyNeighbors === 0) {
-          isolatedGaps += 5 // Stronger penalty for fragmentation
-        } else if (emptyNeighbors === 1) {
-          isolatedGaps += 3
-        } else if (emptyNeighbors === 2) {
-          isolatedGaps += 2
-        }
-      }
-    }
-  }
-  score -= isolatedGaps * 12 // Even stronger penalty for fragmentation
+  const isolatedGapsBefore = countIsolatedGaps(occupied)
+  const isolatedGapsAfter = countIsolatedGaps(tempOccupied)
+  score -= isolatedGapsAfter * 12 // Even stronger penalty for fragmentation
 
   // 3. Compactness bonus: prefer arrangements where group members touch each other
   let internalAdjacency = 0
@@ -369,16 +373,23 @@ function scorePlacement(
   // 3b. Specific 2-person alignment preference
   if (positions.length === 2) {
     const [a, b] = positions
+    const gapReduction = isolatedGapsBefore - isolatedGapsAfter
     if (isVertical) {
-      // Prefer same-row across sides (gegenüber) or same-side adjacent (nebeneinander)
-      if (a.y === b.y && a.x !== b.x) score += 6 // gegenüber
-      if (a.x === b.x && Math.abs(a.y - b.y) === 1) score += 5 // nebeneinander
-      if (a.x !== b.x && a.y !== b.y) score -= 8 // diagonal split
+      // Prefer same-row across sides (gegenüber) over same-side adjacent (nebeneinander)
+      const isOpposite = a.y === b.y && a.x !== b.x
+      const isAdjacent = a.x === b.x && Math.abs(a.y - b.y) === 1
+      const isDiagonal = a.x !== b.x && a.y !== b.y
+      if (isOpposite) score += 35
+      if (isAdjacent) score += gapReduction > 0 ? 4 : -20
+      if (isDiagonal) score -= 10
     } else {
       // Horizontal orientation: rows are sides
-      if (a.x === b.x && a.y !== b.y) score += 6 // gegenüber
-      if (a.y === b.y && Math.abs(a.x - b.x) === 1) score += 5 // nebeneinander
-      if (a.x !== b.x && a.y !== b.y) score -= 8 // diagonal
+      const isOpposite = a.x === b.x && a.y !== b.y
+      const isAdjacent = a.y === b.y && Math.abs(a.x - b.x) === 1
+      const isDiagonal = a.x !== b.x && a.y !== b.y
+      if (isOpposite) score += 35
+      if (isAdjacent) score += gapReduction > 0 ? 4 : -20
+      if (isDiagonal) score -= 10
     }
   }
 
