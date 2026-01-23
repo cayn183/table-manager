@@ -3102,22 +3102,16 @@ export default function Room() {
                 const isLocked = !!table.locked
                 return (
                   <button
-                      key={table.id}
-                      onClick={() => {
-                        if (tableSelectModal.group.toGo || !canFit || isLocked) return
-                        const occ = buildOccupied(table, current)
-                        const placement = tryPlaceOnTable(table, tableSelectModal.group, occ, current)
-                        if (!placement) {
-                          alert('Kein freier Platz auf diesem Tisch gefunden.')
-                          return
-                        }
-                        setAssignedGroups({
-                          ...assignedGroups,
-                          [table.id]: [...current, { group: tableSelectModal.group, rotation: placement.rotation, locked: false, x: placement.x, y: placement.y, color: PALETTE[0] }]
-                        })
-                        setGroups(groups.filter((_, i) => i !== tableSelectModal.index))
-                        setTableSelectModal(null)
-                      }}
+                    key={table.id}
+                    onClick={() => {
+                      if (tableSelectModal.group.toGo || !canFit || isLocked) return
+                      setAssignedGroups({
+                        ...assignedGroups,
+                        [table.id]: [...current, { group: tableSelectModal.group, rotation: 0, locked: false, x: 0, y: 0, color: PALETTE[0] }]
+                      })
+                      setGroups(groups.filter((_, i) => i !== tableSelectModal.index))
+                      setTableSelectModal(null)
+                    }}
                     style={{
                       padding: '12px',
                       background: isLocked ? '#fee2e2' : (canFit ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#e2e8f0'),
