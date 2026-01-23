@@ -560,10 +560,17 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
                               </div>
                             )}
                             {ag.group.size > 1 && (
-                              <div style={{ fontSize: `${metaFontSize}px`, fontWeight: '600' }}>
-                                {ag.group.accessible ? '♿ ' : ''}👥 {ag.group.size}
+                              <div style={{ fontSize: `${metaFontSize}px`, fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  {ag.group.accessible && <span title="Rollstuhl / Kinderwagen">♿</span>}
+                                  {ag.group.note && (
+                                    <span title={ag.group.note} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 18, height: 18, background: '#fbbf24', color: '#ffffff', borderRadius: 4, fontSize: 12, fontWeight: 700, padding: '0 4px' }}>!</span>
+                                  )}
+                                </div>
+                                <div>👥 {ag.group.size}</div>
                               </div>
                             )}
+                            
                           </div>
                         </div>
                       ]
