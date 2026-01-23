@@ -7,6 +7,13 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.6.8] - 2026-01-23
+
+### Fixed
+- Entfernt Scrollbar in der Liste "Zugewiesen" — Verhalten nun konsistent zu "Unzugewiesen"
+- Entfernt Schloss-Symbol vor der Tischnummer in der Liste "Zugewiesen"
+
+
 ## [0.6.4] - 2026-01-16
 
 ### Changed
