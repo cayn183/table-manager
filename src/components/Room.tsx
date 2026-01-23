@@ -833,7 +833,7 @@ export default function Room() {
       alert('Personenzahl muss größer als 0 sein')
       return
     }
-    const group = { id: generateUUID(), name, size, time: newGroupTime || undefined, toGo: newGroupToGo, accessible: newGroupAccessible, note: newGroupNote.trim().slice(0,40) || undefined, salutation: newGroupSalutation }
+    const group = { id: generateUUID(), name, size, time: newGroupTime || undefined, toGo: newGroupToGo, accessible: newGroupAccessible, note: newGroupNote.trim().slice(0,50) || undefined, salutation: newGroupSalutation }
     if (group.toGo) {
       const updatedAssigned = ensureToGoBucket({ ...assignedGroups })
       updatedAssigned['TOGO'] = [...(updatedAssigned['TOGO'] || []), { group, rotation: 0, locked: false, x: 0, y: 0, color: TOGO_COLOR }]
@@ -1660,8 +1660,8 @@ export default function Room() {
                             <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
                               <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: fontSize + 'px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 {isSelected && <span aria-hidden style={{ fontSize: '13px', color: '#22c55e' }}>✔</span>}
-                                  {g.accessible && <span aria-hidden title="Rollstuhl / Kinderwagen" style={{ fontSize: '14px', marginRight: '4px' }}>♿</span>}
-                                  {/* note icon removed from name line to avoid duplication in infocard */}
+                                  {g.accessible && <span aria-hidden title="Rollstuhl / Kinderwagen" style={{ fontSize: '14px', marginRight: '-3px' }}>♿</span>}
+                                  {g.note && <span aria-hidden title={g.note} style={{ fontSize: '13px', color: '#f59e0b', marginRight: '-3px' }}>⚠️</span>}
                                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
                               </div>
                               <div style={{ gridColumn: '2 / 3', gridRow: '1 / 2', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '4px', alignItems: 'center' }}>
@@ -3562,13 +3562,13 @@ export default function Room() {
               </div>
 
               <div style={{ marginTop: '10px' }}>
-                <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#475569', marginBottom: '6px' }}>Bemerkung (max. 40 Zeichen)</label>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#475569', marginBottom: '6px' }}>Bemerkung (max. 50 Zeichen)</label>
                 <input
                   type="text"
                   value={newGroupNote}
-                  maxLength={40}
+                  maxLength={50}
                   placeholder="z.B. Allergie, spezielle Wünsche"
-                  onChange={e => setNewGroupNote(e.target.value.slice(0,40))}
+                  onChange={e => setNewGroupNote(e.target.value.slice(0,50))}
                   style={{
                     width: '100%',
                     padding: '8px 10px',
@@ -3942,9 +3942,9 @@ export default function Room() {
                     <input
                       type="text"
                       value={row.note || ''}
-                      maxLength={40}
+                      maxLength={50}
                       placeholder="Bemerkung"
-                      onChange={e => updateCsvPreview(idx, { note: e.target.value.slice(0,40) })}
+                      onChange={e => updateCsvPreview(idx, { note: e.target.value.slice(0,50) })}
                       style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }}
                     />
                     <button

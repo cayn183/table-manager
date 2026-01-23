@@ -67,7 +67,7 @@ export default function Importer({ onImport }: { onImport: (g: Group[]) => void 
               const toGoVal = r.toGo ?? r.togo ?? r.takeaway ?? r.takeAway ?? r.to_go
               const accessibleVal = r.accessible ?? r.rollstuhl ?? r.kinderwagen ?? r.stroller ?? r.wheelchair
               const noteVal = r.note ?? r.bemerkung ?? r.remarks ?? r.bemerkungen ?? r.comment ?? ''
-              return name ? { name: String(name).trim(), size, time: timeVal ? String(timeVal).trim() : undefined, toGo: Boolean(toGoVal), accessible: Boolean(accessibleVal), note: noteVal ? String(noteVal).trim().slice(0,40) : undefined, salutation: String(salutationVal || 'Fam').trim() || 'Fam' } : null
+              return name ? { name: String(name).trim(), size, time: timeVal ? String(timeVal).trim() : undefined, toGo: Boolean(toGoVal), accessible: Boolean(accessibleVal), note: noteVal ? String(noteVal).trim().slice(0,50) : undefined, salutation: String(salutationVal || 'Fam').trim() || 'Fam' } : null
             })
             .filter(Boolean) as Group[]
           onImport(groups)
@@ -93,7 +93,7 @@ export default function Importer({ onImport }: { onImport: (g: Group[]) => void 
             const toGoVal = r.toGo ?? r.togo ?? r.takeaway ?? r.takeAway ?? r.to_go
             const accessibleVal = r.accessible ?? r.rollstuhl ?? r.kinderwagen ?? r.stroller ?? r.wheelchair
             const noteVal = r.note ?? r.bemerkung ?? r.remarks ?? r.bemerkungen ?? r.comment ?? ''
-            return name ? { name: String(name).trim(), size, time: timeVal ? String(timeVal).trim() : undefined, toGo: Boolean(toGoVal), accessible: Boolean(accessibleVal), note: noteVal ? String(noteVal).trim().slice(0,40) : undefined, salutation: String(salutationVal || 'Fam').trim() || 'Fam' } : null
+            return name ? { name: String(name).trim(), size, time: timeVal ? String(timeVal).trim() : undefined, toGo: Boolean(toGoVal), accessible: Boolean(accessibleVal), note: noteVal ? String(noteVal).trim().slice(0,50) : undefined, salutation: String(salutationVal || 'Fam').trim() || 'Fam' } : null
           })
           .filter(Boolean) as Group[]
         onImport(groups)
