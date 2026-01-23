@@ -1,7 +1,7 @@
 import React from 'react'
 import Papa from 'papaparse'
 
-export type Group = { id: string; name: string; size: number; time?: string; toGo?: boolean; salutation?: 'Fam' | 'Frau' | 'Herr' | string }
+export type Group = { id: string; name: string; size: number; time?: string; toGo?: boolean; accessible?: boolean; note?: string; salutation?: 'Fam' | 'Frau' | 'Herr' | string }
 
 export default function Importer({ onImport }: { onImport: (g: Group[]) => void }) {
   const [fileInfo, setFileInfo] = React.useState<{ name: string; encoding: string } | null>(null)
@@ -65,7 +65,9 @@ export default function Importer({ onImport }: { onImport: (g: Group[]) => void 
               const timeVal = r.time ?? r.zeit ?? r.slot ?? ''
               const salutationVal = r.salutation ?? r.title ?? r.anrede ?? 'Fam'
               const toGoVal = r.toGo ?? r.togo ?? r.takeaway ?? r.takeAway ?? r.to_go
-              return name ? { name: String(name).trim(), size, time: timeVal ? String(timeVal).trim() : undefined, toGo: Boolean(toGoVal), salutation: String(salutationVal || 'Fam').trim() || 'Fam' } : null
+              const accessibleVal = r.accessible ?? r.rollstuhl ?? r.kinderwagen ?? r.stroller ?? r.wheelchair
+              const noteVal = r.note ?? r.bemerkung ?? r.remarks ?? r.bemerkungen ?? r.comment ?? ''
+              return name ? { name: String(name).trim(), size, time: timeVal ? String(timeVal).trim() : undefined, toGo: Boolean(toGoVal), accessible: Boolean(accessibleVal), note: noteVal ? String(noteVal).trim().slice(0,50) : undefined, salutation: String(salutationVal || 'Fam').trim() || 'Fam' } : null
             })
             .filter(Boolean) as Group[]
           onImport(groups)
@@ -82,14 +84,16 @@ export default function Importer({ onImport }: { onImport: (g: Group[]) => void 
       complete: (results) => {
         const data = results.data as any[]
         const groups = data
-          .map((r) => {
+            .map((r) => {
             const name = r.family || r.group || r.name || Object.values(r)[0]
             const sizeRaw = r.count ?? r.size ?? Object.values(r)[1]
             const size = Number(sizeRaw) || 0
             const timeVal = r.time ?? r.zeit ?? r.slot ?? ''
             const salutationVal = r.salutation ?? r.title ?? r.anrede ?? 'Fam'
             const toGoVal = r.toGo ?? r.togo ?? r.takeaway ?? r.takeAway ?? r.to_go
-            return name ? { name: String(name).trim(), size, time: timeVal ? String(timeVal).trim() : undefined, toGo: Boolean(toGoVal), salutation: String(salutationVal || 'Fam').trim() || 'Fam' } : null
+            const accessibleVal = r.accessible ?? r.rollstuhl ?? r.kinderwagen ?? r.stroller ?? r.wheelchair
+            const noteVal = r.note ?? r.bemerkung ?? r.remarks ?? r.bemerkungen ?? r.comment ?? ''
+            return name ? { name: String(name).trim(), size, time: timeVal ? String(timeVal).trim() : undefined, toGo: Boolean(toGoVal), accessible: Boolean(accessibleVal), note: noteVal ? String(noteVal).trim().slice(0,50) : undefined, salutation: String(salutationVal || 'Fam').trim() || 'Fam' } : null
           })
           .filter(Boolean) as Group[]
         onImport(groups)

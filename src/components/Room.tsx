@@ -85,6 +85,8 @@ export default function Room() {
   const [newGroupSize, setNewGroupSize] = useState('4')
   const [newGroupTime, setNewGroupTime] = useState('')
   const [newGroupToGo, setNewGroupToGo] = useState(false)
+  const [newGroupAccessible, setNewGroupAccessible] = useState(false)
+  const [newGroupNote, setNewGroupNote] = useState('')
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tableId: string; agIdx: number; isList: boolean; listIdx?: number; isAssignedList?: boolean } | null>(null)
   const [tableContextMenu, setTableContextMenu] = useState<{ x: number; y: number; tableId: string } | null>(null)
   const [editModal, setEditModal] = useState<{ tableId: string; agIdx: number; isList: boolean; listIdx?: number } | null>(null)
@@ -831,7 +833,7 @@ export default function Room() {
       alert('Personenzahl muss größer als 0 sein')
       return
     }
-    const group = { id: generateUUID(), name, size, time: newGroupTime || undefined, toGo: newGroupToGo, salutation: newGroupSalutation }
+    const group = { id: generateUUID(), name, size, time: newGroupTime || undefined, toGo: newGroupToGo, accessible: newGroupAccessible, note: newGroupNote.trim().slice(0,50) || undefined, salutation: newGroupSalutation }
     if (group.toGo) {
       const updatedAssigned = ensureToGoBucket({ ...assignedGroups })
       updatedAssigned['TOGO'] = [...(updatedAssigned['TOGO'] || []), { group, rotation: 0, locked: false, x: 0, y: 0, color: TOGO_COLOR }]
@@ -844,6 +846,8 @@ export default function Room() {
     setNewGroupSize('4')
     setNewGroupTime('')
     setNewGroupToGo(false)
+    setNewGroupAccessible(false)
+    setNewGroupNote('')
     setShowModal(false)
   }
 
@@ -956,6 +960,7 @@ export default function Room() {
               size,
               time: time || undefined,
               toGo: false,
+              accessible: false,
               salutation: 'Fam'
             })
           }
@@ -1611,7 +1616,7 @@ export default function Room() {
                               color: '#1e293b',
                               padding: '10px',
                               borderRadius: '8px',
-                              border: '2px solid ' + (isSelected ? '#22c55e' : (g.toGo ? '#fbbf24' : '#e2e8f0')),
+                              border: '2px solid ' + (isSelected ? '#22c55e' : (g.toGo ? '#fbbf24' : (g.accessible ? '#60a5fa' : '#c7d2fe'))),
                               background: isSelected ? '#ecfdf5' : 'transparent',
                               cursor: g.toGo ? 'default' : 'pointer',
                               transition: 'all 0.2s',
@@ -1655,7 +1660,9 @@ export default function Room() {
                             <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
                               <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: fontSize + 'px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 {isSelected && <span aria-hidden style={{ fontSize: '13px', color: '#22c55e' }}>✔</span>}
-                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
+                                  {g.accessible && <span aria-hidden title="Rollstuhl / Kinderwagen" style={{ fontSize: '14px', marginRight: '-3px' }}>♿</span>}
+                                  {g.note && <span aria-hidden title={g.note} style={{ fontSize: '13px', color: '#f59e0b', marginRight: '-3px' }}>⚠️</span>}
+                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
                               </div>
                               <div style={{ gridColumn: '2 / 3', gridRow: '1 / 2', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '4px', alignItems: 'center' }}>
                                 <span aria-hidden style={{ fontSize: '13px' }}>🕐</span>
@@ -1886,7 +1893,7 @@ export default function Room() {
                             background: isSelected ? '#ecfdf5' : (isToGo ? '#fef3c7' : (assignedColors[tableId]?.[idx] || '#e0e7ff')),
                             padding: '10px',
                             borderRadius: '8px',
-                            border: isSelected ? '2px solid #22c55e' : ('1px solid ' + (isToGo ? '#fbbf24' : '#c7d2fe')),
+                            border: isSelected ? '2px solid #22c55e' : ('1px solid ' + (isToGo ? '#fbbf24' : (ag.group.accessible ? '#60a5fa' : '#c7d2fe'))),
                             cursor: multiSelectAssigned ? 'pointer' : 'default',
                             transition: 'all 0.2s',
                             fontSize: '13px'
@@ -1929,6 +1936,7 @@ export default function Room() {
                           <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
                             <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: fontSize + 'px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
                               {isSelected && <span aria-hidden style={{ fontSize: '13px', color: '#22c55e' }}>✔</span>}
+                              {ag.group.accessible && <span aria-hidden title="Rollstuhl / Kinderwagen" style={{ fontSize: '14px', marginRight: '4px' }}>♿</span>}
                               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
                             </div>
                             <div style={{ gridColumn: '2 / 3', gridRow: '1 / 2', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '4px', alignItems: 'center' }}>
@@ -2382,7 +2390,7 @@ export default function Room() {
                       }}
                     />
                   )),
-                  <div
+                        <div
                     key={`${tableId}-${idx}-label`}
                     style={{
                       position: 'absolute',
@@ -2408,6 +2416,7 @@ export default function Room() {
                       overflow: 'hidden',
                       borderRadius: '6px',
                       background: '#ffffff',
+                      border: `1px solid ${ag.group.accessible ? '#60a5fa' : '#c7d2fe'}`,
                       textAlign: 'center'
                     }}>
                       {/* Name */}
@@ -2437,8 +2446,14 @@ export default function Room() {
                         </div>
                       )}
                       {ag.group.size > 1 && (
-                        <div style={{ fontSize: `${metaFontSize}px`, fontWeight: '600' }}>
-                          👥 {ag.group.size}
+                        <div style={{ fontSize: `${metaFontSize}px`, fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              {ag.group.accessible && <span title="Rollstuhl / Kinderwagen">♿</span>}
+                              {ag.group.note && (
+                                <span title={ag.group.note} style={{ fontSize: `${metaFontSize}px`, lineHeight: 1, color: '#f59e0b', marginLeft: 6 }}>⚠️</span>
+                              )}
+                            </div>
+                          <div>👥 {ag.group.size}</div>
                         </div>
                       )}
                     </div>
@@ -3090,9 +3105,13 @@ export default function Room() {
                     key={table.id}
                     onClick={() => {
                       if (tableSelectModal.group.toGo || !canFit || isLocked) return
+                      const currentAssigned = assignedGroups[table.id] || []
+                      const occupiedSet = buildOccupied(table, currentAssigned)
+                      const placement = tryPlaceOnTable(table, tableSelectModal.group, occupiedSet)
+                      if (!placement) return
                       setAssignedGroups({
                         ...assignedGroups,
-                        [table.id]: [...current, { group: tableSelectModal.group, rotation: 0, locked: false, x: 0, y: 0, color: PALETTE[0] }]
+                        [table.id]: [...currentAssigned, { group: tableSelectModal.group, rotation: placement.rotation, locked: false, x: placement.x, y: placement.y, color: PALETTE[0] }]
                       })
                       setGroups(groups.filter((_, i) => i !== tableSelectModal.index))
                       setTableSelectModal(null)
@@ -3517,15 +3536,53 @@ export default function Room() {
                   }}
                 />
               </div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: '#f1f5f9', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s' }}>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: '#f1f5f9', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s' }}>
+                  <input
+                    type="checkbox"
+                    checked={newGroupToGo}
+                    onChange={e => {
+                      const v = e.target.checked
+                      setNewGroupToGo(v)
+                      if (v) setNewGroupAccessible(false)
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: '14px', fontWeight: '500', color: '#475569' }}>ToGo (kein Tisch)</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: '#f1f5f9', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s' }}>
+                  <input
+                    type="checkbox"
+                    checked={newGroupAccessible}
+                    onChange={e => {
+                      const v = e.target.checked
+                      setNewGroupAccessible(v)
+                      if (v) setNewGroupToGo(false)
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: '14px', fontWeight: '500', color: '#475569' }}>Rollstuhl / Kinderwagen</span>
+                </label>
+              </div>
+
+              <div style={{ marginTop: '10px' }}>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#475569', marginBottom: '6px' }}>Bemerkung (max. 50 Zeichen)</label>
                 <input
-                  type="checkbox"
-                  checked={newGroupToGo}
-                  onChange={e => setNewGroupToGo(e.target.checked)}
-                  style={{ cursor: 'pointer' }}
+                  type="text"
+                  value={newGroupNote}
+                  maxLength={50}
+                  placeholder="z.B. Allergie, spezielle Wünsche"
+                  onChange={e => setNewGroupNote(e.target.value.slice(0,50))}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    fontSize: '13px',
+                    border: '2px solid #e2e8f0',
+                    borderRadius: '6px',
+                    outline: 'none'
+                  }}
                 />
-                <span style={{ fontSize: '14px', fontWeight: '500', color: '#475569' }}>ToGo (kein Tisch)</span>
-              </label>
+              </div>
               <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
                 <button
                   onClick={addGroup}
@@ -3850,7 +3907,7 @@ export default function Room() {
             {csvPreview.length > 0 ? (
               <div style={{ maxHeight: '320px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px', marginBottom: '12px', background: '#f8fafc' }}>
                 {csvPreview.map((row, idx) => (
-                  <div key={`csv-row-${idx}`} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 0.8fr 0.8fr auto', gap: '8px', alignItems: 'center', padding: '6px', borderBottom: '1px solid #e2e8f0' }}>
+                  <div key={`csv-row-${idx}`} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 0.8fr 0.8fr 1fr auto', gap: '8px', alignItems: 'center', padding: '6px', borderBottom: '1px solid #e2e8f0' }}>
                     <input
                       value={row.name}
                       onChange={e => updateCsvPreview(idx, { name: e.target.value })}
@@ -3874,10 +3931,26 @@ export default function Room() {
                       <input
                         type="checkbox"
                         checked={Boolean(row.toGo)}
-                        onChange={e => updateCsvPreview(idx, { toGo: e.target.checked })}
+                        onChange={e => updateCsvPreview(idx, { toGo: e.target.checked, accessible: e.target.checked ? false : row.accessible })}
                       />
                       ToGo
                     </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#0f172a', paddingLeft: '6px' }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(row.accessible)}
+                        onChange={e => updateCsvPreview(idx, { accessible: e.target.checked, toGo: e.target.checked ? false : row.toGo })}
+                      />
+                      Rollstuhl / Kinderwagen
+                    </label>
+                    <input
+                      type="text"
+                      value={row.note || ''}
+                      maxLength={50}
+                      placeholder="Bemerkung"
+                      onChange={e => updateCsvPreview(idx, { note: e.target.value.slice(0,50) })}
+                      style={{ padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }}
+                    />
                     <button
                       onClick={() => removeCsvPreviewRow(idx)}
                       style={{
@@ -4089,11 +4162,13 @@ function TimelineView({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {unassignedNoTime.map((item, i) => (
               <div key={`unassigned-${i}`} style={{ padding: '10px 12px', background: '#f1f5f9', borderLeft: '3px solid #94a3b8', borderRadius: '6px', fontSize: '14px' }}>
+                {item.group.note && <span title={item.group.note} style={{ fontSize: 13, color: '#f59e0b', marginRight: 6 }}>⚠️</span>}
                 {item.group.name} ({item.group.size} {item.group.toGo ? '| ToGo' : ''})
               </div>
             ))}
             {assignedNoTime.map((item, i) => (
               <div key={`assigned-notime-${i}`} style={{ padding: '10px 12px', background: '#f1f5f9', borderLeft: '3px solid #94a3b8', borderRadius: '6px', fontSize: '14px' }}>
+                {item.group.note && <span title={item.group.note} style={{ fontSize: 13, color: '#f59e0b', marginRight: 6 }}>⚠️</span>}
                 {item.group.name} ({item.group.size}) - {item.tableId === 'TOGO' ? 'ToGo' : `Tisch ${item.tableId?.slice(1)}`}
               </div>
             ))}
@@ -4118,10 +4193,13 @@ function TimelineView({
                     </div>
                     {items.map((item, i) => (
                       <div key={`${slotKey}-${i}`} style={{ padding: '10px 12px', background: '#f8fafc', borderRadius: '8px', fontSize: '13px', fontWeight: '500', color: '#1e293b', borderLeft: '4px solid #2196F3', lineHeight: '1.4' }}>
-                        <div>{item.group.name}</div>
+                        <div>{item.group.note && <span title={item.group.note} style={{ fontSize: 13, color: '#f59e0b', marginRight: 6 }}>⚠️</span>}{item.group.name}</div>
                         <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
                           👥 {item.group.size} {item.isAssigned && item.tableId !== 'TOGO' ? `| Tisch ${item.tableId?.slice(1)}` : item.isAssigned && item.tableId === 'TOGO' ? '| ToGo' : ''}
                         </div>
+                        {item.group.note && (
+                          <div style={{ fontSize: '12px', color: '#475569', marginTop: '6px' }}>{item.group.note}</div>
+                        )}
                       </div>
                     ))}
                   </div>

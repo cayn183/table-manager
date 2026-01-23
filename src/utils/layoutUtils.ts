@@ -364,7 +364,15 @@ export function getLayoutByRotation(
   tableHeight: number,
   tableRotation: number = 0
 ): { x: number; y: number }[] {
-  const base = generateOptimalSeating(size, tableWidth, tableHeight, tableRotation)
+  let base = generateOptimalSeating(size, tableWidth, tableHeight, tableRotation)
+  if (base.length === 0) {
+    const isVertical = getPerpendicularOrientation(tableRotation) === 'VERTICAL'
+    const neededHeight = Math.ceil(size / 2)
+    const neededWidth = Math.ceil(size / 2)
+    const virtualWidth = Math.max(tableWidth, isVertical ? 2 : neededWidth)
+    const virtualHeight = Math.max(tableHeight, isVertical ? neededHeight : 2)
+    base = generateOptimalSeating(size, virtualWidth, virtualHeight, tableRotation)
+  }
   if (base.length === 0) return []
 
   const normalizedRotation = groupRotation % 4
