@@ -1941,7 +1941,7 @@ export default function Room() {
                             </div>
                             <div style={{ gridColumn: '2 / 3', gridRow: '2 / 3', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
                               <span aria-hidden style={{ fontSize: '13px' }}>{isToGo ? '🥘' : '🪑'}</span>
-                              <span>{isToGo ? 'ToGo' : `${tableLocked ? '🔒 ' : ''}Tisch: ${tableId.slice(1)}`}</span>
+                              <span>{isToGo ? 'ToGo' : `Tisch: ${tableId.slice(1)}`}</span>
                             </div>
                           </div>
                         </div>

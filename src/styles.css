@@ -22,7 +22,6 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
 .context-menu{background:#fff;border:1px solid #ccc;padding:5px}
 .context-menu div{cursor:pointer;padding:5px}
 .context-menu div:hover{background:#f0f0f0}
-.assigned-list{max-height:400px;overflow-y:auto}
 .assigned-item{background:#e0ffe0;padding:6px;margin:2px;border-radius:4px;font-size:12px}
 
 /* Animations */
@@ -65,7 +64,6 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
     min-width: 360px !important;
   }
   .groups-list { max-height: 180px !important; }
-  .assigned-list { max-height: 180px !important; }
 }
 
 @media (max-width: 1024px) {
@@ -98,7 +96,6 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
     gap: 12px !important;
   }
   .groups-list { max-height: 140px !important; }
-  .assigned-list { max-height: 140px !important; }
   .modal-content {
     min-width: 90vw !important;
     max-width: 90vw !important;
