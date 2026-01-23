@@ -22,13 +22,45 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 - Placement: Erlaube rotierte Layout-Varianten für bestimmte Gruppengrößen (z. B. 6/8), indem Basisausrichtung auch virtuell generiert wird, damit geeignete Rotationen berücksichtigt werden
 
 
-## [0.6.8] - 2026-01-23
-
 ### Fixed
 - Entfernt Scrollbar in der Liste "Zugewiesen" — Verhalten nun konsistent zu "Unzugewiesen"
 - Entfernt Schloss-Symbol vor der Tischnummer in der Liste "Zugewiesen"
 
+## [0.6.7] - 2026-01-22
 
+### Added
+- Verbesserte PrintView mit Zeitplan, Datum, Button-Styling, Listen-Sortierung
+- Save-Toast nach Speichern (ersetzt Alert)
+- Responsive Schriftgrößen für Familiennamen
+- Automatische Zeichensatz-Erkennung beim CSV-Import (UTF-8, Windows-1252, UTF-16)
+
+### Changed
+- Infoboxen: Weißer Hintergrund für Labels
+- Kompakte Labels für vertikale 2er-Gruppen (wie Einzelpersonen, inkl. Personenzahl)
+- Platzierungs-Algorithmus: verhindert Gruppensplits, bessere Kompaktheit, TOP3-Debug
+- PrintView-Header sichtbar, Print-Footer ausgeblendet, Button- und Listen-UI überarbeitet
+
+### Fixed
+- Drag & Drop: Fehler bei fehlenden IDs und Typen behoben
+- PrintView: Listen-Sortierung, Zeitplan, Button-Styling
+- CSV-Import: Zeichensatzprobleme werden automatisch erkannt und korrigiert
+
+## [0.6.6] - 2026-01-17
+
+### Added
+- Mehrfachauswahl für unzugewiesene und zugewiesene Familien inkl. Batch-Aktionen (zu Tisch zuweisen, verschieben, Zuweisung entfernen, löschen)
+- UUID-basierte Identifikation aller Familien für stabile Auswahl- und Löschvorgänge
+- Visuelle Auswahl-Indikatoren (Checkbox/✔) in beiden Listen
+
+### Changed
+- Kontextmenüs gestrafft und eindeutige Beschriftungen für Einzel-/Mehrfachaktionen
+- Automatisches Deselektieren beim Listenwechsel (Unzugewiesen ↔ Zugewiesen)
+- Event-Speichern-Button bleibt sichtbar, unabhängig von der aktiven Liste
+
+### Fixed
+- Batch-Löschen und Tischzuweisung-aufheben in der zugewiesenen Liste funktionierten nicht zuverlässig
+- n+1 Zählfehler in Bestätigungs-Dialogs behoben
+- Fehlende IDs bei Drag & Drop und beim Bearbeiten unzugewiesener Familien führten zu Typ-/Auswahlfehlern
 ## [0.6.4] - 2026-01-16
 
 ### Changed

@@ -3105,9 +3105,13 @@ export default function Room() {
                     key={table.id}
                     onClick={() => {
                       if (tableSelectModal.group.toGo || !canFit || isLocked) return
+                      const currentAssigned = assignedGroups[table.id] || []
+                      const occupiedSet = buildOccupied(table, currentAssigned)
+                      const placement = tryPlaceOnTable(table, tableSelectModal.group, occupiedSet)
+                      if (!placement) return
                       setAssignedGroups({
                         ...assignedGroups,
-                        [table.id]: [...current, { group: tableSelectModal.group, rotation: 0, locked: false, x: 0, y: 0, color: PALETTE[0] }]
+                        [table.id]: [...currentAssigned, { group: tableSelectModal.group, rotation: placement.rotation, locked: false, x: placement.x, y: placement.y, color: PALETTE[0] }]
                       })
                       setGroups(groups.filter((_, i) => i !== tableSelectModal.index))
                       setTableSelectModal(null)

@@ -393,7 +393,7 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
                   {room.tables.map(table => {
                     const left = (table.x - gridBounds.minX) * CELL_SIZE
                     const top = (table.y - gridBounds.minY) * CELL_SIZE
-                    const assigned = assignedGroups[table.id] || []
+                      const assigned = assignedGroups[table.id] || []
                     const occupied = assigned.reduce((sum, ag) => sum + ag.group.size, 0)
 
                     return (
@@ -407,9 +407,10 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
                           height: table.height * CELL_SIZE
                         }}
                       >
-                        <div className="print-table-label">
-                          Tisch {table.id.replace(/^T/, '')} • {occupied}/{table.capacity}
-                        </div>
+                          <div className="print-table-label" style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px'}}>
+                            <div style={{ fontSize: '11px', fontWeight: 650, lineHeight: 1 }}>Tisch {table.id.replace(/^T/, '')}</div>
+                            <div style={{ fontSize: '10px',fontWeight: 600, lineHeight: 1 }}>{occupied}/{table.capacity}</div>
+                          </div>
                       </div>
                     )
                   })}
@@ -562,9 +563,11 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
                             {ag.group.size > 1 && (
                               <div style={{ fontSize: `${metaFontSize}px`, fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  {ag.group.accessible && <span title="Rollstuhl / Kinderwagen">♿</span>}
+                                  {ag.group.accessible && (
+                                    <span title="Rollstuhl / Kinderwagen" style={{ fontSize: `${metaFontSize}px`, lineHeight: 1, display: 'inline-block' }}>♿</span>
+                                  )}
                                   {ag.group.note && (
-                                    <span title={ag.group.note} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 18, height: 18, background: '#fbbf24', color: '#ffffff', borderRadius: 4, fontSize: 12, fontWeight: 700, padding: '0 4px' }}>!</span>
+                                    <span title={ag.group.note} style={{ display: 'inline-block', fontSize: `${metaFontSize}px`, lineHeight: 1, marginLeft: 6, color: '#f59e0b' }}>⚠️</span>
                                   )}
                                 </div>
                                 <div>👥 {ag.group.size}</div>
@@ -616,9 +619,12 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
                     ) : (
                       section.items.map((item, idx) => (
                         <div key={`${item.tableId}-${idx}`} className="print-list-item">
-                          <span className="print-list-name">{item.ag.group.name}</span>
-                          <span className="print-list-meta">Tisch {item.tableId.replace(/^T/, '')} • {item.ag.group.accessible ? '♿ ' : ''}👥 {item.ag.group.size}</span>
-                        </div>
+                            <span className="print-list-name">{item.ag.group.name}</span>
+                            <span className="print-list-meta">Tisch {item.tableId.replace(/^T/, '')} • {item.ag.group.accessible && <span style={{ fontSize: 11, lineHeight: 1, marginRight: 6 }}>♿</span>}👥 {item.ag.group.size}</span>
+                            {item.ag.group.note && (
+                              <div className="print-list-note"><span className="print-list-note-icon" aria-hidden>⚠️</span>{item.ag.group.note}</div>
+                            )}
+                          </div>
                       ))
                     )}
                   </div>
@@ -630,7 +636,10 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
                     {unassignedGroups.map((g, idx) => (
                       <div key={`unassigned-${idx}`} className="print-list-item">
                         <span className="print-list-name">{g.name}</span>
-                        <span className="print-list-meta">{g.accessible ? '♿ ' : ''}👥 {g.size}{g.time ? ` • ${g.time}` : ''}</span>
+                        <span className="print-list-meta">{g.accessible && <span style={{ fontSize: 11, lineHeight: 1, marginRight: 6 }}>♿</span>}👥 {g.size}{g.time ? ` • ${g.time}` : ''}</span>
+                        {g.note && (
+                          <div className="print-list-note"><span className="print-list-note-icon" aria-hidden>⚠️</span>{g.note}</div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -642,7 +651,10 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
                     {toGoGroups.map((ag, idx) => (
                       <div key={`togo-${idx}`} className="print-list-item">
                         <span className="print-list-name">{ag.group.name}</span>
-                        <span className="print-list-meta">{ag.group.accessible ? '♿ ' : ''}👥 {ag.group.size}{ag.group.time ? ` • ${ag.group.time}` : ''}</span>
+                        <span className="print-list-meta">{ag.group.accessible && <span style={{ fontSize: 11, lineHeight: 1, marginRight: 6 }}>♿</span>}👥 {ag.group.size}{ag.group.time ? ` • ${ag.group.time}` : ''}</span>
+                        {ag.group.note && (
+                          <div className="print-list-note"><span className="print-list-note-icon" aria-hidden>⚠️</span>{ag.group.note}</div>
+                        )}
                       </div>
                     ))}
                   </div>
