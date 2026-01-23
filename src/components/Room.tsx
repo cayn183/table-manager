@@ -2450,7 +2450,7 @@ export default function Room() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                               {ag.group.accessible && <span title="Rollstuhl / Kinderwagen">♿</span>}
                               {ag.group.note && (
-                                <span title={ag.group.note} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: '#fbbf24', color: '#ffffff', borderRadius: 3, fontSize: `${metaFontSize}px`, fontWeight: 700, padding: '0 4px' }}>!</span>
+                                <span title={ag.group.note} style={{ fontSize: `${metaFontSize}px`, lineHeight: 1, color: '#f59e0b', marginLeft: 6 }}>⚠️</span>
                               )}
                             </div>
                           <div>👥 {ag.group.size}</div>
@@ -4158,11 +4158,13 @@ function TimelineView({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {unassignedNoTime.map((item, i) => (
               <div key={`unassigned-${i}`} style={{ padding: '10px 12px', background: '#f1f5f9', borderLeft: '3px solid #94a3b8', borderRadius: '6px', fontSize: '14px' }}>
+                {item.group.note && <span title={item.group.note} style={{ fontSize: 13, color: '#f59e0b', marginRight: 6 }}>⚠️</span>}
                 {item.group.name} ({item.group.size} {item.group.toGo ? '| ToGo' : ''})
               </div>
             ))}
             {assignedNoTime.map((item, i) => (
               <div key={`assigned-notime-${i}`} style={{ padding: '10px 12px', background: '#f1f5f9', borderLeft: '3px solid #94a3b8', borderRadius: '6px', fontSize: '14px' }}>
+                {item.group.note && <span title={item.group.note} style={{ fontSize: 13, color: '#f59e0b', marginRight: 6 }}>⚠️</span>}
                 {item.group.name} ({item.group.size}) - {item.tableId === 'TOGO' ? 'ToGo' : `Tisch ${item.tableId?.slice(1)}`}
               </div>
             ))}
@@ -4187,7 +4189,7 @@ function TimelineView({
                     </div>
                     {items.map((item, i) => (
                       <div key={`${slotKey}-${i}`} style={{ padding: '10px 12px', background: '#f8fafc', borderRadius: '8px', fontSize: '13px', fontWeight: '500', color: '#1e293b', borderLeft: '4px solid #2196F3', lineHeight: '1.4' }}>
-                        <div>{item.group.name}</div>
+                        <div>{item.group.note && <span title={item.group.note} style={{ fontSize: 13, color: '#f59e0b', marginRight: 6 }}>⚠️</span>}{item.group.name}</div>
                         <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
                           👥 {item.group.size} {item.isAssigned && item.tableId !== 'TOGO' ? `| Tisch ${item.tableId?.slice(1)}` : item.isAssigned && item.tableId === 'TOGO' ? '| ToGo' : ''}
                         </div>
