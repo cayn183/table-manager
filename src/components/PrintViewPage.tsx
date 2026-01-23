@@ -533,7 +533,8 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
                             overflow: 'hidden',
                             borderRadius: '6px',
                             background: '#ffffff',
-                            textAlign: 'center'
+                              border: `1px solid ${ag.group.accessible ? '#60a5fa' : '#c7d2fe'}`,
+                              textAlign: 'center'
                           }}>
                             <div
                               style={{
@@ -560,7 +561,7 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
                             )}
                             {ag.group.size > 1 && (
                               <div style={{ fontSize: `${metaFontSize}px`, fontWeight: '600' }}>
-                                👥 {ag.group.size}
+                                {ag.group.accessible ? '♿ ' : ''}👥 {ag.group.size}
                               </div>
                             )}
                           </div>
@@ -609,7 +610,7 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
                       section.items.map((item, idx) => (
                         <div key={`${item.tableId}-${idx}`} className="print-list-item">
                           <span className="print-list-name">{item.ag.group.name}</span>
-                          <span className="print-list-meta">Tisch {item.tableId.replace(/^T/, '')} • 👥 {item.ag.group.size}</span>
+                          <span className="print-list-meta">Tisch {item.tableId.replace(/^T/, '')} • {item.ag.group.accessible ? '♿ ' : ''}👥 {item.ag.group.size}</span>
                         </div>
                       ))
                     )}
@@ -622,7 +623,7 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
                     {unassignedGroups.map((g, idx) => (
                       <div key={`unassigned-${idx}`} className="print-list-item">
                         <span className="print-list-name">{g.name}</span>
-                        <span className="print-list-meta">👥 {g.size}{g.time ? ` • ${g.time}` : ''}</span>
+                        <span className="print-list-meta">{g.accessible ? '♿ ' : ''}👥 {g.size}{g.time ? ` • ${g.time}` : ''}</span>
                       </div>
                     ))}
                   </div>
@@ -634,7 +635,7 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
                     {toGoGroups.map((ag, idx) => (
                       <div key={`togo-${idx}`} className="print-list-item">
                         <span className="print-list-name">{ag.group.name}</span>
-                        <span className="print-list-meta">👥 {ag.group.size}{ag.group.time ? ` • ${ag.group.time}` : ''}</span>
+                        <span className="print-list-meta">{ag.group.accessible ? '♿ ' : ''}👥 {ag.group.size}{ag.group.time ? ` • ${ag.group.time}` : ''}</span>
                       </div>
                     ))}
                   </div>

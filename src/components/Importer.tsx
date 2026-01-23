@@ -1,7 +1,7 @@
 import React from 'react'
 import Papa from 'papaparse'
 
-export type Group = { id: string; name: string; size: number; time?: string; toGo?: boolean; salutation?: 'Fam' | 'Frau' | 'Herr' | string }
+export type Group = { id: string; name: string; size: number; time?: string; toGo?: boolean; accessible?: boolean; salutation?: 'Fam' | 'Frau' | 'Herr' | string }
 
 export default function Importer({ onImport }: { onImport: (g: Group[]) => void }) {
   const [fileInfo, setFileInfo] = React.useState<{ name: string; encoding: string } | null>(null)
@@ -65,7 +65,8 @@ export default function Importer({ onImport }: { onImport: (g: Group[]) => void 
               const timeVal = r.time ?? r.zeit ?? r.slot ?? ''
               const salutationVal = r.salutation ?? r.title ?? r.anrede ?? 'Fam'
               const toGoVal = r.toGo ?? r.togo ?? r.takeaway ?? r.takeAway ?? r.to_go
-              return name ? { name: String(name).trim(), size, time: timeVal ? String(timeVal).trim() : undefined, toGo: Boolean(toGoVal), salutation: String(salutationVal || 'Fam').trim() || 'Fam' } : null
+              const accessibleVal = r.accessible ?? r.rollstuhl ?? r.kinderwagen ?? r.stroller ?? r.wheelchair
+              return name ? { name: String(name).trim(), size, time: timeVal ? String(timeVal).trim() : undefined, toGo: Boolean(toGoVal), accessible: Boolean(accessibleVal), salutation: String(salutationVal || 'Fam').trim() || 'Fam' } : null
             })
             .filter(Boolean) as Group[]
           onImport(groups)

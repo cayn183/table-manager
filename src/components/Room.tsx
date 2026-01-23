@@ -85,6 +85,7 @@ export default function Room() {
   const [newGroupSize, setNewGroupSize] = useState('4')
   const [newGroupTime, setNewGroupTime] = useState('')
   const [newGroupToGo, setNewGroupToGo] = useState(false)
+  const [newGroupAccessible, setNewGroupAccessible] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tableId: string; agIdx: number; isList: boolean; listIdx?: number; isAssignedList?: boolean } | null>(null)
   const [tableContextMenu, setTableContextMenu] = useState<{ x: number; y: number; tableId: string } | null>(null)
   const [editModal, setEditModal] = useState<{ tableId: string; agIdx: number; isList: boolean; listIdx?: number } | null>(null)
@@ -831,7 +832,7 @@ export default function Room() {
       alert('Personenzahl muss größer als 0 sein')
       return
     }
-    const group = { id: generateUUID(), name, size, time: newGroupTime || undefined, toGo: newGroupToGo, salutation: newGroupSalutation }
+    const group = { id: generateUUID(), name, size, time: newGroupTime || undefined, toGo: newGroupToGo, accessible: newGroupAccessible, salutation: newGroupSalutation }
     if (group.toGo) {
       const updatedAssigned = ensureToGoBucket({ ...assignedGroups })
       updatedAssigned['TOGO'] = [...(updatedAssigned['TOGO'] || []), { group, rotation: 0, locked: false, x: 0, y: 0, color: TOGO_COLOR }]
@@ -844,6 +845,7 @@ export default function Room() {
     setNewGroupSize('4')
     setNewGroupTime('')
     setNewGroupToGo(false)
+    setNewGroupAccessible(false)
     setShowModal(false)
   }
 
@@ -956,6 +958,7 @@ export default function Room() {
               size,
               time: time || undefined,
               toGo: false,
+              accessible: false,
               salutation: 'Fam'
             })
           }
@@ -1611,7 +1614,7 @@ export default function Room() {
                               color: '#1e293b',
                               padding: '10px',
                               borderRadius: '8px',
-                              border: '2px solid ' + (isSelected ? '#22c55e' : (g.toGo ? '#fbbf24' : '#e2e8f0')),
+                              border: '2px solid ' + (isSelected ? '#22c55e' : (g.toGo ? '#fbbf24' : (g.accessible ? '#60a5fa' : '#c7d2fe'))),
                               background: isSelected ? '#ecfdf5' : 'transparent',
                               cursor: g.toGo ? 'default' : 'pointer',
                               transition: 'all 0.2s',
@@ -1655,6 +1658,7 @@ export default function Room() {
                             <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
                               <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: fontSize + 'px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 {isSelected && <span aria-hidden style={{ fontSize: '13px', color: '#22c55e' }}>✔</span>}
+                                {g.accessible && <span aria-hidden title="Rollstuhl / Kinderwagen" style={{ fontSize: '14px', marginRight: '6px' }}>♿</span>}
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
                               </div>
                               <div style={{ gridColumn: '2 / 3', gridRow: '1 / 2', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '4px', alignItems: 'center' }}>
@@ -1886,7 +1890,7 @@ export default function Room() {
                             background: isSelected ? '#ecfdf5' : (isToGo ? '#fef3c7' : (assignedColors[tableId]?.[idx] || '#e0e7ff')),
                             padding: '10px',
                             borderRadius: '8px',
-                            border: isSelected ? '2px solid #22c55e' : ('1px solid ' + (isToGo ? '#fbbf24' : '#c7d2fe')),
+                            border: isSelected ? '2px solid #22c55e' : ('1px solid ' + (isToGo ? '#fbbf24' : (ag.group.accessible ? '#60a5fa' : '#c7d2fe'))),
                             cursor: multiSelectAssigned ? 'pointer' : 'default',
                             transition: 'all 0.2s',
                             fontSize: '13px'
@@ -1929,6 +1933,7 @@ export default function Room() {
                           <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gridTemplateRows: '1fr 1fr', gap: '4px', alignItems: 'center', fontSize: '13px', color: '#475569' }}>
                             <div style={{ gridColumn: '1 / 2', gridRow: '1 / 2', fontWeight: '700', fontSize: fontSize + 'px', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
                               {isSelected && <span aria-hidden style={{ fontSize: '13px', color: '#22c55e' }}>✔</span>}
+                              {ag.group.accessible && <span aria-hidden title="Rollstuhl / Kinderwagen" style={{ fontSize: '14px', marginRight: '6px' }}>♿</span>}
                               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
                             </div>
                             <div style={{ gridColumn: '2 / 3', gridRow: '1 / 2', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '4px', alignItems: 'center' }}>
@@ -2408,6 +2413,7 @@ export default function Room() {
                       overflow: 'hidden',
                       borderRadius: '6px',
                       background: '#ffffff',
+                      border: `1px solid ${ag.group.accessible ? '#60a5fa' : '#c7d2fe'}`,
                       textAlign: 'center'
                     }}>
                       {/* Name */}
@@ -2438,7 +2444,7 @@ export default function Room() {
                       )}
                       {ag.group.size > 1 && (
                         <div style={{ fontSize: `${metaFontSize}px`, fontWeight: '600' }}>
-                          👥 {ag.group.size}
+                          {ag.group.accessible ? '♿ ' : ''}👥 {ag.group.size}
                         </div>
                       )}
                     </div>
@@ -3521,10 +3527,27 @@ export default function Room() {
                 <input
                   type="checkbox"
                   checked={newGroupToGo}
-                  onChange={e => setNewGroupToGo(e.target.checked)}
+                  onChange={e => {
+                    const v = e.target.checked
+                    setNewGroupToGo(v)
+                    if (v) setNewGroupAccessible(false)
+                  }}
                   style={{ cursor: 'pointer' }}
                 />
                 <span style={{ fontSize: '14px', fontWeight: '500', color: '#475569' }}>ToGo (kein Tisch)</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: '#f1f5f9', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s' }}>
+                <input
+                  type="checkbox"
+                  checked={newGroupAccessible}
+                  onChange={e => {
+                    const v = e.target.checked
+                    setNewGroupAccessible(v)
+                    if (v) setNewGroupToGo(false)
+                  }}
+                  style={{ cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '14px', fontWeight: '500', color: '#475569' }}>Rollstuhl / Kinderwagen</span>
               </label>
               <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
                 <button
@@ -3874,9 +3897,17 @@ export default function Room() {
                       <input
                         type="checkbox"
                         checked={Boolean(row.toGo)}
-                        onChange={e => updateCsvPreview(idx, { toGo: e.target.checked })}
+                        onChange={e => updateCsvPreview(idx, { toGo: e.target.checked, accessible: e.target.checked ? false : row.accessible })}
                       />
                       ToGo
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#0f172a', paddingLeft: '6px' }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(row.accessible)}
+                        onChange={e => updateCsvPreview(idx, { accessible: e.target.checked, toGo: e.target.checked ? false : row.toGo })}
+                      />
+                      Rollstuhl / Kinderwagen
                     </label>
                     <button
                       onClick={() => removeCsvPreviewRow(idx)}
