@@ -7,6 +7,21 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-01-23
+
+### Added
+- Print: Zeige die dritte "Bemerkung"-Zeile in Druck-Listenansicht und auf Kartenlabels (sichtbar als kleine Warn-Ikone)
+
+### Changed
+- UI: Ersetze gelbes Badge durch ein kleines "⚠️" bei Bemerkungen und setze das Icon vor den Namen in Listen und Karten
+- UI: Verkleinere Icons und verringere den Abstand in `print-table-label`; erhöhe Schriftgröße der Tischnummer für Druckansichten
+- Input: Erhöhe maximale Länge für Bemerkungen (`note`) auf 50 Zeichen (Importer, CSV-Vorschau, Room-Editor)
+
+### Fixed
+- Room: Kontextmenü-Bereitstellung nutzt nun die Platzierungs-Helper (`tryPlaceOnTable`), um Überlappungen bei Einzelplatzierungen zu vermeiden
+- Placement: Erlaube rotierte Layout-Varianten für bestimmte Gruppengrößen (z. B. 6/8), indem Basisausrichtung auch virtuell generiert wird, damit geeignete Rotationen berücksichtigt werden
+
+
 ## [0.6.8] - 2026-01-23
 
 ### Fixed
