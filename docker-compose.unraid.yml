@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: tablemanager-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tm_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-verysecurepassword}
+      POSTGRES_DB: ${POSTGRES_DB:-tablemanager}
+    volumes:
+      - /mnt/user/appdata/table-manager/postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  backend:
+    # NOTE: replace the image below with your backend image or build config if you host the backend yourself
+    image: ghcr.io/cayn183/table-manager-backend:latest
+    container_name: table-manager-backend
+    environment:
+      - DATABASE_URL=postgres://tm_user:verysecurepassword@postgres:5432/tablemanager
+      - JWT_SECRET=${JWT_SECRET:-replace_with_a_strong_secret}
+      - NODE_ENV=production
+      - PORT=4000
+      # Optional Sentry
+      - SENTRY_DSN=${SENTRY_DSN}
+      - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE}
+    depends_on:
+      - postgres
+    ports:
+      - "4000:4000"
+    volumes:
+      - /mnt/user/appdata/table-manager/backend-data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/cayn183/table-manager:latest
+    container_name: table-manager-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://backend:4000
+      - VITE_SENTRY_DSN=${VITE_SENTRY_DSN}
+    depends_on:
+      - backend
+    volumes:
+      - /mnt/user/appdata/table-manager:/app/data
+    restart: unless-stopped
+
+# Notes:
+# - Replace image names with build context / local images if you prefer to build from source on Unraid.
+# - Ensure `JWT_SECRET` and `POSTGRES_PASSWORD` are set to secure values via the Unraid Docker UI or an env file.
+# - You can also add an Adminer or pgAdmin service for DB management if desired.
