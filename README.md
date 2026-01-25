@@ -162,3 +162,96 @@ Dieses Projekt ist unter der MIT-Lizenz lizenziert - siehe [LICENSE](LICENSE) Da
 ## 🔖 Changelog
 
 Siehe [CHANGELOG.md](CHANGELOG.md) für Details zu Versionsänderungen.
+
+## 📦 Deployment auf Unraid (Kurz-Guide)
+
+Dieser Abschnitt beschreibt die minimale Umgebung und die wichtigsten Environment-Variablen, die benötigt werden, wenn du Table‑Manager auf Unraid (Docker) betreiben willst. Es wird empfohlen, die Datenbank persistent zu betreiben (`/mnt/user/appdata/...`).
+
+Wichtige Dienste:
+- PostgreSQL (Produktion)
+- Table‑Manager (Frontend + optional Backend im selben Image)
+
+Wichtige Environment-Variablen
+
+- Backend (serverseitig, im `backend`-Container oder in `table-manager` wenn Backend integriert):
+	- `DATABASE_URL` — Postgres-Verbindungsstring, z.B. `postgres://tm_user:tm_pass@postgres:5432/tablemanager`
+	- `JWT_SECRET` — sicherer, zufälliger Secret-String für JWT (z. B. 32+ zufällige Zeichen)
+	- `PORT` — optional (Standard: `4000`)
+	- `NODE_ENV` — `production` empfohlen
+	- `SENTRY_DSN` — optional, für Fehler-Reporting
+	- `SENTRY_TRACES_SAMPLE_RATE` — optional, z.B. `0.05`
+
+- Frontend (Vite build / Laufzeit in Container):
+	- `VITE_API_URL` — URL zur Backend-API, z. B. `http://localhost:4000` oder `http://backend:4000`
+	- `VITE_SENTRY_DSN` — optional
+	- `VITE_BUILD_VERSION` / `VITE_BUILD_SHA` — werden während des Builds gesetzt (CI / Docker build-args)
+
+Postgres (Beispiel für `docker-compose` / Unraid)
+
+Ein einfaches Compose‑Snippet (lokal / Unraid benutzerdefiniert) — passe `POSTGRES_PASSWORD` und Volumes an:
+
+```yaml
+version: '3.8'
+services:
+	postgres:
+		image: postgres:15
+		container_name: tablemanager-db
+		environment:
+			POSTGRES_USER: tm_user
+			POSTGRES_PASSWORD: verysecurepassword
+			POSTGRES_DB: tablemanager
+		volumes:
+			- /mnt/user/appdata/table-manager/postgres:/var/lib/postgresql/data
+		restart: unless-stopped
+
+	table-manager:
+		image: ghcr.io/cayn183/table-manager:latest
+		container_name: table-manager
+		ports:
+			- "5173:5173"
+		environment:
+			- DATABASE_URL=postgres://tm_user:verysecurepassword@postgres:5432/tablemanager
+			- JWT_SECRET=replace_with_a_strong_secret
+			- NODE_ENV=production
+			- VITE_API_URL=http://localhost:4000
+		depends_on:
+			- postgres
+		volumes:
+			- /mnt/user/appdata/table-manager:/app/data
+		restart: unless-stopped
+```
+
+DB-Migration / Schema
+- Die initiale DB-Struktur ist in `[backend/db/schema.sql]` hinterlegt. Du kannst die Datei mit `psql` in die DB importieren, z. B.: 
+
+```bash
+# lokal oder in einem temporären Postgres-Container
+psql "postgres://tm_user:verysecurepassword@localhost:5432/tablemanager" -f backend/db/schema.sql
+```
+
+Alternativ kann das Backend beim ersten Start eine Migration endpoint anbieten (siehe `backend/src/routes/migration.ts`), welches importiert werden kann — nur für lokale/geschützte Umgebungen verwenden.
+
+Sicherheits-Hinweise
+- Setze `JWT_SECRET` auf einen ausreichend langen, zufälligen Wert (z. B. `openssl rand -hex 32`).
+- Verwende sichere Passwörter für Postgres und sichere Zugriffsregeln in Unraid.
+- Wenn du Sentry nutzt, setze `SENTRY_DSN` nur in Secrets/Environment-Settings.
+
+Build-Argumente für Docker
+- Beim Erstellen des Images über CI/Unraid kannst du `BUILD_SHA` und `BUILD_VERSION` als Build-Args übergeben, damit die Footer-Anzeige die korrekte Version / den Commit anzeigt:
+
+```bash
+# Beispiel
+docker build --build-arg BUILD_SHA=$(git rev-parse --short HEAD) --build-arg BUILD_VERSION=$(cat package.json | jq -r .version) -t table-manager:dev .
+```
+
+Debug & Wartung
+- Logs: Standardmäßig schreibt das Backend strukturierte Logs; schau in die Container-Logs (`docker logs table-manager`) bei Fehlern.
+- Backups: Sichere das Postgres-Volume regelmäßig (`/mnt/user/appdata/table-manager/postgres`).
+
+Support & Weiteres
+- Weitere Informationen und API-Spezifikation: siehe [backend/openapi.yaml](backend/openapi.yaml)
+- Wenn du möchtest, erstelle ich ein fertiges `docker-compose.unraid.yml`-Template, das sich direkt in Unraid verwenden lässt.
+
+***
+
+Wenn du willst, pushe ich diese README-Änderung direkt auf `dev` (oder erstelle eine PR). Soll ich pushen? 
