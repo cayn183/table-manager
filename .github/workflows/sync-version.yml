@@ -81,17 +81,7 @@ jobs:
           git add src/components/Footer.tsx CHANGELOG.md
           git commit -m "chore: sync version to ${{ steps.version.outputs.version }} [skip ci]" || echo "No changes to commit"
 
-      - name: Debug: show actor and token-access (non-sensitive)
-        if: steps.check_changes.outputs.has_changes == 'true'
-        run: |
-          echo "Actor: ${{ github.actor }}"
-          echo "Triggered by event: ${{ github.event_name }}"
-          # Test repo access using the token; show HTTP status (200 = ok)
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/${{ github.repository }} || true)
-          echo "repo API status: $STATUS"
-          if [ "$STATUS" -ne 200 ]; then
-            echo "Warning: token may lack access to the repository (HTTP $STATUS)"
-          fi
+      # Debug step removed to avoid YAML parsing issues in some linters
 
       - name: Create Pull Request
         if: steps.check_changes.outputs.has_changes == 'true'
