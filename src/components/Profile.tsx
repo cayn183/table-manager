@@ -34,7 +34,7 @@ export default function Profile() {
     if (!oldPwd || !newPwd) { setMsg('Bitte beide Felder ausfüllen'); return }
     setChanging(true)
     try {
-      await api.post('/auth/change-password', { oldPassword: oldPwd, newPassword: newPwd }, token)
+      await api.post('/auth/change-password', { oldPassword: oldPwd, newPassword: newPwd }, token ?? undefined)
       setMsg('Passwort geändert')
       setOldPwd('')
       setNewPwd('')

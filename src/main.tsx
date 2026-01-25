@@ -8,6 +8,7 @@ import UserMenu from './components/UserMenu'
 import ErrorBoundary from './components/ErrorBoundary'
 import './styles.css'
 import './styles/footer.css'
+import sentry from './sentryClient'
 
 function Root() {
   return (
@@ -20,15 +21,7 @@ function Root() {
     </div>
   )
 }
-  // For debugging rotation/top3 summaries during development, enable TOP3 logs
-  try {
-    if (typeof localStorage !== 'undefined' && !localStorage.getItem('debugPlacement')) {
-      localStorage.setItem('debugPlacement', '1')
-      console.info('[debugPlacement] defaulted to TOP3 for rotation diagnostics')
-    }
-  } catch (e) {
-    // ignore
-  }
+  // Debug placement feature removed from UI; keep codebase quiet by default
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -41,3 +34,6 @@ createRoot(document.getElementById('root')!).render(
     </BrowserRouter>
   </React.StrictMode>
 )
+
+// initialise Sentry in the browser if configured
+;(async () => { try { await sentry.initSentry() } catch (e) {} })()

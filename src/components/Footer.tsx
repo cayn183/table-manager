@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import '../styles/footer.css'
 
 const VERSION_INFO = {
@@ -13,22 +13,6 @@ const versionDisplay = buildSha && buildSha !== 'unknown'
   : VERSION_INFO.version
 
 export default function Footer() {
-  const [debugLevel, setDebugLevel] = useState<number>(0)
-  // migration UI removed — migration must be performed manually via server endpoint
-
-  useEffect(() => {
-    const v = typeof window !== 'undefined' ? localStorage.getItem('debugPlacement') : null
-    setDebugLevel(v === '2' ? 2 : (v === '1' ? 1 : 0))
-  }, [])
-
-  const toggleDebug = () => {
-    const next = (debugLevel + 1) % 3
-    setDebugLevel(next)
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('debugPlacement', String(next))
-    }
-  }
-
   return (
     <footer className="app-footer no-print" style={{ padding: '0.5rem', borderTop: '1px solid #ccc', marginTop: 'auto' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center' }}>
@@ -36,9 +20,6 @@ export default function Footer() {
           <span className="version-info">
             {VERSION_INFO.creator} v{versionDisplay} ({VERSION_INFO.releaseDate})
           </span>
-          <button onClick={toggleDebug} style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}>
-            Debug Logs: {debugLevel === 0 ? 'OFF' : debugLevel === 1 ? 'TOP3' : 'FULL'}
-          </button>
         </div>
       </div>
     </footer>

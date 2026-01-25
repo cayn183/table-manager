@@ -1,9 +1,11 @@
 import React from 'react'
+import logger from '../utils/logger'
+import sentry from '../sentryClient'
 
 type State = { hasError: boolean; error?: Error | null; stack?: string | null }
 
-export default class ErrorBoundary extends React.Component<{}, State> {
-  constructor(props: {}) {
+export default class ErrorBoundary extends React.Component<React.PropsWithChildren<{}>, State> {
+  constructor(props: React.PropsWithChildren<{}>) {
     super(props)
     this.state = { hasError: false, error: null }
   }
@@ -13,7 +15,9 @@ export default class ErrorBoundary extends React.Component<{}, State> {
   }
 
   componentDidCatch(error: Error, info: any) {
-    console.error('Uncaught render error:', error, info)
+    logger.error('ErrorBoundary', { error, info })
+    // report to Sentry if available
+    try { sentry.captureException(error, { requestId: (window as any).__requestId }) } catch (e) {}
     this.setState({ error, stack: info?.componentStack || null })
   }
 

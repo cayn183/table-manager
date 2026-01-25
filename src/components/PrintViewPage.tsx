@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import logger from '../utils/logger'
 import { useNavigate } from 'react-router-dom'
 import type { Group } from './Importer'
 import type { AssignedGroup, Room as RoomType, Table } from '../types/room'
@@ -97,7 +98,7 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
       const next = { ...event, ...patch }
       localStorage.setItem('currentEvent', JSON.stringify(next))
     } catch (err) {
-      console.error('Event-Daten konnten nicht aktualisiert werden', err)
+      logger.error('PrintViewPage', { action: 'persistEventFields', err })
     }
   }
 
@@ -129,7 +130,7 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
       setGroups(normalizeGroups(event.groups))
       setAssignedGroups(event.assignedGroups && typeof event.assignedGroups === 'object' ? event.assignedGroups : {})
     } catch (err) {
-      console.error('Event-Daten konnten nicht geladen werden', err)
+      logger.error('PrintViewPage', { action: 'loadEvent', err })
       setLoadError('Event-Daten konnten nicht geladen werden.')
     }
   }, [])

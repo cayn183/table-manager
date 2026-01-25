@@ -2,6 +2,7 @@ import express from 'express'
 import pool from '../db'
 import { requireAuth } from '../middleware/authMiddleware'
 import { v4 as uuidv4 } from 'uuid'
+import logger from '../logger'
 
 const router = express.Router()
 
@@ -18,9 +19,10 @@ router.post('/import', async (req, res) => {
   try {
     await pool.query('INSERT INTO events(id,user_id,title,data) VALUES($1,$2,$3,$4)', [id, user.id, eventTitle, payload])
     const r = await pool.query('SELECT id, title, data, created_at FROM events WHERE id=$1', [id])
+    ;(req as any).log('info', 'migration', { user: user.id, event: id })
     res.status(201).json(r.rows[0])
   } catch (err) {
-    console.error('migration import error', err)
+    ;(req as any).log('error', 'migration', { msg: 'migration import error', err })
     res.status(500).json({ error: 'Import failed' })
   }
 })

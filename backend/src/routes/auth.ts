@@ -3,6 +3,15 @@ import pool from '../db'
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import { v4 as uuidv4 } from 'uuid'
+let Sentry: any = null
+try {
+  // optional: only present if backend installed @sentry/node
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  Sentry = require('@sentry/node')
+} catch (e) {
+  Sentry = null
+}
+import logger from '../logger'
 
 const router = express.Router()
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret'
@@ -16,6 +25,17 @@ router.post('/register', async (req, res) => {
   const hash = await bcrypt.hash(password, 12)
   await pool.query('INSERT INTO users(id,name,email,password_hash) VALUES($1,$2,$3,$4)', [id, name, email, hash])
   const token = jwt.sign({ email, sub: id }, JWT_SECRET, { expiresIn: '7d' })
+  ;(req as any).log('info', 'auth', { action: 'register', user: id, email })
+  if (Sentry) {
+    try {
+      Sentry.configureScope((scope: any) => {
+        scope.setUser({ id })
+        scope.setTag('requestId', (req as any).requestId)
+      })
+    } catch (e) {
+      // ignore
+    }
+  }
   res.status(201).json({ token, user: { id, name, email } })
 })
 
@@ -28,6 +48,17 @@ router.post('/login', async (req, res) => {
   const ok = await bcrypt.compare(password, u.password_hash)
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' })
   const token = jwt.sign({ email, sub: u.id }, JWT_SECRET, { expiresIn: '7d' })
+  ;(req as any).log('info', 'auth', { action: 'login', user: u.id, email })
+  if (Sentry) {
+    try {
+      Sentry.configureScope((scope: any) => {
+        scope.setUser({ id: u.id })
+        scope.setTag('requestId', (req as any).requestId)
+      })
+    } catch (e) {
+      // ignore
+    }
+  }
   res.json({ token, user: { id: u.id, name: u.name, email } })
 })
 

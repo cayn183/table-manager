@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import api from '../api/apiClient'
+import logger from '../utils/logger'
+import sentry from '../sentryClient'
 
 type User = { id: string; name?: string; email?: string } | null
 
@@ -43,11 +45,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await api.post('/auth/login', { email, password })
       setToken(res.token)
       setUser(res.user)
+      try { sentry.setUser({ id: res.user.id }) } catch (e) {}
       // Automatic migration disabled — start with a clean state for new users
       return { ok: true, token: res.token, user: res.user }
     } catch (err: any) {
       const msg = err?.message || 'Login failed'
-      console.error('login error', err)
+      logger.error('auth', { action: 'login', err })
       return { ok: false, error: msg }
     }
   }
@@ -57,11 +60,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await api.post('/auth/register', { name, email, password })
       setToken(res.token)
       setUser(res.user)
+      try { sentry.setUser({ id: res.user.id }) } catch (e) {}
       // Automatic migration disabled — start with a clean state for new users
       return { ok: true, token: res.token, user: res.user }
     } catch (err: any) {
       const msg = err?.message || 'Register failed'
-      console.error('register error', err)
+      logger.error('auth', { action: 'register', err })
       return { ok: false, error: msg }
     }
   }
@@ -69,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   function logout() {
     setToken(null)
     setUser(null)
+    try { sentry.clearUser() } catch (e) {}
     // keep localStorage as-is (no migration flag used)
   }
 

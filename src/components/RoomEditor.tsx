@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import logger from '../utils/logger'
 import { useNavigate } from 'react-router-dom'
 import type { Table } from '../types/room'
 
@@ -101,7 +102,7 @@ export default function RoomEditor() {
           }
         }
       } catch (e) {
-        console.error('Fehler beim Laden des Raums', e)
+        logger.error('RoomEditor', { action: 'loadRoom', err: e })
       }
     }
   }, [])

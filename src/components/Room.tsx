@@ -28,6 +28,7 @@ import {
   tryPlaceOnTable,
   generateUUID
 } from '../utils/roomUtils'
+import logger from '../utils/logger'
 
 // ============================================================================
 // MAIN COMPONENT: Room
@@ -269,7 +270,7 @@ export default function Room() {
 
       validRotations.push({ rot, score })
       if (debug) {
-        console.debug('[findBestRotation]', { table: table.id, group: group.size, rot, targetX, targetY, score })
+        logger.debug('rotation', { phase: 'findBestRotation', table: table.id, group: group.size, rot, targetX, targetY, score })
       }
 
       if (score > bestScore) {
@@ -649,7 +650,7 @@ export default function Room() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(nextRoom))
     } catch (err) {
-      console.error('Tisch-Sperre konnte nicht gespeichert werden', err)
+      logger.error('Room', { action: 'lockTable', err })
     }
   }, [room])
 
@@ -758,7 +759,7 @@ export default function Room() {
           }
         }
       } catch (err) {
-        console.error('Event-Daten konnten nicht geladen werden', err)
+        logger.error('Room', { action: 'loadEvent', err })
       }
     } else {
       setLoadError('Kein gespeicherter Raum gefunden. Bitte im Editor speichern und erneut öffnen.')

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import logger from '../utils/logger'
 
 export default function UserMenu() {
   const { user, logout, token } = useAuth()
