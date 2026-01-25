@@ -7,10 +7,19 @@ const VERSION_INFO = {
   releaseDate: '2026-01-16'
 }
 
-const buildSha = (import.meta as ImportMeta & { env?: { VITE_BUILD_SHA?: string } }).env?.VITE_BUILD_SHA
-const versionDisplay = buildSha && buildSha !== 'unknown' 
-  ? `${VERSION_INFO.version} (${buildSha.substring(0, 7)})`
-  : VERSION_INFO.version
+const env = (import.meta as ImportMeta & { env?: { VITE_BUILD_SHA?: string; VITE_BUILD_VERSION?: string } }).env || {}
+const buildSha = env.VITE_BUILD_SHA
+const buildVersion = env.VITE_BUILD_VERSION
+
+const baseVersion = buildVersion && buildVersion !== 'unknown' ? buildVersion : VERSION_INFO.version
+const versionDisplay = (() => {
+  // For dev builds, include the short commit SHA when available
+  if ((baseVersion === 'dev' || VERSION_INFO.version === 'dev') && buildSha && buildSha !== 'unknown') {
+    return `${baseVersion} (${String(buildSha).substring(0, 7)})`
+  }
+  // Otherwise display the build version (release) or static version
+  return baseVersion
+})()
 
 export default function Footer() {
   return (

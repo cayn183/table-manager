@@ -16,6 +16,8 @@ COPY . .
 # Build-Argument für Version
 ARG BUILD_SHA=unknown
 ENV VITE_BUILD_SHA=${BUILD_SHA}
+ARG BUILD_VERSION=unknown
+ENV VITE_BUILD_VERSION=${BUILD_VERSION}
 
 # Build erstellen
 RUN npm run build
