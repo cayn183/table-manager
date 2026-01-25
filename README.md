@@ -41,6 +41,33 @@ npm run dev
 
 Die Anwendung ist dann verfügbar unter `http://localhost:5173`
 
+### Local backend (optional)
+
+If you want to run the local backend (for user accounts & persistent storage) follow these steps:
+
+1. Create a Postgres database and update `backend/.env` with `DATABASE_URL` and `JWT_SECRET`.
+2. Start backend:
+
+```powershell
+cd backend
+npm install
+npm run dev
+```
+
+3. Start frontend (project root) with `VITE_API_URL` pointing to backend:
+
+```powershell
+$env:VITE_API_URL = 'http://localhost:4000'
+npm run dev
+```
+
+4. There are helper scripts in `backend/`:
+
+- `smoke-test.ps1` — registers a test user and imports sample data.
+- `check-events.js` — prints recent events from the DB.
+- `cleanup-test-data.js` — removes test users/events created by the smoke test.
+
+
 ### Produktions-Build
 
 ```bash

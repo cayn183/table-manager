@@ -14,6 +14,7 @@ const versionDisplay = buildSha && buildSha !== 'unknown'
 
 export default function Footer() {
   const [debugLevel, setDebugLevel] = useState<number>(0)
+  // migration UI removed — migration must be performed manually via server endpoint
 
   useEffect(() => {
     const v = typeof window !== 'undefined' ? localStorage.getItem('debugPlacement') : null
@@ -30,13 +31,15 @@ export default function Footer() {
 
   return (
     <footer className="app-footer no-print" style={{ padding: '0.5rem', borderTop: '1px solid #ccc', marginTop: 'auto' }}>
-      <div className="footer-content" style={{ display: 'flex', gap: '1rem', justifyContent: 'center', alignItems: 'center' }}>
-        <span className="version-info">
-          {VERSION_INFO.creator} v{versionDisplay} ({VERSION_INFO.releaseDate})
-        </span>
-        <button onClick={toggleDebug} style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}>
-          Debug Logs: {debugLevel === 0 ? 'OFF' : debugLevel === 1 ? 'TOP3' : 'FULL'}
-        </button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center' }}>
+        <div className="footer-content" style={{ display: 'flex', gap: '1rem', justifyContent: 'center', alignItems: 'center' }}>
+          <span className="version-info">
+            {VERSION_INFO.creator} v{versionDisplay} ({VERSION_INFO.releaseDate})
+          </span>
+          <button onClick={toggleDebug} style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}>
+            Debug Logs: {debugLevel === 0 ? 'OFF' : debugLevel === 1 ? 'TOP3' : 'FULL'}
+          </button>
+        </div>
       </div>
     </footer>
   )
