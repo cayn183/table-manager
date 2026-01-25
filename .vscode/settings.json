@@ -1,0 +1,11 @@
+{
+  "yaml.schemas": {
+    "https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/schemas/v3.0/schema.json": "backend/openapi.yaml"
+  },
+  "files.associations": {
+    "backend/openapi.yaml": "openapi"
+  },
+  "esphome.enableValidation": false,
+  "esphome.validate": false,
+  "esphome.enableLinting": false
+}
