@@ -16,6 +16,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Extract version from package.json
         id: version
@@ -35,28 +38,27 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           RELEASE_DATE=$(date +%Y-%m-%d)
-          
+
           # Check if version already exists in CHANGELOG
           if grep -q "## \[$VERSION\]" CHANGELOG.md; then
             echo "✓ Version [$VERSION] already in CHANGELOG"
           else
-            # Create temp file
-            TEMP_FILE=$(mktemp)
-            
-            # Copy header
-            head -6 CHANGELOG.md > $TEMP_FILE
-            echo "" >> $TEMP_FILE
-            echo "## [$VERSION] - $RELEASE_DATE" >> $TEMP_FILE
-            echo "" >> $TEMP_FILE
-            echo "### Changed" >> $TEMP_FILE
-            echo "- Development version" >> $TEMP_FILE
-            echo "" >> $TEMP_FILE
-            
-            # Append rest of file
-            tail -n +8 CHANGELOG.md >> $TEMP_FILE
-            
-            # Replace original
-            mv $TEMP_FILE CHANGELOG.md
+            # Insert new version section after the '## [Unreleased]' header (robust to header length)
+            awk -v ver="$VERSION" -v date="$RELEASE_DATE" '
+              BEGIN{inserted=0}
+              /^## \[Unreleased\]/ && !inserted {
+                print
+                print ""
+                print "## [" ver "] - " date
+                print ""
+                print "### Changed"
+                print "- Development version"
+                print ""
+                inserted=1
+                next
+              }
+              { print }
+            ' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
             echo "✓ Updated CHANGELOG.md with version [$VERSION]"
           fi
       
@@ -78,6 +80,18 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add src/components/Footer.tsx CHANGELOG.md
           git commit -m "chore: sync version to ${{ steps.version.outputs.version }} [skip ci]" || echo "No changes to commit"
+
+      - name: Debug: show actor and token-access (non-sensitive)
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          echo "Actor: ${{ github.actor }}"
+          echo "Triggered by event: ${{ github.event_name }}"
+          # Test repo access using the token; show HTTP status (200 = ok)
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/${{ github.repository }} || true)
+          echo "repo API status: $STATUS"
+          if [ "$STATUS" -ne 200 ]; then
+            echo "Warning: token may lack access to the repository (HTTP $STATUS)"
+          fi
 
       - name: Create Pull Request
         if: steps.check_changes.outputs.has_changes == 'true'
