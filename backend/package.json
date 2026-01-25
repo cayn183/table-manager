@@ -4,8 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "migrate:dev": "ts-node-dev --respawn --transpile-only src/migrate.ts",
     "build": "tsc -p .",
     "start": "node dist/index.js",
+    "migrate": "node dist/src/migrate.js",
     "clean:test": "node cleanup-test-data.js"
   },
   "dependencies": {

@@ -6,6 +6,7 @@ import eventsRoutes from './routes/events'
 import migrationRoutes from './routes/migration'
 import requestId from './middleware/requestId'
 import logger from './logger'
+import { runMigrations } from './migrate'
 
 dotenv.config()
 
@@ -41,7 +42,23 @@ app.use('/migration', migrationRoutes)
 app.get('/', (req, res) => res.json({ ok: true, version: '0.1.0' }))
 
 const port = process.env.PORT || 4000
-app.listen(port, () => logger.info('server', `Server listening on ${port}`))
+
+async function start() {
+  if (process.env.MIGRATE_ON_START === 'true') {
+    try {
+      logger.info('migrate', 'Running migrations on start')
+      await runMigrations()
+      logger.info('migrate', 'Migrations applied')
+    } catch (e) {
+      logger.error('migrate', 'Migration failed', e)
+      process.exit(1)
+    }
+  }
+
+  app.listen(port, () => logger.info('server', `Server listening on ${port}`))
+}
+
+start()
 
 // If Sentry was initialized, use its error handler after routes
 if ((app as any).__sentry) {
