@@ -75,7 +75,8 @@ services:
     depends_on:
       - backend
     volumes:
-      - /mnt/user/appdata/table-manager:/app/data
+      # Keep frontend data isolated from backend and postgres
+      - /mnt/user/appdata/table-manager/frontend-data:/app/data
     restart: unless-stopped
 
 # Notes:
