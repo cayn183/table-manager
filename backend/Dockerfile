@@ -11,7 +11,8 @@ COPY tsconfig.json ./
 COPY src ./src
 COPY db ./db
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+RUN sed -i 's/\r$//' /usr/local/bin/entrypoint.sh \
+	&& chmod +x /usr/local/bin/entrypoint.sh
 
 # Build TypeScript
 RUN npm run build
