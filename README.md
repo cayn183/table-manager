@@ -185,7 +185,7 @@ Wichtige Environment-Variablen
 		
 		Das Backend verwendet die `POSTGRES_*`-Variablen wenn vorhanden und fällt ansonsten auf `DATABASE_URL` zurück.
 	- `JWT_SECRET` — sicherer, zufälliger Secret-String für JWT (z. B. 32+ zufällige Zeichen)
-	- `PORT` — optional (Standard: `4000`)
+	- `PORT` — optional (Standard: `4000`) — Hinweis: das Backend verwendet jetzt standardmäßig Port `4000`, ein `PORT`-Env ist nicht erforderlich.
 	- `NODE_ENV` — `production` empfohlen
 	- `SENTRY_DSN` — optional, für Fehler-Reporting
 	- `SENTRY_TRACES_SAMPLE_RATE` — optional, z.B. `0.05`

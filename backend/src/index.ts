@@ -41,7 +41,9 @@ app.use('/migration', migrationRoutes)
 
 app.get('/', (req, res) => res.json({ ok: true, version: '0.1.0' }))
 
-const port = process.env.PORT || 4000
+// Use a fixed backend port to reduce required environment variables.
+// The API listens on port 4000 inside the container.
+const port = 4000
 
 async function start() {
   if (process.env.MIGRATE_ON_START === 'true') {
