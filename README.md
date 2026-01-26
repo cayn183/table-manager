@@ -96,8 +96,11 @@ npm run preview
 # Docker Image bauen
 docker build -t table-manager .
 
-# Container starten
-docker run -p 5173:5173 table-manager
+# Container starten (im Hintergrund)
+docker run -d -p 5173:5173 --name table-manager-frontend table-manager
+
+# Logs im Hintergrund ansehen
+docker logs -f table-manager-frontend
 ```
 
 **Docker Compose**
