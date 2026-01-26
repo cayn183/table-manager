@@ -50,3 +50,21 @@ Smoke-test & cleanup
 Note: Automatic client->server migration during login/register is currently disabled. The server still exposes
 `POST /migration/import` for manual imports; call it intentionally if you want to migrate a specific local payload.
 
+Docker (backend image)
+- A backend-only Dockerfile is available in `backend/Dockerfile`.
+- The container entrypoint runs migrations on start when `MIGRATE_ON_START=true` (default in entrypoint).
+
+Build & run example (backend only)
+```powershell
+cd backend
+docker build -t table-manager-backend:dev .
+docker run --rm -p 4000:4000 \
+	-e POSTGRES_HOST=postgres \
+	-e POSTGRES_PORT=5432 \
+	-e POSTGRES_USER=tm_user \
+	-e POSTGRES_PASSWORD=tm_pass \
+	-e POSTGRES_DB=tablemanager \
+	-e JWT_SECRET=replace_with_a_strong_secret \
+	table-manager-backend:dev
+```
+
