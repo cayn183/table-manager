@@ -175,6 +175,15 @@ Wichtige Environment-Variablen
 
 - Backend (serverseitig, im `backend`-Container oder in `table-manager` wenn Backend integriert):
 	- `DATABASE_URL` — Postgres-Verbindungsstring, z.B. `postgres://tm_user:tm_pass@postgres:5432/tablemanager`
+	- Alternativ (bevorzugt): separate Postgres-Variablen, die das Backend jetzt unterstützt:
+		- `POSTGRES_HOST` — Hostname oder IP-Adresse des Postgres-Servers (z. B. `postgres`)
+		- `POSTGRES_PORT` — Port (Standard: `5432`)
+		- `POSTGRES_USER` — Datenbank-Benutzer
+		- `POSTGRES_PASSWORD` — Passwort für den Postgres-Benutzer
+		- `POSTGRES_DB` — Name der Datenbank
+		- `POSTGRES_SSL` — `true`/`false`, aktiviert SSL-Verbindung zum DB-Server (z. B. für verwaltete DBs)
+		
+		Das Backend verwendet die `POSTGRES_*`-Variablen wenn vorhanden und fällt ansonsten auf `DATABASE_URL` zurück.
 	- `JWT_SECRET` — sicherer, zufälliger Secret-String für JWT (z. B. 32+ zufällige Zeichen)
 	- `PORT` — optional (Standard: `4000`)
 	- `NODE_ENV` — `production` empfohlen
@@ -210,7 +219,15 @@ services:
 		ports:
 			- "5173:5173"
 		environment:
-			- DATABASE_URL=postgres://tm_user:verysecurepassword@postgres:5432/tablemanager
+			# Prefer separate POSTGRES_* variables (backend supports these)
+			- POSTGRES_HOST=postgres
+			- POSTGRES_PORT=5432
+			- POSTGRES_USER=${POSTGRES_USER:-tm_user}
+			- POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-verysecurepassword}
+			- POSTGRES_DB=${POSTGRES_DB:-tablemanager}
+			- POSTGRES_SSL=${POSTGRES_SSL:-false}
+			# DATABASE_URL still supported as fallback
+			- DATABASE_URL=postgres://${POSTGRES_USER:-tm_user}:${POSTGRES_PASSWORD:-verysecurepassword}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-tablemanager}
 			- JWT_SECRET=replace_with_a_strong_secret
 			- NODE_ENV=production
 			- VITE_API_URL=http://localhost:4000

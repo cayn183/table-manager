@@ -17,7 +17,15 @@ services:
     image: ghcr.io/cayn183/table-manager-backend:latest
     container_name: table-manager-backend
     environment:
-      - DATABASE_URL=postgres://tm_user:verysecurepassword@postgres:5432/tablemanager
+      # Prefer separate POSTGRES_* variables (fallback to DATABASE_URL supported)
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${POSTGRES_USER:-tm_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-verysecurepassword}
+      - POSTGRES_DB=${POSTGRES_DB:-tablemanager}
+      - POSTGRES_SSL=${POSTGRES_SSL:-false}
+      # Optional full DATABASE_URL (kept for backward compatibility)
+      - DATABASE_URL=postgres://${POSTGRES_USER:-tm_user}:${POSTGRES_PASSWORD:-verysecurepassword}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-tablemanager}
       - JWT_SECRET=${JWT_SECRET:-replace_with_a_strong_secret}
       - NODE_ENV=production
       - PORT=4000
