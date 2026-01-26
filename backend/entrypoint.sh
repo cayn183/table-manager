@@ -3,6 +3,20 @@ set -e
 
 log() { echo "[entrypoint] $1"; }
 
+# Ensure persistent data dir exists and backend log file is present for Unraid/host visibility
+DATA_DIR=${DATA_DIR:-/app/data}
+if [ ! -d "$DATA_DIR" ]; then
+  log "Creating data directory $DATA_DIR"
+  mkdir -p "$DATA_DIR"
+fi
+LOGFILE="$DATA_DIR/backend.log"
+if [ ! -f "$LOGFILE" ]; then
+  log "Creating backend log file $LOGFILE"
+  touch "$LOGFILE"
+fi
+# Export LOG_FILE so logger picks it up if it checks env
+export LOG_FILE="$LOGFILE"
+
 # Determine possible dist paths to support different image layouts (/app/dist or /app/backend/dist)
 find_migrate() {
   CANDIDATES="/app/dist/migrate.js /app/dist/src/migrate.js /app/backend/dist/migrate.js ./dist/migrate.js ./dist/src/migrate.js"
