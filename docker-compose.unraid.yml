@@ -13,7 +13,10 @@ services:
     restart: unless-stopped
 
   backend:
-    # NOTE: replace the image below with your backend image or build config if you host the backend yourself
+    # Preferred: build backend from local source so the image contains built JS and entrypoint
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     image: ghcr.io/cayn183/table-manager-backend:latest
     container_name: table-manager-backend
     environment:
@@ -36,9 +39,28 @@ services:
       - postgres
     ports:
       - "4000:4000"
+    # Mount only app data directory; avoid mounting over /app or /app/dist which would hide built files
     volumes:
       - /mnt/user/appdata/table-manager/backend-data:/app/data
     restart: unless-stopped
+
+  # Optional one-shot migrate service: runs migrations once and exits (commented example)
+  # migrate:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   image: ghcr.io/cayn183/table-manager-backend:latest
+  #   command: ["/usr/local/bin/entrypoint.sh"]
+  #   environment:
+  #     - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+  #     - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+  #     - POSTGRES_USER=${POSTGRES_USER}
+  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+  #     - POSTGRES_DB=${POSTGRES_DB}
+  #     - MIGRATE_ON_START=true
+  #   depends_on:
+  #     - postgres
+  #   restart: "no"
 
   frontend:
     image: ghcr.io/cayn183/table-manager:latest
