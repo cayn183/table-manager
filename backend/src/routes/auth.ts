@@ -25,7 +25,11 @@ router.post('/register', async (req, res) => {
   const hash = await bcrypt.hash(password, 12)
   await pool.query('INSERT INTO users(id,name,email,password_hash) VALUES($1,$2,$3,$4)', [id, name, email, hash])
   const token = jwt.sign({ email, sub: id }, JWT_SECRET, { expiresIn: '7d' })
-  ;(req as any).log('info', 'auth', { action: 'register', user: id, email })
+  if ((req as any).log && typeof (req as any).log === 'function') {
+    (req as any).log('info', 'auth', { action: 'register', user: id, email })
+  } else {
+    logger.info('auth', { action: 'register', user: id, email })
+  }
   if (Sentry) {
     try {
       Sentry.configureScope((scope: any) => {
@@ -48,7 +52,11 @@ router.post('/login', async (req, res) => {
   const ok = await bcrypt.compare(password, u.password_hash)
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' })
   const token = jwt.sign({ email, sub: u.id }, JWT_SECRET, { expiresIn: '7d' })
-  ;(req as any).log('info', 'auth', { action: 'login', user: u.id, email })
+  if ((req as any).log && typeof (req as any).log === 'function') {
+    (req as any).log('info', 'auth', { action: 'login', user: u.id, email })
+  } else {
+    logger.info('auth', { action: 'login', user: u.id, email })
+  }
   if (Sentry) {
     try {
       Sentry.configureScope((scope: any) => {
@@ -117,6 +125,11 @@ router.post('/change-password', async (req, res) => {
     if (!ok) return res.status(401).json({ error: 'Altes Passwort stimmt nicht' })
     const hash = await bcrypt.hash(newPassword, 12)
     await pool.query('UPDATE users SET password_hash=$1 WHERE id=$2', [hash, userId])
+    if ((req as any).log && typeof (req as any).log === 'function') {
+      (req as any).log('info', 'auth', { action: 'change-password', user: userId })
+    } else {
+      logger.info('auth', { action: 'change-password', user: userId })
+    }
     res.json({ ok: true })
   } catch (err) {
     res.status(401).json({ error: 'Invalid token' })
@@ -133,6 +146,11 @@ router.delete('/me', async (req, res) => {
     const userId = payload.sub
     // remove user (ON DELETE CASCADE will remove events/rooms)
     await pool.query('DELETE FROM users WHERE id=$1', [userId])
+    if ((req as any).log && typeof (req as any).log === 'function') {
+      (req as any).log('info', 'auth', { action: 'delete-account', user: userId })
+    } else {
+      logger.info('auth', { action: 'delete-account', user: userId })
+    }
     return res.json({ ok: true })
   } catch (err) {
     return res.status(401).json({ error: 'Invalid token' })

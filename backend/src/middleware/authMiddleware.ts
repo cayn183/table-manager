@@ -12,6 +12,12 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     ;(req as any).user = { id: payload.sub, email: payload.email }
     next()
   } catch (err) {
+    try {
+      const logger = require('../logger').default
+      logger.warn('auth', 'Invalid token provided')
+    } catch (e) {
+      // ignore
+    }
     return res.status(401).json({ error: 'Invalid token' })
   }
 }

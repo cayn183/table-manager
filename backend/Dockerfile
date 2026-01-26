@@ -14,8 +14,9 @@ WORKDIR /build/app
 COPY package*.json ./
 RUN npm ci
 COPY src ./src
-COPY index.html ./
-COPY styles ./styles
+	COPY index.html ./
+	COPY scripts ./scripts
+	COPY vite.config.ts ./vite.config.ts
 RUN npm run build
 
 FROM node:18-alpine
@@ -24,6 +25,8 @@ WORKDIR /app
 # Copy backend built artifacts and backend production deps
 COPY --from=backend-build /build/backend/dist /app/backend/dist
 COPY --from=backend-build /build/backend/node_modules /app/backend/node_modules
+# Include backend db schema for migrations
+COPY --from=backend-build /build/backend/db /app/backend/db
 
 # Copy frontend built files and node_modules (for vite preview)
 COPY --from=frontend-build /build/app/dist /app/dist
