@@ -1,65 +1,82 @@
 #!/bin/sh
 set -e
 
+DATA_DIR=${DATA_DIR:-/app/data}
+LOGFILE=${LOG_FILE:-$DATA_DIR/backend.log}
+
 log() { echo "[entrypoint] $1"; }
 
-# Ensure persistent data dir exists and backend log file is present for Unraid/host visibility
-DATA_DIR=${DATA_DIR:-/app/data}
+# Ensure persistent data dir and log
 if [ ! -d "$DATA_DIR" ]; then
   log "Creating data directory $DATA_DIR"
   mkdir -p "$DATA_DIR"
 fi
-LOGFILE="$DATA_DIR/backend.log"
 if [ ! -f "$LOGFILE" ]; then
   log "Creating backend log file $LOGFILE"
   touch "$LOGFILE"
 fi
-# Export LOG_FILE so logger picks it up if it checks env
 export LOG_FILE="$LOGFILE"
 
-# Determine possible dist paths to support different image layouts (/app/dist or /app/backend/dist)
-find_migrate() {
-  CANDIDATES="/app/dist/migrate.js /app/dist/src/migrate.js /app/backend/dist/migrate.js ./dist/migrate.js ./dist/src/migrate.js"
-  for p in $CANDIDATES; do
+run_migrations() {
+  # find migrate script in common locations
+  for p in /app/backend/dist/migrate.js /app/dist/migrate.js /app/dist/src/migrate.js ./dist/migrate.js; do
     if [ -f "$p" ]; then
-      echo "$p"
+      log "Running migrations using $p"
+      node "$p" >> "$LOGFILE" 2>&1 || { log "Migration command failed (see $LOGFILE)"; return 1; }
+      log "Migrations applied"
       return 0
     fi
   done
-  return 1
+  log "No migrate script found; skipping migrations"
+  return 0
 }
 
-find_index() {
-  CANDIDATES="/app/dist/index.js /app/backend/dist/index.js ./dist/index.js"
-  for p in $CANDIDATES; do
-    if [ -f "$p" ]; then
-      echo "$p"
-      return 0
-    fi
-  done
-  return 1
-}
-
-MIGRATE_CMD=$(find_migrate || true)
-INDEX_CMD=$(find_index || true)
-
-if [ -z "${MIGRATE_ON_START}" ] || [ "${MIGRATE_ON_START}" = "true" ]; then
-  if [ -n "$MIGRATE_CMD" ]; then
-    log "Running migrations using $MIGRATE_CMD"
-    # run migrations and surface output
-    node "$MIGRATE_CMD" || { log "Migration command failed"; exit 1; }
-    log "Migrations applied"
-  else
-    log "No migrate script found (looked for dist/migrate.js). Skipping migrations."
+start_backend() {
+  # run migrations if requested
+  if [ "${MIGRATE_ON_START:-false}" = "true" ]; then
+    run_migrations || log "Migrations failed, continuing to start backend"
   fi
-else
-  log "MIGRATE_ON_START disabled; skipping migrations"
-fi
 
-if [ -n "$INDEX_CMD" ]; then
-  log "Starting backend using $INDEX_CMD"
-  exec node "$INDEX_CMD"
-else
-  log "Start binary not found (dist/index.js). Trying npm start"
-  exec npm run start
-fi
+  # prefer backend dist
+  if [ -f /app/backend/dist/index.js ]; then
+    log "Starting backend from /app/backend/dist/index.js"
+    exec node /app/backend/dist/index.js >> "$LOGFILE" 2>&1
+  elif [ -f /app/dist/index.js ]; then
+    log "Starting backend from /app/dist/index.js"
+    exec node /app/dist/index.js >> "$LOGFILE" 2>&1
+  else
+    log "No backend start file found; attempting npm start"
+    exec npm run start >> "$LOGFILE" 2>&1
+  fi
+}
+
+start_frontend() {
+  log "Starting frontend (vite preview)"
+  if [ -x /app/node_modules/.bin/vite ]; then
+    exec /app/node_modules/.bin/vite preview --host 0.0.0.0 --port 5173 >> "$LOGFILE" 2>&1
+  elif command -v vite >/dev/null 2>&1; then
+    exec vite preview --host 0.0.0.0 --port 5173 >> "$LOGFILE" 2>&1
+  else
+    log "vite not found; cannot start frontend"
+    exit 1
+  fi
+}
+
+case "${SERVICE:-}" in
+  backend)
+    start_backend
+    ;;
+  frontend)
+    start_frontend
+    ;;
+  "")
+    # default to backend for backwards compatibility
+    log "SERVICE not set; defaulting to backend"
+    start_backend
+    ;;
+  *)
+    log "Unknown SERVICE='${SERVICE}'"
+    exit 1
+    ;;
+esac
+
