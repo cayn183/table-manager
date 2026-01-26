@@ -42,22 +42,55 @@ function shouldLog(level: Level) {
   return LEVELS.indexOf(level) >= min
 }
 
+// Optional persistent log file (useful when Docker logs aren't available in the UI)
+let logFilePath: string | null = null
+try {
+  const candidate = process.env.LOG_FILE || '/app/data/backend.log'
+  // only use file logging if the directory exists and is writable
+  const fs = require('fs')
+  const path = require('path')
+  const dir = path.dirname(candidate)
+  if (fs.existsSync(dir)) {
+    logFilePath = candidate
+  }
+} catch (e) {
+  logFilePath = null
+}
+
+function appendToFile(msg: string) {
+  if (!logFilePath) return
+  try {
+    const fs = require('fs')
+    fs.appendFile(logFilePath, msg + '\n', (err: any) => { /* ignore write errors */ })
+  } catch (e) {
+    // ignore
+  }
+}
+
 const logger = {
   debug: (tag: string | undefined, ...args: any[]) => {
     if (!shouldLog('debug')) return
-    console.debug(format('debug', tag, args.length > 1 ? args : args[0]))
+    const msg = format('debug', tag, args.length > 1 ? args : args[0])
+    console.debug(msg)
+    appendToFile(msg)
   },
   info: (tag: string | undefined, ...args: any[]) => {
     if (!shouldLog('info')) return
-    console.info(format('info', tag, args.length > 1 ? args : args[0]))
+    const msg = format('info', tag, args.length > 1 ? args : args[0])
+    console.info(msg)
+    appendToFile(msg)
   },
   warn: (tag: string | undefined, ...args: any[]) => {
     if (!shouldLog('warn')) return
-    console.warn(format('warn', tag, args.length > 1 ? args : args[0]))
+    const msg = format('warn', tag, args.length > 1 ? args : args[0])
+    console.warn(msg)
+    appendToFile(msg)
   },
   error: (tag: string | undefined, ...args: any[]) => {
     if (!shouldLog('error')) return
-    console.error(format('error', tag, args.length > 1 ? args : args[0]))
+    const msg = format('error', tag, args.length > 1 ? args : args[0])
+    console.error(msg)
+    appendToFile(msg)
   }
 }
 
