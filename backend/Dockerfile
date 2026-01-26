@@ -30,7 +30,8 @@ COPY --from=frontend-build /build/app/dist /app/dist
 COPY --from=frontend-build /build/app/node_modules /app/node_modules
 
 # Entrypoint
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+# entrypoint is located in backend/ when building from repo root
+COPY backend/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN sed -i 's/\r$//' /usr/local/bin/entrypoint.sh && chmod +x /usr/local/bin/entrypoint.sh
 
 VOLUME ["/app/data"]
