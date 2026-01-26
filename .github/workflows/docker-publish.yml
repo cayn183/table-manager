@@ -77,5 +77,6 @@ jobs:
             BUILD_SHA=${{ github.sha }}
             BUILD_VERSION=${{ steps.tags.outputs.build_version }}
           platforms: linux/amd64,linux/arm64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Disabled cache backend causing buildx errors on runners.
+          # cache-from: type=gha
+          # cache-to: type=gha,mode=max
