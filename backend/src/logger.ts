@@ -3,6 +3,9 @@ export type Level = 'debug' | 'info' | 'warn' | 'error'
 const ENV_LEVEL = (process.env.LOG_LEVEL || 'info').toLowerCase()
 const LEVELS: Level[] = ['debug', 'info', 'warn', 'error']
 
+const MAX_BYTES = parseInt(process.env.LOG_MAX_BYTES || String(5 * 1024 * 1024), 10) // default 5MB
+const MAX_FILES = parseInt(process.env.LOG_MAX_FILES || '5', 10)
+
 function time() {
   return new Date().toISOString()
 }
@@ -44,11 +47,12 @@ function shouldLog(level: Level) {
 
 // Optional persistent log file (useful when Docker logs aren't available in the UI)
 let logFilePath: string | null = null
+let fs: any = null
+let path: any = null
 try {
+  fs = require('fs')
+  path = require('path')
   const candidate = process.env.LOG_FILE || '/app/data/backend.log'
-  // only use file logging if the directory exists and is writable
-  const fs = require('fs')
-  const path = require('path')
   const dir = path.dirname(candidate)
   if (fs.existsSync(dir)) {
     logFilePath = candidate
@@ -57,13 +61,37 @@ try {
   logFilePath = null
 }
 
-function appendToFile(msg: string) {
-  if (!logFilePath) return
+function rotateIfNeededSync() {
+  if (!logFilePath || !fs) return
   try {
-    const fs = require('fs')
-    fs.appendFile(logFilePath, msg + '\n', (err: any) => { /* ignore write errors */ })
+    if (!fs.existsSync(logFilePath)) return
+    const st = fs.statSync(logFilePath)
+    if (st.size < MAX_BYTES) return
+
+    // rotate: move .(n-1) -> .n, then rename current -> .1
+    for (let i = MAX_FILES - 1; i >= 1; i--) {
+      const src = `${logFilePath}.${i}`
+      const dst = `${logFilePath}.${i + 1}`
+      if (fs.existsSync(src)) {
+        try { fs.renameSync(src, dst) } catch (e) { /* ignore */ }
+      }
+    }
+    // rotate current
+    try { fs.renameSync(logFilePath, `${logFilePath}.1`) } catch (e) { /* ignore */ }
+    // create new empty file
+    try { fs.closeSync(fs.openSync(logFilePath, 'w')) } catch (e) { /* ignore */ }
   } catch (e) {
-    // ignore
+    // ignore rotation errors
+  }
+}
+
+function appendToFile(msg: string) {
+  if (!logFilePath || !fs) return
+  try {
+    rotateIfNeededSync()
+    fs.appendFileSync(logFilePath, msg + '\n')
+  } catch (e) {
+    // ignore write errors
   }
 }
 

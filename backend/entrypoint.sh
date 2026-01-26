@@ -15,6 +15,8 @@ if [ ! -f "$LOGFILE" ]; then
   log "Creating backend log file $LOGFILE"
   touch "$LOGFILE"
 fi
+# ensure predictable permissions so rotation and writes succeed
+chmod 644 "$LOGFILE" || true
 export LOG_FILE="$LOGFILE"
 
 run_migrations() {
@@ -22,7 +24,8 @@ run_migrations() {
   for p in /app/backend/dist/migrate.js /app/dist/migrate.js /app/dist/src/migrate.js ./dist/migrate.js; do
     if [ -f "$p" ]; then
       log "Running migrations using $p"
-      node "$p" >> "$LOGFILE" 2>&1 || { log "Migration command failed (see $LOGFILE)"; return 1; }
+      # pipe output through tee so it appears in docker logs and also written to file
+      node "$p" 2>&1 | tee -a "$LOGFILE" || { log "Migration command failed (see $LOGFILE)"; return 1; }
       log "Migrations applied"
       return 0
     fi
@@ -40,22 +43,22 @@ start_backend() {
   # prefer backend dist
   if [ -f /app/backend/dist/index.js ]; then
     log "Starting backend from /app/backend/dist/index.js"
-    exec node /app/backend/dist/index.js >> "$LOGFILE" 2>&1
+    exec sh -c 'node /app/backend/dist/index.js 2>&1 | tee -a "$LOG_FILE"'
   elif [ -f /app/dist/index.js ]; then
     log "Starting backend from /app/dist/index.js"
-    exec node /app/dist/index.js >> "$LOGFILE" 2>&1
+    exec sh -c 'node /app/dist/index.js 2>&1 | tee -a "$LOG_FILE"'
   else
     log "No backend start file found; attempting npm start"
-    exec npm run start >> "$LOGFILE" 2>&1
+    exec sh -c 'npm run start 2>&1 | tee -a "$LOG_FILE"'
   fi
 }
 
 start_frontend() {
   log "Starting frontend (vite preview)"
   if [ -x /app/node_modules/.bin/vite ]; then
-    exec /app/node_modules/.bin/vite preview --host 0.0.0.0 --port 5173 >> "$LOGFILE" 2>&1
+    exec sh -c '/app/node_modules/.bin/vite preview --host 0.0.0.0 --port 5173 2>&1 | tee -a "$LOG_FILE"'
   elif command -v vite >/dev/null 2>&1; then
-    exec vite preview --host 0.0.0.0 --port 5173 >> "$LOGFILE" 2>&1
+    exec sh -c 'vite preview --host 0.0.0.0 --port 5173 2>&1 | tee -a "$LOG_FILE"'
   else
     log "vite not found; cannot start frontend"
     exit 1

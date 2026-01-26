@@ -70,8 +70,12 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: backend/Dockerfile
           push: true
           tags: ${{ steps.tags.outputs.tags }}
           build-args: |
             BUILD_SHA=${{ github.sha }}
             BUILD_VERSION=${{ steps.tags.outputs.build_version }}
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
