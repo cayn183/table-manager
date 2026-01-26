@@ -20,6 +20,8 @@ services:
     image: ghcr.io/cayn183/table-manager-backend:latest
     container_name: table-manager-backend
     environment:
+      # Mark this service explicitly as backend for orchestrators/monitoring
+      - SERVICE=backend
       # Prefer separate POSTGRES_* variables (fallback to DATABASE_URL supported)
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
