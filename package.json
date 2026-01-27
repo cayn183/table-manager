@@ -1,6 +1,7 @@
 {
   "name": "@cayn183/table-manager",
   "version": "0.6.3",
+  "syncTest": "2026-01-25T00:00:00Z",
   "repository": {
     "type": "git",
     "url": "https://github.com/Cayn183/Table-Manager.git"
@@ -9,8 +10,8 @@
     "registry": "https://npm.pkg.github.com"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "node scripts/dev-with-build-info.js",
+    "build": "node scripts/build-with-build-info.js",
     "preview": "vite preview --host 0.0.0.0 --port 5173",
     "start": "vite preview --host 0.0.0.0 --port 5173"
   },
@@ -18,7 +19,9 @@
     "papaparse": "^5.4.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^7.12.0"
+    "react-router-dom": "^7.12.0",
+    "@sentry/react": "^7.63.0",
+    "@sentry/tracing": "^7.63.0"
   },
   "devDependencies": {
     "@types/papaparse": "^5.5.2",

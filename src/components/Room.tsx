@@ -3,6 +3,8 @@
 // ============================================================================
 import React, { useEffect, useMemo, useCallback, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../auth/AuthContext'
+import userStorage from '../utils/userStorage'
 import Importer, { Group } from './Importer'
 import Papa from 'papaparse'
 import { bestFitAssign } from '../utils/placement'
@@ -28,6 +30,7 @@ import {
   tryPlaceOnTable,
   generateUUID
 } from '../utils/roomUtils'
+import logger from '../utils/logger'
 
 // ============================================================================
 // MAIN COMPONENT: Room
@@ -46,6 +49,7 @@ function getResponsiveFontSize(text: string): number {
 
 export default function Room() {
   const navigate = useNavigate()
+  const auth = useAuth()
   
   // --------------------------------------------------------------------------
   // STATE: Core Data
@@ -269,7 +273,7 @@ export default function Room() {
 
       validRotations.push({ rot, score })
       if (debug) {
-        console.debug('[findBestRotation]', { table: table.id, group: group.size, rot, targetX, targetY, score })
+        logger.debug('rotation', { phase: 'findBestRotation', table: table.id, group: group.size, rot, targetX, targetY, score })
       }
 
       if (score > bestScore) {
@@ -649,7 +653,7 @@ export default function Room() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(nextRoom))
     } catch (err) {
-      console.error('Tisch-Sperre konnte nicht gespeichert werden', err)
+      logger.error('Room', { action: 'lockTable', err })
     }
   }, [room])
 
@@ -731,17 +735,24 @@ export default function Room() {
   }, [draggingGroup, draggingMeta, room, assignedGroups, groups, computePlacementFromClient, cancelDragging])
 
 
-  // Load room definition from localStorage on mount
+  // Load room definition from localStorage on mount (prefer user-scoped storage)
   useEffect(() => {
-    const stored = loadRoomFromStorage()
+    let stored: RoomType | null = null
+    try {
+      const rawRoom = userStorage.getItem(STORAGE_KEY, auth.user ? auth.user.id : null) || null
+      if (rawRoom) stored = JSON.parse(rawRoom as string)
+      else stored = loadRoomFromStorage()
+    } catch (e) {
+      stored = null
+    }
     if (stored) {
       setRoom(stored)
       
       // Try to load event data (groups and assigned groups)
       try {
-        const currentEvent = localStorage.getItem('currentEvent')
-        if (currentEvent) {
-          const event = JSON.parse(currentEvent)
+        const rawEvent = userStorage.getItem('currentEvent', auth.user ? auth.user.id : null) || localStorage.getItem('currentEvent')
+        if (rawEvent) {
+          const event = JSON.parse(rawEvent as string)
           if (event.groups && Array.isArray(event.groups)) {
             const normalizedGroups = event.groups.map((g: Group) => ({ ...g, salutation: g.salutation || 'Fam' }))
             setGroups(normalizedGroups)
@@ -758,7 +769,7 @@ export default function Room() {
           }
         }
       } catch (err) {
-        console.error('Event-Daten konnten nicht geladen werden', err)
+        logger.error('Room', { action: 'loadEvent', err })
       }
     } else {
       setLoadError('Kein gespeicherter Raum gefunden. Bitte im Editor speichern und erneut öffnen.')
@@ -852,12 +863,14 @@ export default function Room() {
   }
 
   function handleSaveEvent() {
-    setEventSaveName(localStorage.getItem('currentEvent') ? JSON.parse(localStorage.getItem('currentEvent') || '{}').name : 'Event')
+    const raw = userStorage.getItem('currentEvent', auth.user ? auth.user.id : null) || localStorage.getItem('currentEvent')
+    setEventSaveName(raw ? JSON.parse(raw as string).name : 'Event')
     setShowEventSaveModal(true)
   }
 
   function saveEventSilently() {
-    const current = JSON.parse(localStorage.getItem('currentEvent') || '{}')
+    const rawCurrent = userStorage.getItem('currentEvent', auth.user ? auth.user.id : null) || localStorage.getItem('currentEvent') || '{}'
+    const current = JSON.parse(rawCurrent as string)
     const name = current.name || `Event ${new Date().toLocaleDateString()}`
     const event = { ...current }
     event.name = name
@@ -866,11 +879,12 @@ export default function Room() {
     event.lastModified = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`
     event.assignedGroups = assignedGroups
     event.groups = groups
-    const list = JSON.parse(localStorage.getItem('events') || '[]')
+    const rawList = userStorage.getItem('events', auth.user ? auth.user.id : null) || localStorage.getItem('events') || '[]'
+    const list = JSON.parse(rawList as string)
     const updated = list.map((e: any) => e.id === event.id ? event : e)
     if (!updated.find((e: any) => e.id === event.id)) updated.push(event)
-    localStorage.setItem('events', JSON.stringify(updated))
-    localStorage.setItem('currentEvent', JSON.stringify(event))
+    userStorage.setItem('events', JSON.stringify(updated), auth.user ? auth.user.id : null)
+    userStorage.setItem('currentEvent', JSON.stringify(event), auth.user ? auth.user.id : null)
     setLastSaveTime(event.lastModified)
     setLastSaveType('auto')
     setIsDirty(false)
@@ -1024,18 +1038,20 @@ export default function Room() {
   }
 
   function confirmSaveEvent(name: string) {
-    const event = JSON.parse(localStorage.getItem('currentEvent') || '{}')
+    const rawCurrent = userStorage.getItem('currentEvent', auth.user ? auth.user.id : null) || localStorage.getItem('currentEvent') || '{}'
+    const event = JSON.parse(rawCurrent as string)
     event.name = name || event.name || `Event ${new Date().toLocaleDateString()}`
     if (!event.createdAt) event.createdAt = new Date().toLocaleDateString()
     const now = new Date()
     event.lastModified = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`
     event.assignedGroups = assignedGroups
     event.groups = groups
-    const list = JSON.parse(localStorage.getItem('events') || '[]')
+    const rawList = userStorage.getItem('events', auth.user ? auth.user.id : null) || localStorage.getItem('events') || '[]'
+    const list = JSON.parse(rawList as string)
     const updated = list.map((e: any) => e.id === event.id ? event : e)
     if (!updated.find((e: any) => e.id === event.id)) updated.push(event)
-    localStorage.setItem('events', JSON.stringify(updated))
-    localStorage.setItem('currentEvent', JSON.stringify(event))
+    userStorage.setItem('events', JSON.stringify(updated), auth.user ? auth.user.id : null)
+    userStorage.setItem('currentEvent', JSON.stringify(event), auth.user ? auth.user.id : null)
     setShowEventSaveModal(false)
     const timeStr = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`
     setLastSaveTime(timeStr)
@@ -2049,7 +2065,8 @@ export default function Room() {
               <button
                 onClick={() => {
                   // Speichere aktuelle Daten in LocalStorage und navigiere zur PrintView
-                  const current = JSON.parse(localStorage.getItem('currentEvent') || '{}');
+                  const rawCurrent = userStorage.getItem('currentEvent', auth.user ? auth.user.id : null) || localStorage.getItem('currentEvent') || '{}'
+                  const current = JSON.parse(rawCurrent as string)
                   const name = current.name || `Event ${new Date().toLocaleDateString()}`;
                   const event = { ...current };
                   event.name = name;
@@ -2059,7 +2076,7 @@ export default function Room() {
                   event.assignedGroups = assignedGroups;
                   event.groups = groups;
                   event.room = room;
-                  localStorage.setItem('currentEvent', JSON.stringify(event));
+                  userStorage.setItem('currentEvent', JSON.stringify(event), auth.user ? auth.user.id : null);
                   navigate("/printview");
                 }}
                 style={{

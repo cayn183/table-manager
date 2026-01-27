@@ -1,6 +1,7 @@
 import type { Group } from '../components/Importer'
 import type { Table, Room, AssignedGroup } from '../types/room'
 import { generateOptimalSeating, getPerpendicularOrientation, canFit, getLayoutByRotation } from './layoutUtils'
+import logger from './logger'
 
 export const GRID_WIDTH = 28
 export const GRID_HEIGHT = 20
@@ -112,7 +113,7 @@ export function loadRoomFromStorage(): Room | null {
     const stored = localStorage.getItem(STORAGE_KEY)
     return stored ? JSON.parse(stored) as Room : null
   } catch (err) {
-    console.error('Raum konnte nicht geladen werden', err)
+    logger.error('roomUtils', { action: 'loadRoomFromStorage', err })
     return null
   }
 }
@@ -448,14 +449,14 @@ function findPlacement(
   }
   if (debugLevel === 2 && rotSummaries.length) {
     for (const s of rotSummaries) {
-      console.debug('[findPlacement:rotation-summary]', { table: table.id, group: group.size, rot: s.rot, bestScore: s.bestScore, x: s.x, y: s.y })
+      logger.debug('placement', { phase: 'findPlacement:rotation-summary', table: table.id, group: group.size, rot: s.rot, bestScore: s.bestScore, x: s.x, y: s.y })
     }
   } else if (debugLevel === 1 && rotSummaries.length) {
     const top = [...rotSummaries].sort((a, b) => b.bestScore - a.bestScore).slice(0, 3)
-    console.debug('[findPlacement:top3]', { table: table.id, group: group.size, candidates: top })
+    logger.debug('placement', { phase: 'findPlacement:top3', table: table.id, group: group.size, candidates: top })
   }
   if (debugLevel > 0 && bestPlacement) {
-    console.debug('[findPlacement:chosen]', { table: table.id, group: group.size, rot: bestPlacement.rotation, x: bestPlacement.x, y: bestPlacement.y, score: bestScore })
+    logger.debug('placement', { phase: 'findPlacement:chosen', table: table.id, group: group.size, rot: bestPlacement.rotation, x: bestPlacement.x, y: bestPlacement.y, score: bestScore })
   }
   return bestPlacement
 }
@@ -547,14 +548,14 @@ export function tryPlaceOnTable(
   }
   if (debugLevel === 2 && rotSummaries.length) {
     for (const s of rotSummaries) {
-      console.debug('[tryPlaceOnTable:rotation-summary]', { table: table.id, group: group.size, rot: s.rot, bestScore: s.bestScore, x: s.x, y: s.y })
+      logger.debug('placement', { phase: 'tryPlaceOnTable:rotation-summary', table: table.id, group: group.size, rot: s.rot, bestScore: s.bestScore, x: s.x, y: s.y })
     }
   } else if (debugLevel === 1 && rotSummaries.length) {
     const top = [...rotSummaries].sort((a, b) => b.bestScore - a.bestScore).slice(0, 3)
-    console.debug('[tryPlaceOnTable:top3]', { table: table.id, group: group.size, candidates: top })
+    logger.debug('placement', { phase: 'tryPlaceOnTable:top3', table: table.id, group: group.size, candidates: top })
   }
   if (debugLevel > 0 && bestPlacement) {
-    console.debug('[tryPlaceOnTable:chosen]', { table: table.id, group: group.size, rot: bestPlacement.rotation, x: bestPlacement.x, y: bestPlacement.y, score: bestScore })
+    logger.debug('placement', { phase: 'tryPlaceOnTable:chosen', table: table.id, group: group.size, rot: bestPlacement.rotation, x: bestPlacement.x, y: bestPlacement.y, score: bestScore })
   }
   return bestPlacement
 }

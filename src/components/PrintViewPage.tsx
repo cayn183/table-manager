@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import logger from '../utils/logger'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../auth/AuthContext'
+import userStorage from '../utils/userStorage'
 import type { Group } from './Importer'
 import type { AssignedGroup, Room as RoomType, Table } from '../types/room'
 import { CELL_SIZE, GRID_WIDTH, GRID_HEIGHT, getPositionsForSize, loadRoomFromStorage, paletteColor, PALETTE } from '../utils/roomUtils'
@@ -90,26 +93,28 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
   const mapPageRef = useRef<HTMLDivElement | null>(null)
 
   const persistEventFields = (patch: Partial<EventPayload>) => {
-    const raw = localStorage.getItem('currentEvent')
+    const raw = userStorage.getItem('currentEvent', auth.user ? auth.user.id : null) || localStorage.getItem('currentEvent')
     if (!raw) return
     try {
       const event = JSON.parse(raw) as EventPayload
       const next = { ...event, ...patch }
-      localStorage.setItem('currentEvent', JSON.stringify(next))
+      userStorage.setItem('currentEvent', JSON.stringify(next), auth.user ? auth.user.id : null)
     } catch (err) {
-      console.error('Event-Daten konnten nicht aktualisiert werden', err)
+      logger.error('PrintViewPage', { action: 'persistEventFields', err })
     }
   }
 
+  const auth = useAuth()
+
   useEffect(() => {
-    const raw = localStorage.getItem('currentEvent')
+    const raw = userStorage.getItem('currentEvent', auth.user ? auth.user.id : null) || localStorage.getItem('currentEvent')
     if (!raw) {
       setLoadError('Kein Event im Speicher gefunden. Bitte im Editor speichern und erneut öffnen.')
       return
     }
 
     try {
-      const event = JSON.parse(raw) as EventPayload
+      const event = JSON.parse(raw as string) as EventPayload
       setEventName(event.name || 'Event')
       setPrintHeaderTitle(event.printHeaderTitle || event.name || 'Event')
       setPrintHeaderMapLabel(event.printHeaderMapLabel || 'Sitzplan')
@@ -120,7 +125,10 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
       setShowDate(!!(event as any).showPrintDate)
       setShowTimeRange(!!(event as any).showPrintTimeRange)
       setLastModified(event.lastModified || null)
-      const roomFromEvent = event.room || loadRoomFromStorage()
+      const roomFromEvent = event.room || (() => {
+        const rawRoom = userStorage.getItem('currentRoom', auth.user ? auth.user.id : null) || localStorage.getItem('currentRoom')
+        try { return rawRoom ? JSON.parse(rawRoom as string) as RoomType : null } catch { return null }
+      })()
       if (!roomFromEvent) {
         setLoadError('Kein gespeicherter Raum gefunden. Bitte im Editor speichern und erneut öffnen.')
         return
@@ -129,7 +137,7 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
       setGroups(normalizeGroups(event.groups))
       setAssignedGroups(event.assignedGroups && typeof event.assignedGroups === 'object' ? event.assignedGroups : {})
     } catch (err) {
-      console.error('Event-Daten konnten nicht geladen werden', err)
+      logger.error('PrintViewPage', { action: 'loadEvent', err })
       setLoadError('Event-Daten konnten nicht geladen werden.')
     }
   }, [])

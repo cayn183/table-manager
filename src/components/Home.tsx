@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../auth/AuthContext'
+import userStorage from '../utils/userStorage'
 
 const EVENTS_KEY = 'events'
 const CURRENT_EVENT_KEY = 'currentEvent'
@@ -11,6 +13,7 @@ type EventItem = { id: string; name: string; from?: string; to?: string; roomId?
 
 export default function Home() {
   const navigate = useNavigate()
+  const auth = useAuth()
   const [showEventModal, setShowEventModal] = useState(false)
   const [eventName, setEventName] = useState('')
   const [eventDate, setEventDate] = useState('')
@@ -21,11 +24,12 @@ export default function Home() {
   const [selectedRoomId, setSelectedRoomId] = useState<string>('')
 
   useEffect(() => {
-    const list = JSON.parse(localStorage.getItem(ROOMS_KEY) || '[]') as SavedRoom[]
-    const current = localStorage.getItem(STORAGE_KEY)
+    const rawRooms = userStorage.getItem(ROOMS_KEY, auth.user ? auth.user.id : null) || localStorage.getItem(ROOMS_KEY) || '[]'
+    const list = JSON.parse(rawRooms as string) as SavedRoom[]
+    const current = userStorage.getItem(STORAGE_KEY, auth.user ? auth.user.id : null) || localStorage.getItem(STORAGE_KEY)
     let merged = list
     if (!list.length && current) {
-      merged = [{ id: 'current', name: 'Aktueller Raum', data: JSON.parse(current) }]
+      merged = [{ id: 'current', name: 'Aktueller Raum', data: JSON.parse(current as string) }]
     }
     setRooms(merged)
     if (merged.length) setSelectedRoomId(merged[0].id)
@@ -34,19 +38,20 @@ export default function Home() {
   function createEvent() {
     const id = `e-${Date.now()}`
     const ev: EventItem = { id, name: eventName || `Event ${new Date().toLocaleDateString()}`, eventDate: eventDate || undefined, from: fromTime || undefined, to: toTime || undefined }
-    const all = JSON.parse(localStorage.getItem(EVENTS_KEY) || '[]') as EventItem[]
+    const rawEvents = userStorage.getItem(EVENTS_KEY, auth.user ? auth.user.id : null) || localStorage.getItem(EVENTS_KEY) || '[]'
+    const all = JSON.parse(rawEvents as string) as EventItem[]
     if (useExistingRoom === 'existing' && selectedRoomId) {
       const room = rooms.find(r => r.id === selectedRoomId)
       if (room) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(room.data))
+        userStorage.setItem(STORAGE_KEY, JSON.stringify(room.data), auth.user ? auth.user.id : null)
         ev.roomId = room.id
       }
-      localStorage.setItem(CURRENT_EVENT_KEY, JSON.stringify(ev))
-      localStorage.setItem(EVENTS_KEY, JSON.stringify([...all, ev]))
+      userStorage.setItem(CURRENT_EVENT_KEY, JSON.stringify(ev), auth.user ? auth.user.id : null)
+      userStorage.setItem(EVENTS_KEY, JSON.stringify([...all, ev]), auth.user ? auth.user.id : null)
       navigate('/room')
     } else {
-      localStorage.setItem(CURRENT_EVENT_KEY, JSON.stringify(ev))
-      localStorage.setItem(EVENTS_KEY, JSON.stringify([...all, ev]))
+      userStorage.setItem(CURRENT_EVENT_KEY, JSON.stringify(ev), auth.user ? auth.user.id : null)
+      userStorage.setItem(EVENTS_KEY, JSON.stringify([...all, ev]), auth.user ? auth.user.id : null)
       navigate('/new-room')
     }
   }

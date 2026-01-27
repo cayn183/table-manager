@@ -33,6 +33,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
       - name: Compute tags
         id: tags
         run: |
@@ -49,17 +55,34 @@ jobs:
           elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             TAGS="$IMAGE:${REF_NAME} $IMAGE:latest"
           fi
+          # compute BUILD_VERSION for the build args
+          BUILD_VERSION=""
+          if [[ "${GITHUB_REF}" == refs/heads/dev ]]; then
+            BUILD_VERSION="dev"
+          elif [[ "${GITHUB_REF}" == refs/heads/main ]]; then
+            BUILD_VERSION="$VERSION"
+          elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            # strip leading 'v' from tag
+            BUILD_VERSION="${REF_NAME#v}"
+          fi
           if [[ -z "$TAGS" ]]; then
             echo "No tags computed; exiting." >&2
             exit 1
           fi
           echo "tags=$(echo $TAGS | tr ' ' ',')" >> "$GITHUB_OUTPUT"
+          echo "build_version=$BUILD_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: backend/Dockerfile
           push: true
           tags: ${{ steps.tags.outputs.tags }}
           build-args: |
             BUILD_SHA=${{ github.sha }}
+            BUILD_VERSION=${{ steps.tags.outputs.build_version }}
+          platforms: linux/amd64,linux/arm64
+          # Disabled cache backend causing buildx errors on runners.
+          # cache-from: type=gha
+          # cache-to: type=gha,mode=max
