@@ -7,6 +7,21 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-01-27
+
+### Added
+- User-scoped storage: LocalStorage keys are now scoped to the authenticated user (`tm:<userId>:<key>`). This prevents leaking rooms/events between different accounts on the same browser.
+- Logout redirect: `AuthProvider.logout()` now navigates to `/login` to ensure the UI returns to the authentication screen after sign-out.
+- Backend Docker & entrypoint: Added a backend `Dockerfile`, improved entrypoint handling and initial DB migration support (MIGRATE_ON_START), and OpenAPI routes for auth/events.
+
+### Changed
+- CI / Docker: Improvements to build scripts and workflows (buildx/qemu setup, build-cache adjustments, combined frontend+backend image support), and various Dockerfile and compose tweaks for Unraid deployments.
+- Frontend: Introduced `userStorage` helper and migrated components (`Room`, `RoomEditor`, `Home`, `LoadRoom`, `LoadEvent`, `PrintViewPage`, `Profile`) to use user-scoped keys with fallbacks to legacy keys.
+
+### Fixed
+- UI & storage fixes: Fixed issues around LoadRoom syntax and local-storage handling; ensured API base fallback and fetch error logging.
+- Docker build issues: Addressed esbuild/Docker base-image problems and improved entrypoint copy behavior.
+
 ## [0.7.0] - 2026-01-23
 
 ### Added

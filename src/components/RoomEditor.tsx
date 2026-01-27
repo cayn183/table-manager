@@ -27,6 +27,8 @@ export default function RoomEditor() {
   const [renameModal, setRenameModal] = useState<{ tableId: string; newId: string; error?: string; warning?: string } | null>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const userId = user ? user.id : null
 
   const gridWidth = 28
   const gridHeight = 20
@@ -54,10 +56,9 @@ export default function RoomEditor() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [selectedTableId])
 
-  const { user } = useAuth()
-
   useEffect(() => {
-    const currentRoom = userStorage.getItem('currentRoom', user ? user.id : null) || localStorage.getItem('currentRoom')
+    // Prefer user-scoped storage, fall back to legacy global keys if needed.
+    const currentRoom = userStorage.getItem('currentRoom', userId) || localStorage.getItem('currentRoom')
     if (currentRoom) {
       try {
         const room = JSON.parse(currentRoom)
@@ -67,7 +68,7 @@ export default function RoomEditor() {
           setNextId(maxId + 1)
 
           // Try to find a matching saved room entry to determine if we're editing an existing room
-          const roomsRaw = userStorage.getItem('rooms', user ? user.id : null) || localStorage.getItem('rooms')
+          const roomsRaw = userStorage.getItem('rooms', userId) || localStorage.getItem('rooms')
           let matchedName: string | null = null
           if (roomsRaw) {
             try {
@@ -190,11 +191,11 @@ export default function RoomEditor() {
 
   function confirmSaveRoom(name: string) {
     const room = { tables, viewFrame: viewFrame || undefined }
-    userStorage.setItem('currentRoom', JSON.stringify(room), user ? user.id : null)
-    const raw = userStorage.getItem('rooms', user ? user.id : null) || localStorage.getItem('rooms') || '[]'
+    userStorage.setItem('currentRoom', JSON.stringify(room), userId)
+    const raw = userStorage.getItem('rooms', userId) || localStorage.getItem('rooms') || '[]'
     const list = JSON.parse(raw as string)
     const entry = { id: `r-${Date.now()}`, name: name || `Raum ${list.length + 1}`, createdAt: new Date().toLocaleDateString(), data: room }
-    userStorage.setItem('rooms', JSON.stringify([...list, entry]), user ? user.id : null)
+    userStorage.setItem('rooms', JSON.stringify([...list, entry]), userId)
     setShowSaveModal(false)
     navigate('/room')
   }

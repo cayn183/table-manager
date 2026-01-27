@@ -54,26 +54,27 @@ type PrintViewPageProps = {
 }
 
 function formatDateDE(dateStr?: string | null): string | null {
-  if (!dateStr) return null;
+  if (!dateStr) return null
   // Try to parse ISO or yyyy-mm-dd or dd.mm.yyyy
-  let d: Date | null = null;
+  let d: Date | null = null
   if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
-    d = new Date(dateStr);
+    d = new Date(dateStr)
   } else if (/^\d{2}\.\d{2}\.\d{4}/.test(dateStr)) {
-    const [day, month, year] = dateStr.split(".");
-    d = new Date(`${year}-${month}-${day}`);
+    const [day, month, year] = dateStr.split('.')
+    d = new Date(`${year}-${month}-${day}`)
   } else {
-    d = new Date(dateStr);
+    d = new Date(dateStr)
   }
-  if (!d || isNaN(d.getTime())) return dateStr;
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  return `${dd}.${mm}.${yyyy}`;
+  if (!d || isNaN(d.getTime())) return dateStr
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const yyyy = d.getFullYear()
+  return `${dd}.${mm}.${yyyy}`
 }
 
 export default function PrintViewPage({ embedded = false, onClose }: PrintViewPageProps) {
   const navigate = useNavigate()
+  const auth = useAuth()
   const [room, setRoom] = useState<RoomType | null>(null)
   const [groups, setGroups] = useState<Group[]>([])
   const [assignedGroups, setAssignedGroups] = useState<Record<string, AssignedGroup[]>>({})
@@ -93,6 +94,7 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
   const mapPageRef = useRef<HTMLDivElement | null>(null)
 
   const persistEventFields = (patch: Partial<EventPayload>) => {
+    // Prefer user-scoped storage, fall back to legacy global keys if needed.
     const raw = userStorage.getItem('currentEvent', auth.user ? auth.user.id : null) || localStorage.getItem('currentEvent')
     if (!raw) return
     try {
@@ -104,9 +106,8 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
     }
   }
 
-  const auth = useAuth()
-
   useEffect(() => {
+    // Prefer user-scoped storage, fall back to legacy global keys if needed.
     const raw = userStorage.getItem('currentEvent', auth.user ? auth.user.id : null) || localStorage.getItem('currentEvent')
     if (!raw) {
       setLoadError('Kein Event im Speicher gefunden. Bitte im Editor speichern und erneut öffnen.')
@@ -127,7 +128,11 @@ export default function PrintViewPage({ embedded = false, onClose }: PrintViewPa
       setLastModified(event.lastModified || null)
       const roomFromEvent = event.room || (() => {
         const rawRoom = userStorage.getItem('currentRoom', auth.user ? auth.user.id : null) || localStorage.getItem('currentRoom')
-        try { return rawRoom ? JSON.parse(rawRoom as string) as RoomType : null } catch { return null }
+        try {
+          return rawRoom ? JSON.parse(rawRoom as string) as RoomType : null
+        } catch {
+          return null
+        }
       })()
       if (!roomFromEvent) {
         setLoadError('Kein gespeicherter Raum gefunden. Bitte im Editor speichern und erneut öffnen.')

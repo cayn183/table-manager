@@ -11,22 +11,24 @@ const STORAGE_KEY = 'currentRoom'
 export default function LoadRoom() {
   const navigate = useNavigate()
   const auth = useAuth()
+  const userId = auth.user ? auth.user.id : null
   const [rooms, setRooms] = useState<SavedRoom[]>([])
 
   useEffect(() => {
-    const raw = userStorage.getItem(ROOMS_KEY, auth.user ? auth.user.id : null) || localStorage.getItem(ROOMS_KEY) || '[]'
+    // Prefer user-scoped storage, fall back to legacy global keys if needed.
+    const raw = userStorage.getItem(ROOMS_KEY, userId) || localStorage.getItem(ROOMS_KEY) || '[]'
     const list = JSON.parse(raw as string) as SavedRoom[]
     setRooms(list)
-  }, [auth.user])
+  }, [userId])
 
   function loadRoom(room: SavedRoom) {
-    userStorage.setItem(STORAGE_KEY, JSON.stringify(room.data), auth.user ? auth.user.id : null)
+    userStorage.setItem(STORAGE_KEY, JSON.stringify(room.data), userId)
     navigate('/room')
   }
 
   function deleteRoom(id: string) {
     const updated = rooms.filter(r => r.id !== id)
-    userStorage.setItem(ROOMS_KEY, JSON.stringify(updated), auth.user ? auth.user.id : null)
+    userStorage.setItem(ROOMS_KEY, JSON.stringify(updated), userId)
     setRooms(updated)
   }
 
