@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { useAuth } from '../auth/AuthContext'
+import userStorage from '../utils/userStorage'
 import logger from '../utils/logger'
 import { useNavigate } from 'react-router-dom'
 import type { Table } from '../types/room'
@@ -52,8 +54,10 @@ export default function RoomEditor() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [selectedTableId])
 
+  const { user } = useAuth()
+
   useEffect(() => {
-    const currentRoom = localStorage.getItem('currentRoom')
+    const currentRoom = userStorage.getItem('currentRoom', user ? user.id : null) || localStorage.getItem('currentRoom')
     if (currentRoom) {
       try {
         const room = JSON.parse(currentRoom)
@@ -63,7 +67,7 @@ export default function RoomEditor() {
           setNextId(maxId + 1)
 
           // Try to find a matching saved room entry to determine if we're editing an existing room
-          const roomsRaw = localStorage.getItem('rooms')
+          const roomsRaw = userStorage.getItem('rooms', user ? user.id : null) || localStorage.getItem('rooms')
           let matchedName: string | null = null
           if (roomsRaw) {
             try {
@@ -186,10 +190,11 @@ export default function RoomEditor() {
 
   function confirmSaveRoom(name: string) {
     const room = { tables, viewFrame: viewFrame || undefined }
-    localStorage.setItem('currentRoom', JSON.stringify(room))
-    const list = JSON.parse(localStorage.getItem('rooms') || '[]')
+    userStorage.setItem('currentRoom', JSON.stringify(room), user ? user.id : null)
+    const raw = userStorage.getItem('rooms', user ? user.id : null) || localStorage.getItem('rooms') || '[]'
+    const list = JSON.parse(raw as string)
     const entry = { id: `r-${Date.now()}`, name: name || `Raum ${list.length + 1}`, createdAt: new Date().toLocaleDateString(), data: room }
-    localStorage.setItem('rooms', JSON.stringify([...list, entry]))
+    userStorage.setItem('rooms', JSON.stringify([...list, entry]), user ? user.id : null)
     setShowSaveModal(false)
     navigate('/room')
   }

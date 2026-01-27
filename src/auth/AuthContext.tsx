@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import api from '../api/apiClient'
 import logger from '../utils/logger'
 import sentry from '../sentryClient'
@@ -26,6 +27,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User>(() => {
     try { return JSON.parse(localStorage.getItem(KEY_USER) || 'null') as User } catch { return null }
   })
+  const navigate = useNavigate()
 
   useEffect(() => {
     if (token) localStorage.setItem(KEY_TOKEN, token)
@@ -74,7 +76,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null)
     setUser(null)
     try { sentry.clearUser() } catch (e) {}
-    // keep localStorage as-is (no migration flag used)
+    // Do not clear local user data here; we use user-scoped storage keys
+    // so data of different accounts do not collide on the same browser.
+    try { navigate('/login', { replace: true }) } catch (e) {}
   }
 
   return (

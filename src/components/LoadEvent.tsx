@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../auth/AuthContext'
+import userStorage from '../utils/userStorage'
 
 type EventItem = { id: string; name: string; from?: string; to?: string; roomId?: string; createdAt?: string; lastModified?: string; eventDate?: string; assignedGroups?: any; groups?: any }
 
@@ -10,20 +12,23 @@ const ROOMS_KEY = 'rooms'
 
 export default function LoadEvent() {
   const navigate = useNavigate()
+  const auth = useAuth()
   const [events, setEvents] = useState<EventItem[]>([])
 
   useEffect(() => {
-    const list = JSON.parse(localStorage.getItem(EVENTS_KEY) || '[]') as EventItem[]
+    const raw = userStorage.getItem(EVENTS_KEY, auth.user ? auth.user.id : null) || localStorage.getItem(EVENTS_KEY) || '[]'
+    const list = JSON.parse(raw as string) as EventItem[]
     setEvents(list)
   }, [])
 
   function loadEvent(event: EventItem) {
-    localStorage.setItem(CURRENT_EVENT_KEY, JSON.stringify(event))
+    userStorage.setItem(CURRENT_EVENT_KEY, JSON.stringify(event), auth.user ? auth.user.id : null)
     if (event.roomId) {
-      const rooms = JSON.parse(localStorage.getItem(ROOMS_KEY) || '[]')
+      const raw = userStorage.getItem(ROOMS_KEY, auth.user ? auth.user.id : null) || localStorage.getItem(ROOMS_KEY) || '[]'
+      const rooms = JSON.parse(raw as string)
       const room = rooms.find((r: any) => r.id === event.roomId)
       if (room) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(room.data))
+        userStorage.setItem(STORAGE_KEY, JSON.stringify(room.data), auth.user ? auth.user.id : null)
       }
     }
     navigate('/room')
@@ -31,7 +36,7 @@ export default function LoadEvent() {
 
   function deleteEvent(id: string) {
     const updated = events.filter(e => e.id !== id)
-    localStorage.setItem(EVENTS_KEY, JSON.stringify(updated))
+    userStorage.setItem(EVENTS_KEY, JSON.stringify(updated), auth.user ? auth.user.id : null)
     setEvents(updated)
   }
 

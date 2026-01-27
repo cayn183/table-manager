@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
+import userStorage from '../utils/userStorage'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/apiClient'
 
@@ -91,7 +92,7 @@ export default function Profile() {
             <div>
               <h3>Account Aktionen</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <button onClick={() => { try { localStorage.removeItem('currentRoom'); localStorage.removeItem('rooms'); localStorage.removeItem('events') } catch(e){}; setMsg('Lokale Daten gelöscht') }} style={{ padding: '8px 12px' }}>Alle lokalen Daten löschen</button>
+                <button onClick={() => { try { if (user && user.id) userStorage.clearAllForUser(user.id); else { localStorage.removeItem('currentRoom'); localStorage.removeItem('rooms'); localStorage.removeItem('events'); } } catch(e){}; setMsg('Lokale Daten gelöscht') }} style={{ padding: '8px 12px' }}>Alle lokalen Daten löschen</button>
                 <button onClick={handleDeleteAccount} style={{ padding: '8px 12px', background: '#9b2c2c', color: 'white' }}>Account löschen</button>
               </div>
               <div style={{ marginTop: 12, fontSize: 12, color: '#666' }}>Hinweis: Account-Löschung entfernt alle serverseitigen Daten.</div>
