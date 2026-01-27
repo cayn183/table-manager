@@ -2,8 +2,6 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import userStorage from '../utils/userStorage'
-import { useAuth } from '../auth/AuthContext'
-import userStorage from '../utils/userStorage'
 
 type SavedRoom = { id: string; name: string; createdAt: string; data: any }
 
@@ -19,16 +17,15 @@ export default function LoadRoom() {
     const raw = userStorage.getItem(ROOMS_KEY, auth.user ? auth.user.id : null) || localStorage.getItem(ROOMS_KEY) || '[]'
     const list = JSON.parse(raw as string) as SavedRoom[]
     setRooms(list)
-    setRooms(list)
-  }, [])
+  }, [auth.user])
 
-    userStorage.setItem(STORAGE_KEY, JSON.stringify(room.data), auth.user ? auth.user.id : null)
+  function loadRoom(room: SavedRoom) {
     userStorage.setItem(STORAGE_KEY, JSON.stringify(room.data), auth.user ? auth.user.id : null)
     navigate('/room')
   }
 
+  function deleteRoom(id: string) {
     const updated = rooms.filter(r => r.id !== id)
-    userStorage.setItem(ROOMS_KEY, JSON.stringify(updated), auth.user ? auth.user.id : null)
     userStorage.setItem(ROOMS_KEY, JSON.stringify(updated), auth.user ? auth.user.id : null)
     setRooms(updated)
   }
