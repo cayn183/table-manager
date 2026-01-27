@@ -31,8 +31,16 @@ export default function AdminPanel() {
   const [auditPerPage, setAuditPerPage] = useState(25)
   const [auditTotal, setAuditTotal] = useState(0)
 
+  // Feedback list state
+  const [feedbackEntries, setFeedbackEntries] = useState<any[]>([])
+  const [feedbackPage, setFeedbackPage] = useState(1)
+  const [feedbackPerPage, setFeedbackPerPage] = useState(25)
+  const [feedbackTotal, setFeedbackTotal] = useState(0)
+  const [feedbackQ, setFeedbackQ] = useState('')
+
   useEffect(() => { fetchUsers(page, perPage, q) }, [auth.token, page, perPage, q])
   useEffect(() => { if (menu === 'audit') fetchAudit(auditPage, auditPerPage) }, [auth.token, menu, auditPage, auditPerPage])
+  useEffect(() => { if (menu === 'feedback') fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ) }, [auth.token, menu, feedbackPage, feedbackPerPage, feedbackQ])
 
   if (!auth.user) return <div style={{ padding: 24 }}>Nicht angemeldet</div>
   if (!(auth.user as any).is_admin) return <div style={{ padding: 24 }}>Zugriff verweigert</div>
@@ -69,6 +77,17 @@ export default function AdminPanel() {
       setAuditTotal(res.total || 0)
     } catch (e: any) {
       // ignore for now
+    }
+  }
+
+  async function fetchFeedback(p = 1, pp = 25, query = '') {
+    if (!auth.token) return
+    try {
+      const res = await api.get(`/admin/feedback?page=${p}&perPage=${pp}&q=${encodeURIComponent(query)}`, auth.token)
+      setFeedbackEntries(res.entries || [])
+      setFeedbackTotal(res.total || 0)
+    } catch (e: any) {
+      // ignore
     }
   }
 
@@ -193,6 +212,49 @@ export default function AdminPanel() {
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={() => { if (auditPage>1) setAuditPage(p => p-1) }} disabled={auditPage===1}>Prev</button>
                 <button onClick={() => { if ((auditPage*auditPerPage) < auditTotal) setAuditPage(p => p+1) }} disabled={(auditPage*auditPerPage) >= auditTotal}>Next</button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {menu === 'feedback' && (
+          <>
+            <h2>Feedback</h2>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <input placeholder="Search email or message" value={feedbackQ} onChange={e => { setFeedbackQ(e.target.value); setFeedbackPage(1) }} style={{ padding: 8, flex: 1 }} />
+              <select value={feedbackPerPage} onChange={e => { setFeedbackPerPage(parseInt(e.target.value, 10)); setFeedbackPage(1) }}>
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>User</th>
+                  <th>Email</th>
+                  <th>Message</th>
+                </tr>
+              </thead>
+              <tbody>
+                {feedbackEntries.map(f => (
+                  <tr key={f.id}>
+                    <td style={{ padding: 10 }}>{new Date(f.created_at).toLocaleString()}</td>
+                    <td style={{ padding: 10, fontFamily: 'monospace' }}>{f.user_id || '—'}</td>
+                    <td style={{ padding: 10 }}>{f.email || '—'}</td>
+                    <td style={{ padding: 10 }}>{f.message}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="admin-pagination">
+              <div>Showing {(feedbackPage-1)*feedbackPerPage + 1} - {Math.min(feedbackPage*feedbackPerPage, feedbackTotal)} of {feedbackTotal}</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => { if (feedbackPage>1) setFeedbackPage(p => p-1) }} disabled={feedbackPage===1}>Prev</button>
+                <button onClick={() => { if ((feedbackPage*feedbackPerPage) < feedbackTotal) setFeedbackPage(p => p+1) }} disabled={(feedbackPage*feedbackPerPage) >= feedbackTotal}>Next</button>
               </div>
             </div>
           </>
