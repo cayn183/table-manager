@@ -49,7 +49,7 @@ export default function AdminPanel() {
     if (!auth.token) return
     setLoading(true)
     try {
-      const res = await api.get(`/admin/users?page=${p}&perPage=${pp}&q=${encodeURIComponent(query)}`, auth.token)
+      const res = await api.get(`/admin/users?page=${p}&perPage=${pp}&q=${encodeURIComponent(query)}`, auth.token ?? undefined)
       setUsers(res.users || [])
       setTotal(res.total || 0)
       setLoading(false)
@@ -62,7 +62,7 @@ export default function AdminPanel() {
   async function fetchUserDetail(id: string) {
     setDetailLoading(true)
     try {
-      const res = await api.get(`/admin/users/${id}`, auth.token)
+      const res = await api.get(`/admin/users/${id}`, auth.token ?? undefined)
       setSelectedUser(res)
     } catch (e: any) {
       alert(e?.message || 'Failed to load user')
@@ -72,7 +72,7 @@ export default function AdminPanel() {
   async function fetchAudit(p = 1, pp = 25) {
     if (!auth.token) return
     try {
-      const res = await api.get(`/admin/audit?page=${p}&perPage=${pp}`, auth.token)
+      const res = await api.get(`/admin/audit?page=${p}&perPage=${pp}`, auth.token ?? undefined)
       setAuditEntries(res.entries || [])
       setAuditTotal(res.total || 0)
     } catch (e: any) {
@@ -83,7 +83,7 @@ export default function AdminPanel() {
   async function fetchFeedback(p = 1, pp = 25, query = '') {
     if (!auth.token) return
     try {
-      const res = await api.get(`/admin/feedback?page=${p}&perPage=${pp}&q=${encodeURIComponent(query)}`, auth.token)
+      const res = await api.get(`/admin/feedback?page=${p}&perPage=${pp}&q=${encodeURIComponent(query)}`, auth.token ?? undefined)
       setFeedbackEntries(res.entries || [])
       setFeedbackTotal(res.total || 0)
     } catch (e: any) {
