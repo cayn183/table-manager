@@ -35,6 +35,19 @@ app.use(express.json({ limit: '5mb' }))
 
 // attach request id early so handlers can include it in logs
 app.use(requestId)
+// Request logging: method, path, status, duration, requestId
+app.use((req, res, next) => {
+  const start = Date.now()
+  res.on('finish', () => {
+    const dur = Date.now() - start
+    try {
+      logger.info('http', { method: req.method, path: req.originalUrl || req.url, status: res.statusCode, durationMs: dur, requestId: (req as any).requestId })
+    } catch (e) {
+      // swallow logging errors
+    }
+  })
+  next()
+})
 app.use('/auth', authRoutes)
 app.use('/events', eventsRoutes)
 app.use('/migration', migrationRoutes)
@@ -68,3 +81,14 @@ if ((app as any).__sentry) {
 	// Sentry error handler (must be before any other error handlers)
 	app.use(Sentry.Handlers.errorHandler())
 }
+
+// Global error handler (logs error details and returns sanitized message)
+app.use((err: any, req: any, res: any, next: any) => {
+  try {
+    logger.error('error', { message: err && err.message, stack: err && err.stack, requestId: req && req.requestId })
+  } catch (e) {
+    // ignore logging problems
+  }
+  if (res.headersSent) return next(err)
+  res.status(err && err.status ? err.status : 500).json({ error: 'Internal server error' })
+})

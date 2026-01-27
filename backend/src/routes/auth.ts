@@ -21,6 +21,10 @@ router.post('/register', async (req, res) => {
   if (!name || !email || !password) return res.status(400).json({ error: 'Missing fields' })
   const existing = await pool.query('SELECT id FROM users WHERE email=$1', [email])
   if ((existing.rowCount ?? 0) > 0) return res.status(400).json({ error: 'Email exists' })
+  if ((existing.rowCount ?? 0) > 0) {
+    logger.warn('auth', { action: 'register-failed', reason: 'email-exists', email })
+    return res.status(400).json({ error: 'Email exists' })
+  }
   const id = uuidv4()
   const hash = await bcrypt.hash(password, 12)
   await pool.query('INSERT INTO users(id,name,email,password_hash) VALUES($1,$2,$3,$4)', [id, name, email, hash])
@@ -48,9 +52,17 @@ router.post('/login', async (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'Missing fields' })
   const r = await pool.query('SELECT id, name, password_hash FROM users WHERE email=$1', [email])
   if (r.rowCount === 0) return res.status(404).json({ error: 'Nutzer nicht gefunden. Neu registrieren?' })
+  if (r.rowCount === 0) {
+    logger.warn('auth', { action: 'login-failed', reason: 'not-found', email, requestId: (req as any).requestId })
+    return res.status(404).json({ error: 'Nutzer nicht gefunden. Neu registrieren?' })
+  }
   const u = r.rows[0]
   const ok = await bcrypt.compare(password, u.password_hash)
   if (!ok) return res.status(401).json({ error: 'Invalid credentials' })
+  if (!ok) {
+    logger.warn('auth', { action: 'login-failed', reason: 'invalid-credentials', email, requestId: (req as any).requestId })
+    return res.status(401).json({ error: 'Invalid credentials' })
+  }
   const token = jwt.sign({ email, sub: u.id }, JWT_SECRET, { expiresIn: '7d' })
   if ((req as any).log && typeof (req as any).log === 'function') {
     (req as any).log('info', 'auth', { action: 'login', user: u.id, email })
