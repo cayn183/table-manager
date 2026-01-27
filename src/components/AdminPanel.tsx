@@ -37,6 +37,8 @@ export default function AdminPanel() {
   const [feedbackPerPage, setFeedbackPerPage] = useState(25)
   const [feedbackTotal, setFeedbackTotal] = useState(0)
   const [feedbackQ, setFeedbackQ] = useState('')
+  const [selectedFeedback, setSelectedFeedback] = useState<any | null>(null)
+  const [feedbackDetailLoading, setFeedbackDetailLoading] = useState(false)
 
   useEffect(() => { fetchUsers(page, perPage, q) }, [auth.token, page, perPage, q])
   useEffect(() => { if (menu === 'audit') fetchAudit(auditPage, auditPerPage) }, [auth.token, menu, auditPage, auditPerPage])
@@ -89,6 +91,45 @@ export default function AdminPanel() {
     } catch (e: any) {
       // ignore
     }
+  }
+
+  async function fetchFeedbackDetail(id: string) {
+    if (!auth.token) return
+    setFeedbackDetailLoading(true)
+    try {
+      const res = await api.get(`/admin/feedback/${id}`, auth.token ?? undefined)
+      setSelectedFeedback(res)
+    } catch (e: any) {
+      alert(e?.message || 'Failed to load feedback')
+    } finally { setFeedbackDetailLoading(false) }
+  }
+
+  async function addFeedbackComment(id: string, message: string) {
+    if (!auth.token) return
+    try {
+      await api.post(`/admin/feedback/${id}/comment`, { message }, auth.token ?? undefined)
+      fetchFeedbackDetail(id)
+      fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ)
+    } catch (e: any) { alert(e?.message || 'Failed to add comment') }
+  }
+
+  async function resolveFeedback(id: string, resolved = true) {
+    if (!auth.token) return
+    try {
+      await api.post(`/admin/feedback/${id}/resolve`, { resolved }, auth.token ?? undefined)
+      fetchFeedbackDetail(id)
+      fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ)
+    } catch (e: any) { alert(e?.message || 'Failed to update') }
+  }
+
+  async function deleteFeedback(id: string) {
+    if (!auth.token) return
+    if (!confirm('Feedback wirklich löschen (soft delete)?')) return
+    try {
+      await api.del(`/admin/feedback/${id}`, auth.token ?? undefined)
+      setSelectedFeedback(null)
+      fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ)
+    } catch (e: any) { alert(e?.message || 'Failed to delete') }
   }
 
   return (
@@ -244,7 +285,13 @@ export default function AdminPanel() {
                     <td style={{ padding: 10 }}>{new Date(f.created_at).toLocaleString()}</td>
                     <td style={{ padding: 10, fontFamily: 'monospace' }}>{f.user_id || '—'}</td>
                     <td style={{ padding: 10 }}>{f.email || '—'}</td>
-                    <td style={{ padding: 10 }}>{f.message}</td>
+                    <td style={{ padding: 10 }}>
+                      <div style={{ fontWeight: 700 }}>{f.headline || '(no headline)'}</div>
+                      <div style={{ marginTop: 6 }}>{f.message?.slice?.(0, 160)}</div>
+                      <div style={{ marginTop: 8 }}>
+                        <button onClick={() => fetchFeedbackDetail(f.id)}>View</button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -277,6 +324,44 @@ export default function AdminPanel() {
               <p><strong>Created:</strong> {new Date(selectedUser.created_at).toLocaleString()}</p>
               <p><strong>Admin:</strong> {(selectedUser as any).is_admin ? 'Yes' : 'No'}</p>
               <p><strong>Deleted:</strong> {selectedUser.deleted_at || '—'}</p>
+            </div>
+          )}
+        </div>
+      )}
+      {/* Feedback detail drawer */}
+      {selectedFeedback && (
+        <div style={{ position: 'fixed', right: 0, top: 0, bottom: 0, width: 540, background: 'white', boxShadow: '-6px 0 24px rgba(0,0,0,0.12)', padding: 16, overflow: 'auto' }}>
+          <button onClick={() => setSelectedFeedback(null)} style={{ float: 'right' }}>Close</button>
+          <h3>{selectedFeedback.headline || '(no headline)'}</h3>
+          {feedbackDetailLoading ? <p>Loading…</p> : (
+            <div>
+              <p><strong>ID:</strong> {selectedFeedback.id}</p>
+              <p><strong>User:</strong> {selectedFeedback.user_id || '—'}</p>
+              <p><strong>Email:</strong> {selectedFeedback.email || '—'}</p>
+              <p><strong>Created:</strong> {new Date(selectedFeedback.created_at).toLocaleString()}</p>
+              <p><strong>Status:</strong> {selectedFeedback.status}</p>
+              <hr />
+              <p style={{ whiteSpace: 'pre-wrap' }}>{selectedFeedback.message}</p>
+              <hr />
+              <h4>Metadata</h4>
+              <pre style={{ background: '#f6f8fa', padding: 8, borderRadius: 6, overflow: 'auto' }}>{JSON.stringify(selectedFeedback.metadata || {}, null, 2)}</pre>
+
+              <h4 style={{ marginTop: 12 }}>Comments</h4>
+              {(selectedFeedback.comments || []).map((c: any) => (
+                <div key={c.id} style={{ padding: 8, borderBottom: '1px solid #eee' }}>
+                  <div style={{ fontSize: 12, color: '#64748b' }}>{c.author_id || 'admin'} • {new Date(c.created_at).toLocaleString()}</div>
+                  <div style={{ marginTop: 6 }}>{c.message}</div>
+                </div>
+              ))}
+
+              <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+                <button onClick={() => {
+                  const txt = prompt('Kommentar hinzufügen')
+                  if (txt) addFeedbackComment(selectedFeedback.id, txt)
+                }}>Add comment</button>
+                <button onClick={() => resolveFeedback(selectedFeedback.id, !(selectedFeedback.status === 'resolved'))}>{selectedFeedback.status === 'resolved' ? 'Mark as open' : 'Mark as resolved'}</button>
+                <button className="danger" onClick={() => deleteFeedback(selectedFeedback.id)} style={{ marginLeft: 'auto' }}>Delete</button>
+              </div>
             </div>
           )}
         </div>

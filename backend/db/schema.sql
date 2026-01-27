@@ -91,3 +91,21 @@ CREATE TABLE IF NOT EXISTS feedback (
 );
 CREATE INDEX IF NOT EXISTS idx_feedback_created_at ON feedback(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_feedback_user_id ON feedback(user_id);
+
+-- Extend feedback with headline, status, resolved/deleted metadata
+ALTER TABLE IF EXISTS feedback ADD COLUMN IF NOT EXISTS headline TEXT;
+ALTER TABLE IF EXISTS feedback ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'open';
+ALTER TABLE IF EXISTS feedback ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP WITH TIME ZONE NULL;
+ALTER TABLE IF EXISTS feedback ADD COLUMN IF NOT EXISTS resolved_by TEXT NULL;
+ALTER TABLE IF EXISTS feedback ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE NULL;
+ALTER TABLE IF EXISTS feedback ADD COLUMN IF NOT EXISTS deleted_by TEXT NULL;
+
+-- Comments on feedback
+CREATE TABLE IF NOT EXISTS feedback_comments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  feedback_id UUID NOT NULL,
+  author_id UUID NULL,
+  message TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_feedback_comments_feedback_id ON feedback_comments(feedback_id);

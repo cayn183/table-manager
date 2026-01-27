@@ -147,4 +147,71 @@ router.get('/feedback', requireAdmin, async (req, res) => {
   }
 })
 
+// Get feedback detail (with comments)
+router.get('/feedback/:id', requireAdmin, async (req, res) => {
+  const id = req.params.id
+  try {
+    const r = await pool.query('SELECT id, user_id, email, headline, message, metadata, status, created_at, resolved_at, resolved_by, deleted_at, deleted_by FROM feedback WHERE id=$1', [id])
+    if (r.rowCount === 0) return res.status(404).json({ error: 'Feedback not found' })
+    const fb = r.rows[0]
+    const commentsR = await pool.query('SELECT id, feedback_id, author_id, message, created_at FROM feedback_comments WHERE feedback_id=$1 ORDER BY created_at ASC', [id])
+    fb.comments = commentsR.rows
+    res.json(fb)
+  } catch (err) {
+    logger.error('admin', { action: 'get-feedback', err })
+    res.status(500).json({ error: 'Failed to fetch feedback' })
+  }
+})
+
+// Add comment to feedback
+router.post('/feedback/:id/comment', requireAdmin, async (req, res) => {
+  const id = req.params.id
+  const { message } = req.body || {}
+  const actor = (req as any).user?.id || null
+  if (!message || typeof message !== 'string') return res.status(400).json({ error: 'message is required' })
+  try {
+    const cid = uuidv4()
+    await pool.query('INSERT INTO feedback_comments(id, feedback_id, author_id, message) VALUES($1,$2,$3,$4)', [cid, id, actor, message])
+    await pool.query('INSERT INTO admin_audit(id, actor_id, action, target_type, target_id, details) VALUES($1,$2,$3,$4,$5,$6)', [uuidv4(), actor, 'comment', 'feedback', id, JSON.stringify({ comment_id: cid })])
+    res.json({ ok: true })
+  } catch (err) {
+    logger.error('admin', { action: 'comment-feedback', err })
+    res.status(500).json({ error: 'Failed to add comment' })
+  }
+})
+
+// Resolve / unresolve feedback
+router.post('/feedback/:id/resolve', requireAdmin, async (req, res) => {
+  const id = req.params.id
+  const { resolved } = req.body || {}
+  const actor = (req as any).user?.id || null
+  try {
+    if (resolved) {
+      await pool.query('UPDATE feedback SET status=$1, resolved_at=now(), resolved_by=$2 WHERE id=$3', ['resolved', actor, id])
+      await pool.query('INSERT INTO admin_audit(id, actor_id, action, target_type, target_id, details) VALUES($1,$2,$3,$4,$5,$6)', [uuidv4(), actor, 'resolve', 'feedback', id, JSON.stringify({ resolved: true })])
+    } else {
+      await pool.query('UPDATE feedback SET status=$1, resolved_at=NULL, resolved_by=NULL WHERE id=$2', ['open', id])
+      await pool.query('INSERT INTO admin_audit(id, actor_id, action, target_type, target_id, details) VALUES($1,$2,$3,$4,$5,$6)', [uuidv4(), actor, 'unresolve', 'feedback', id, JSON.stringify({ resolved: false })])
+    }
+    res.json({ ok: true })
+  } catch (err) {
+    logger.error('admin', { action: 'resolve-feedback', err })
+    res.status(500).json({ error: 'Failed to update feedback' })
+  }
+})
+
+// Soft-delete feedback
+router.delete('/feedback/:id', requireAdmin, async (req, res) => {
+  const id = req.params.id
+  const actor = (req as any).user?.id || null
+  try {
+    await pool.query('UPDATE feedback SET deleted_at=now(), deleted_by=$1 WHERE id=$2', [actor, id])
+    await pool.query('INSERT INTO admin_audit(id, actor_id, action, target_type, target_id, details) VALUES($1,$2,$3,$4,$5,$6)', [uuidv4(), actor, 'soft-delete', 'feedback', id, JSON.stringify({})])
+    res.json({ ok: true })
+  } catch (err) {
+    logger.error('admin', { action: 'delete-feedback', err })
+    res.status(500).json({ error: 'Failed to delete feedback' })
+  }
+})
+
 export default router
