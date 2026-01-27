@@ -2,85 +2,223 @@ import React, { useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/apiClient'
+import '../styles/admin-panel.css'
 
 type UserRow = { id: string; name: string; email: string; created_at: string; is_admin: boolean; deleted_at?: string }
+type AuditRow = { id: string; actor_id: string; action: string; target_type: string; target_id: string; details: any; created_at: string }
 
 export default function AdminPanel() {
   const auth = useAuth()
+  const navigate = useNavigate()
+  const [menu, setMenu] = useState<'users' | 'audit' | 'feedback' | 'system'>('users')
+
+  // Users list state
   const [users, setUsers] = useState<UserRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(25)
+  const [total, setTotal] = useState(0)
+  const [q, setQ] = useState('')
 
-  const [menu, setMenu] = useState<'users' | 'feedback' | 'system'>('users')
-  useEffect(() => {
+  // Detail drawer
+  const [selectedUser, setSelectedUser] = useState<UserRow | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+
+  // Audit list state
+  const [auditEntries, setAuditEntries] = useState<AuditRow[]>([])
+  const [auditPage, setAuditPage] = useState(1)
+  const [auditPerPage, setAuditPerPage] = useState(25)
+  const [auditTotal, setAuditTotal] = useState(0)
+
+  useEffect(() => { fetchUsers(page, perPage, q) }, [auth.token, page, perPage, q])
+  useEffect(() => { if (menu === 'audit') fetchAudit(auditPage, auditPerPage) }, [auth.token, menu, auditPage, auditPerPage])
+
+  if (!auth.user) return <div style={{ padding: 24 }}>Nicht angemeldet</div>
+  if (!(auth.user as any).is_admin) return <div style={{ padding: 24 }}>Zugriff verweigert</div>
+
+  async function fetchUsers(p = 1, pp = 25, query = '') {
     if (!auth.token) return
     setLoading(true)
-    api.get('/admin/users', auth.token).then((res: any) => {
+    try {
+      const res = await api.get(`/admin/users?page=${p}&perPage=${pp}&q=${encodeURIComponent(query)}`, auth.token)
       setUsers(res.users || [])
+      setTotal(res.total || 0)
       setLoading(false)
-    }).catch((err: any) => {
-      setError(err?.message || 'Failed to load')
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load')
       setLoading(false)
-    })
-  }, [auth.token])
+    }
+  }
 
-  if (!auth.user) return <div>Nicht angemeldet</div>
-  if (!(auth.user as any).is_admin) return <div>Zugriff verweigert</div>
+  async function fetchUserDetail(id: string) {
+    setDetailLoading(true)
+    try {
+      const res = await api.get(`/admin/users/${id}`, auth.token)
+      setSelectedUser(res)
+    } catch (e: any) {
+      alert(e?.message || 'Failed to load user')
+    } finally { setDetailLoading(false) }
+  }
+
+  async function fetchAudit(p = 1, pp = 25) {
+    if (!auth.token) return
+    try {
+      const res = await api.get(`/admin/audit?page=${p}&perPage=${pp}`, auth.token)
+      setAuditEntries(res.entries || [])
+      setAuditTotal(res.total || 0)
+    } catch (e: any) {
+      // ignore for now
+    }
+  }
 
   return (
-    <div style={{ padding: 24 }}>
-      <h2>Admin: Benutzerverwaltung</h2>
-      {loading && <p>Lade Benutzer …</p>}
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>
-            <th style={{ textAlign: 'left', padding: 8 }}>ID</th>
-            <th style={{ textAlign: 'left', padding: 8 }}>Email</th>
-            <th style={{ textAlign: 'left', padding: 8 }}>Name</th>
-            <th style={{ textAlign: 'left', padding: 8 }}>Admin</th>
-            <th style={{ textAlign: 'left', padding: 8 }}>Created</th>
-            <th style={{ textAlign: 'left', padding: 8 }}>Aktionen</th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.map(u => (
-            <tr key={u.id} style={{ borderTop: '1px solid #eee' }}>
-              <td style={{ padding: 8, fontFamily: 'monospace' }}>{u.id}</td>
-              <td style={{ padding: 8 }}>{u.email}</td>
-              <td style={{ padding: 8 }}>{u.name}</td>
-              <td style={{ padding: 8 }}>{u.is_admin ? '✅' : ''}</td>
-              <td style={{ padding: 8 }}>{new Date(u.created_at).toLocaleString()}</td>
-              <td style={{ padding: 8 }}>
-                <button onClick={async () => {
-                  try {
-                    await api.post(`/admin/users/${u.id}/role`, { is_admin: !u.is_admin }, auth.token!)
-                    // refresh
-                    const res = await api.get('/admin/users', auth.token!)
-                    setUsers(res.users || [])
-                  } catch (e: any) { alert(e?.message || 'Error') }
-                }}>{u.is_admin ? 'Revoke admin' : 'Make admin'}</button>
-                <button style={{ marginLeft: 8 }} onClick={async () => {
-                  if (!confirm('Benutzer wirklich löschen (soft delete)?')) return
-                  try {
-                    await api.del(`/admin/users/${u.id}`, auth.token!)
-                    const res = await api.get('/admin/users', auth.token!)
-                    setUsers(res.users || [])
-                  } catch (e: any) { alert(e?.message || 'Error') }
-                }}>Delete</button>
-                <button style={{ marginLeft: 8 }} onClick={async () => {
-                  if (!confirm('Benutzer endgültig entfernen? Diese Aktion ist unwiderruflich.')) return
-                  try {
-                    await api.post(`/admin/users/${u.id}/purge`, {}, auth.token!)
-                    const res = await api.get('/admin/users', auth.token!)
-                    setUsers(res.users || [])
-                  } catch (e: any) { alert(e?.message || 'Error') }
-                }}>Purge</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="admin-panel">
+      <aside className="admin-sidebar">
+        <div>
+          <h3>Admin Center</h3>
+          <nav className="admin-nav">
+            <button onClick={() => setMenu('users')} className={`admin-nav-button ${menu === 'users' ? 'active' : ''}`}>Benutzerverwaltung</button>
+            <button onClick={() => setMenu('audit')} className={`admin-nav-button ${menu === 'audit' ? 'active' : ''}`}>Audit Log</button>
+            <button onClick={() => setMenu('feedback')} className={`admin-nav-button ${menu === 'feedback' ? 'active' : ''}`}>Feedback (später)</button>
+            <button onClick={() => setMenu('system')} className={`admin-nav-button ${menu === 'system' ? 'active' : ''}`}>System (später)</button>
+          </nav>
+        </div>
+        <div>
+          <button className="admin-leave-button" onClick={() => navigate('/')}>Admincenter verlassen</button>
+        </div>
+      </aside>
+
+      <main className="admin-main">
+        {menu === 'users' && (
+          <>
+            <h2>Benutzerverwaltung</h2>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <input placeholder="Search email or name" value={q} onChange={e => { setQ(e.target.value); setPage(1) }} style={{ padding: 8, flex: 1 }} />
+              <select value={perPage} onChange={e => { setPerPage(parseInt(e.target.value, 10)); setPage(1) }}>
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+
+            {loading && <p>Lade Benutzer …</p>}
+            {error && <p style={{ color: 'red' }}>{error}</p>}
+
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: 8 }}>ID</th>
+                  <th style={{ textAlign: 'left', padding: 8 }}>Email</th>
+                  <th style={{ textAlign: 'left', padding: 8 }}>Name</th>
+                  <th style={{ textAlign: 'left', padding: 8 }}>Admin</th>
+                  <th style={{ textAlign: 'left', padding: 8 }}>Created</th>
+                  <th style={{ textAlign: 'left', padding: 8 }}>Aktionen</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map(u => (
+                  <tr key={u.id} style={{ borderTop: '1px solid #eee' }}>
+                    <td style={{ padding: 8, fontFamily: 'monospace' }}>{u.id}</td>
+                    <td style={{ padding: 8 }}>{u.email}</td>
+                    <td style={{ padding: 8 }}>{u.name}</td>
+                    <td style={{ padding: 8 }}>{u.is_admin ? '✅' : ''}</td>
+                    <td style={{ padding: 8 }}>{new Date(u.created_at).toLocaleString()}</td>
+                    <td style={{ padding: 8 }}>
+                      <button onClick={async () => fetchUserDetail(u.id)}>View</button>
+                      <button style={{ marginLeft: 8 }} onClick={async () => {
+                        try {
+                          await api.post(`/admin/users/${u.id}/role`, { is_admin: !u.is_admin }, auth.token!)
+                          fetchUsers(page, perPage, q)
+                        } catch (e: any) { alert(e?.message || 'Error') }
+                      }}>{u.is_admin ? 'Revoke admin' : 'Make admin'}</button>
+                      <button style={{ marginLeft: 8 }} onClick={async () => {
+                        if (!confirm('Benutzer wirklich löschen (soft delete)?')) return
+                        try {
+                          await api.del(`/admin/users/${u.id}`, auth.token!)
+                          fetchUsers(page, perPage, q)
+                        } catch (e: any) { alert(e?.message || 'Error') }
+                      }}>Delete</button>
+                      <button style={{ marginLeft: 8 }} onClick={async () => {
+                        if (!confirm('Benutzer endgültig entfernen? Diese Aktion ist unwiderruflich.')) return
+                        try {
+                          await api.post(`/admin/users/${u.id}/purge`, {}, auth.token!)
+                          fetchUsers(page, perPage, q)
+                        } catch (e: any) { alert(e?.message || 'Error') }
+                      }}>Purge</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+              <div>Showing {(page-1)*perPage + 1} - {Math.min(page*perPage, total)} of {total}</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => { if (page>1) setPage(p => p-1) }} disabled={page===1}>Prev</button>
+                <button onClick={() => { if ((page*perPage) < total) setPage(p => p+1) }} disabled={(page*perPage) >= total}>Next</button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {menu === 'audit' && (
+          <>
+            <h2>Audit Log</h2>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: 8 }}>Time</th>
+                  <th style={{ textAlign: 'left', padding: 8 }}>Actor</th>
+                  <th style={{ textAlign: 'left', padding: 8 }}>Action</th>
+                  <th style={{ textAlign: 'left', padding: 8 }}>Target</th>
+                  <th style={{ textAlign: 'left', padding: 8 }}>Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditEntries.map(a => (
+                  <tr key={a.id} style={{ borderTop: '1px solid #eee' }}>
+                    <td style={{ padding: 8 }}>{new Date(a.created_at).toLocaleString()}</td>
+                    <td style={{ padding: 8, fontFamily: 'monospace' }}>{a.actor_id}</td>
+                    <td style={{ padding: 8 }}>{a.action}</td>
+                    <td style={{ padding: 8 }}>{a.target_type}:{a.target_id}</td>
+                    <td style={{ padding: 8 }}>{JSON.stringify(a.details)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+              <div>Showing {(auditPage-1)*auditPerPage + 1} - {Math.min(auditPage*auditPerPage, auditTotal)} of {auditTotal}</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => { if (auditPage>1) setAuditPage(p => p-1) }} disabled={auditPage===1}>Prev</button>
+                <button onClick={() => { if ((auditPage*auditPerPage) < auditTotal) setAuditPage(p => p+1) }} disabled={(auditPage*auditPerPage) >= auditTotal}>Next</button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {menu !== 'users' && menu !== 'audit' && (
+          <div style={{ marginTop: 24, color: '#64748b' }}>Diese Ansicht ist noch nicht implementiert.</div>
+        )}
+      </main>
+
+      {/* Detail drawer */}
+      {selectedUser && (
+        <div style={{ position: 'fixed', right: 0, top: 0, bottom: 0, width: 420, background: 'white', boxShadow: '-6px 0 24px rgba(0,0,0,0.12)', padding: 16, overflow: 'auto' }}>
+          <button onClick={() => setSelectedUser(null)} style={{ float: 'right' }}>Close</button>
+          <h3>Benutzer: {selectedUser.name || selectedUser.email}</h3>
+          {detailLoading ? <p>Loading…</p> : (
+            <div>
+              <p><strong>ID:</strong> {selectedUser.id}</p>
+              <p><strong>Email:</strong> {selectedUser.email}</p>
+              <p><strong>Created:</strong> {new Date(selectedUser.created_at).toLocaleString()}</p>
+              <p><strong>Admin:</strong> {(selectedUser as any).is_admin ? 'Yes' : 'No'}</p>
+              <p><strong>Deleted:</strong> {selectedUser.deleted_at || '—'}</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
