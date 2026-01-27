@@ -24,16 +24,19 @@ export default function FeedbackForm() {
   const [email, setEmail] = useState(user?.email || '')
   const [headline, setHeadline] = useState('')
   const [message, setMessage] = useState('')
+  const [headlineError, setHeadlineError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
+    setHeadlineError(null)
+    if (!headline.trim()) { setHeadlineError('Headline ist erforderlich'); return }
     if (!message.trim()) return
     setLoading(true)
     try {
       const metadata = collectMetadata()
-      await api.post('/feedback', { headline: headline || null, email: email || null, message, metadata }, token ?? undefined)
+      await api.post('/feedback', { headline: headline, email: email || null, message, metadata }, token ?? undefined)
       setDone(true)
       setHeadline('')
       setMessage('')
@@ -46,7 +49,8 @@ export default function FeedbackForm() {
 
   return (
     <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <input placeholder="Kurze Headline (z.B. 'Fehler beim Speichern')" value={headline} onChange={e => setHeadline(e.target.value)} style={{ padding: 8, borderRadius: 6, border: '1px solid #e6e7ea' }} />
+      <input placeholder="Kurze Headline (z.B. 'Fehler beim Speichern')" value={headline} onChange={e => setHeadline(e.target.value)} aria-invalid={!!headlineError} style={{ padding: 8, borderRadius: 6, border: '1px solid #e6e7ea' }} />
+      {headlineError && <div style={{ color: '#b91c1c', fontSize: 12 }}>{headlineError}</div>}
       <input placeholder="E-Mail (optional)" value={email} onChange={e => setEmail(e.target.value)} style={{ padding: 8, borderRadius: 6, border: '1px solid #e6e7ea' }} />
       <textarea placeholder="Dein Feedback" value={message} onChange={e => setMessage(e.target.value)} rows={6} style={{ padding: 8, borderRadius: 6, border: '1px solid #e6e7ea' }} />
       <div style={{ fontSize: 12, color: '#64748b' }}>Wir sammeln automatisch technische Metadaten (Browser, Viewport, App-Version) zur Analyse. Keine Passwörter werden erfasst.</div>

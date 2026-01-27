@@ -114,22 +114,24 @@ export default function AdminPanel() {
   }
 
   async function resolveFeedback(id: string, resolved = true) {
-    if (!auth.token) return
+    if (!auth.token) return false
     try {
       await api.post(`/admin/feedback/${id}/resolve`, { resolved }, auth.token ?? undefined)
-      fetchFeedbackDetail(id)
-      fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ)
-    } catch (e: any) { alert(e?.message || 'Failed to update') }
+      // refresh
+      try { fetchFeedbackDetail(id) } catch {}
+      try { fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ) } catch {}
+      return true
+    } catch (e: any) { alert(e?.message || 'Failed to update'); return false }
   }
 
   async function deleteFeedback(id: string) {
-    if (!auth.token) return
-    if (!confirm('Feedback wirklich löschen (soft delete)?')) return
+    if (!auth.token) return false
+    if (!confirm('Feedback wirklich löschen (soft delete)?')) return false
     try {
       await api.del(`/admin/feedback/${id}`, auth.token ?? undefined)
-      setSelectedFeedback(null)
-      fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ)
-    } catch (e: any) { alert(e?.message || 'Failed to delete') }
+      try { fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ) } catch {}
+      return true
+    } catch (e: any) { alert(e?.message || 'Failed to delete'); return false }
   }
 
   return (
@@ -276,6 +278,7 @@ export default function AdminPanel() {
                   <th>Time</th>
                   <th>User</th>
                   <th>Email</th>
+                  <th>Status</th>
                   <th>Message</th>
                 </tr>
               </thead>
@@ -285,6 +288,9 @@ export default function AdminPanel() {
                     <td style={{ padding: 10 }}>{new Date(f.created_at).toLocaleString()}</td>
                     <td style={{ padding: 10, fontFamily: 'monospace' }}>{f.user_id || '—'}</td>
                     <td style={{ padding: 10 }}>{f.email || '—'}</td>
+                    <td style={{ padding: 10 }}>
+                      <div style={{ display: 'inline-block', padding: '4px 8px', borderRadius: 6, background: f.status === 'resolved' ? '#e6fffa' : '#fff7ed', color: f.status === 'resolved' ? '#0f766e' : '#92400e', fontWeight: 600, fontSize: 12 }}>{f.status || 'new'}</div>
+                    </td>
                     <td style={{ padding: 10 }}>
                       <div style={{ fontWeight: 700 }}>{f.headline || '(no headline)'}</div>
                       <div style={{ marginTop: 6 }}>{f.message?.slice?.(0, 160)}</div>
@@ -328,42 +334,53 @@ export default function AdminPanel() {
           )}
         </div>
       )}
-      {/* Feedback detail drawer */}
+      {/* Feedback detail modal */}
       {selectedFeedback && (
-        <div style={{ position: 'fixed', right: 0, top: 0, bottom: 0, width: 540, background: 'white', boxShadow: '-6px 0 24px rgba(0,0,0,0.12)', padding: 16, overflow: 'auto' }}>
-          <button onClick={() => setSelectedFeedback(null)} style={{ float: 'right' }}>Close</button>
-          <h3>{selectedFeedback.headline || '(no headline)'}</h3>
-          {feedbackDetailLoading ? <p>Loading…</p> : (
-            <div>
-              <p><strong>ID:</strong> {selectedFeedback.id}</p>
-              <p><strong>User:</strong> {selectedFeedback.user_id || '—'}</p>
-              <p><strong>Email:</strong> {selectedFeedback.email || '—'}</p>
-              <p><strong>Created:</strong> {new Date(selectedFeedback.created_at).toLocaleString()}</p>
-              <p><strong>Status:</strong> {selectedFeedback.status}</p>
-              <hr />
-              <p style={{ whiteSpace: 'pre-wrap' }}>{selectedFeedback.message}</p>
-              <hr />
-              <h4>Metadata</h4>
-              <pre style={{ background: '#f6f8fa', padding: 8, borderRadius: 6, overflow: 'auto' }}>{JSON.stringify(selectedFeedback.metadata || {}, null, 2)}</pre>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ width: '90%', maxWidth: 900, maxHeight: '90vh', overflow: 'auto', background: 'white', borderRadius: 8, padding: 18, boxShadow: '0 10px 40px rgba(0,0,0,0.3)', position: 'relative' }}>
+            <button onClick={() => setSelectedFeedback(null)} style={{ position: 'absolute', right: 12, top: 12 }}>Close</button>
+            <h3 style={{ marginTop: 6 }}>{selectedFeedback.headline || '(no headline)'}</h3>
+            {feedbackDetailLoading ? <p>Loading…</p> : (
+              <div>
+                <p><strong>ID:</strong> {selectedFeedback.id}</p>
+                <p><strong>User:</strong> {selectedFeedback.user_id || '—'}</p>
+                <p><strong>Email:</strong> {selectedFeedback.email || '—'}</p>
+                <p><strong>Created:</strong> {new Date(selectedFeedback.created_at).toLocaleString()}</p>
+                <p><strong>Status:</strong> {selectedFeedback.status}</p>
+                <hr />
+                <p style={{ whiteSpace: 'pre-wrap' }}>{selectedFeedback.message}</p>
+                <hr />
+                <h4>Metadata</h4>
+                <pre style={{ background: '#f6f8fa', padding: 8, borderRadius: 6, overflow: 'auto' }}>{JSON.stringify(selectedFeedback.metadata || {}, null, 2)}</pre>
 
-              <h4 style={{ marginTop: 12 }}>Comments</h4>
-              {(selectedFeedback.comments || []).map((c: any) => (
-                <div key={c.id} style={{ padding: 8, borderBottom: '1px solid #eee' }}>
-                  <div style={{ fontSize: 12, color: '#64748b' }}>{c.author_id || 'admin'} • {new Date(c.created_at).toLocaleString()}</div>
-                  <div style={{ marginTop: 6 }}>{c.message}</div>
+                <h4 style={{ marginTop: 12 }}>Comments</h4>
+                {(selectedFeedback.comments || []).map((c: any) => (
+                  <div key={c.id} style={{ padding: 8, borderBottom: '1px solid #eee' }}>
+                    <div style={{ fontSize: 12, color: '#64748b' }}>{c.author_id || 'admin'} • {new Date(c.created_at).toLocaleString()}</div>
+                    <div style={{ marginTop: 6 }}>{c.message}</div>
+                  </div>
+                ))}
+
+                <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+                  <button onClick={async () => {
+                    const txt = prompt('Kommentar hinzufügen')
+                    if (txt) {
+                      await addFeedbackComment(String(selectedFeedback.id), txt)
+                      fetchFeedbackDetail(String(selectedFeedback.id))
+                    }
+                  }}>Add comment</button>
+                  <button onClick={async () => {
+                    const ok = await resolveFeedback(String(selectedFeedback.id), !(selectedFeedback.status === 'resolved'))
+                    if (ok) { setSelectedFeedback(null); fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ) }
+                  }}>{selectedFeedback.status === 'resolved' ? 'Mark as open' : 'Mark as resolved'}</button>
+                  <button className="danger" onClick={async () => {
+                    const ok = await deleteFeedback(String(selectedFeedback.id))
+                    if (ok) { setSelectedFeedback(null); fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ) }
+                  }} style={{ marginLeft: 'auto' }}>Delete</button>
                 </div>
-              ))}
-
-              <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-                <button onClick={() => {
-                  const txt = prompt('Kommentar hinzufügen')
-                  if (txt) addFeedbackComment(selectedFeedback.id, txt)
-                }}>Add comment</button>
-                <button onClick={() => resolveFeedback(selectedFeedback.id, !(selectedFeedback.status === 'resolved'))}>{selectedFeedback.status === 'resolved' ? 'Mark as open' : 'Mark as resolved'}</button>
-                <button className="danger" onClick={() => deleteFeedback(selectedFeedback.id)} style={{ marginLeft: 'auto' }}>Delete</button>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
     </div>
