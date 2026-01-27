@@ -10,6 +10,7 @@ import PrintViewPage from './components/PrintViewPage'
 import Login from './components/Login'
 import Profile from './components/Profile'
 import AdminPanel from './components/AdminPanel'
+import FeedbackForm from './components/FeedbackForm'
 
 export default function App() {
   const auth = useAuth()
@@ -19,6 +20,7 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/profile" element={<Profile />} />
       <Route path="/admin" element={auth.user ? ((auth.user as any).is_admin ? <AdminPanel /> : <Navigate to="/" replace />) : <Navigate to="/login" replace />} />
+      <Route path="/feedback" element={auth.user ? <FeedbackForm /> : <FeedbackForm />} />
       <Route path="/new-room" element={<RoomEditor />} />
       <Route path="/load-room" element={<LoadRoom />} />
       <Route path="/load-event" element={<LoadEvent />} />
