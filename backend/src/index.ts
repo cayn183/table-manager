@@ -4,6 +4,7 @@ import dotenv from 'dotenv'
 import authRoutes from './routes/auth'
 import eventsRoutes from './routes/events'
 import migrationRoutes from './routes/migration'
+import adminRoutes from './routes/admin'
 import requestId from './middleware/requestId'
 import logger from './logger'
 import { runMigrations } from './migrate'
@@ -51,6 +52,7 @@ app.use((req, res, next) => {
 app.use('/auth', authRoutes)
 app.use('/events', eventsRoutes)
 app.use('/migration', migrationRoutes)
+app.use('/admin', adminRoutes)
 
 app.get('/', (req, res) => res.json({ ok: true, version: '0.1.0' }))
 

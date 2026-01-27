@@ -60,3 +60,10 @@ CREATE TABLE IF NOT EXISTS assigned_groups (
 -- Simple indexes
 CREATE INDEX IF NOT EXISTS idx_events_user_id ON events(user_id);
 CREATE INDEX IF NOT EXISTS idx_rooms_event_id ON rooms(event_id);
+
+-- Ensure admin-related columns exist for existing installations
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_granted_by TEXT NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS admin_granted_at TIMESTAMP WITH TIME ZONE NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_by TEXT NULL;
