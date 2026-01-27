@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
+import { useNavigate } from 'react-router-dom'
 import api from '../api/apiClient'
 
 type UserRow = { id: string; name: string; email: string; created_at: string; is_admin: boolean; deleted_at?: string }
@@ -10,6 +11,7 @@ export default function AdminPanel() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const [menu, setMenu] = useState<'users' | 'feedback' | 'system'>('users')
   useEffect(() => {
     if (!auth.token) return
     setLoading(true)

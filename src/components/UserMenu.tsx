@@ -52,6 +52,11 @@ export default function UserMenu() {
             <Link to="/profile" style={{ textDecoration: 'none' }}>
               <button style={{ width: '100%', padding: '6px 8px' }}>Profile</button>
             </Link>
+            {(user as any).is_admin && (
+              <Link to="/admin" style={{ textDecoration: 'none' }}>
+                <button onClick={() => setOpen(false)} style={{ width: '100%', padding: '6px 8px' }}>Admin Center</button>
+              </Link>
+            )}
             <button onClick={() => { logout(); setOpen(false) }} style={{ width: '100%', padding: '6px 8px' }}>Logout</button>
           </div>
         </div>
