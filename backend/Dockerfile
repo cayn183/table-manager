@@ -1,4 +1,4 @@
-FROM node:18-alpine AS backend-build
+FROM node:18-bullseye-slim AS backend-build
 WORKDIR /build/backend
 
 # Build backend (install deps, build TS)
@@ -9,7 +9,7 @@ COPY backend/src ./src
 COPY backend/db ./db
 RUN npm run build
 
-FROM node:18-alpine AS frontend-build
+FROM node:18-bullseye-slim AS frontend-build
 WORKDIR /build/app
 COPY package*.json ./
 RUN npm ci
@@ -19,7 +19,7 @@ COPY src ./src
 	COPY vite.config.ts ./vite.config.ts
 RUN npm run build
 
-FROM node:18-alpine
+FROM node:18-bullseye-slim
 WORKDIR /app
 
 # Copy backend built artifacts and backend production deps
