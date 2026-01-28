@@ -37,6 +37,10 @@ export default function AdminPanel() {
   const [feedbackPerPage, setFeedbackPerPage] = useState(25)
   const [feedbackTotal, setFeedbackTotal] = useState(0)
   const [feedbackQ, setFeedbackQ] = useState('')
+  // Filters: default checked = new (open) and completed (resolved). deleted must be explicitly shown.
+  const [showOpen, setShowOpen] = useState(true)
+  const [showResolved, setShowResolved] = useState(true)
+  const [showDeleted, setShowDeleted] = useState(false)
   const [selectedFeedback, setSelectedFeedback] = useState<any | null>(null)
   const [feedbackDetailLoading, setFeedbackDetailLoading] = useState(false)
 
@@ -85,7 +89,11 @@ export default function AdminPanel() {
   async function fetchFeedback(p = 1, pp = 25, query = '') {
     if (!auth.token) return
     try {
-      const res = await api.get(`/admin/feedback?page=${p}&perPage=${pp}&q=${encodeURIComponent(query)}`, auth.token ?? undefined)
+      const statuses: string[] = []
+      if (showOpen) statuses.push('open')
+      if (showResolved) statuses.push('resolved')
+      const statusesParam = statuses.join(',')
+      const res = await api.get(`/admin/feedback?page=${p}&perPage=${pp}&q=${encodeURIComponent(query)}&statuses=${encodeURIComponent(statusesParam)}&includeDeleted=${showDeleted ? 'true' : 'false'}`, auth.token ?? undefined)
       setFeedbackEntries(res.entries || [])
       setFeedbackTotal(res.total || 0)
     } catch (e: any) {
@@ -263,13 +271,30 @@ export default function AdminPanel() {
         {menu === 'feedback' && (
           <>
             <h2>Feedback</h2>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <input placeholder="Search email or message" value={feedbackQ} onChange={e => { setFeedbackQ(e.target.value); setFeedbackPage(1) }} style={{ padding: 8, flex: 1 }} />
-              <select value={feedbackPerPage} onChange={e => { setFeedbackPerPage(parseInt(e.target.value, 10)); setFeedbackPage(1) }}>
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-              </select>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input type="checkbox" checked={showOpen} onChange={e => { setShowOpen(e.target.checked); setFeedbackPage(1) }} />
+                  <span>New</span>
+                </label>
+                <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input type="checkbox" checked={showResolved} onChange={e => { setShowResolved(e.target.checked); setFeedbackPage(1) }} />
+                  <span>Completed</span>
+                </label>
+                <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input type="checkbox" checked={showDeleted} onChange={e => { setShowDeleted(e.target.checked); setFeedbackPage(1) }} />
+                  <span>Deleted (show)</span>
+                </label>
+                <button style={{ marginLeft: 'auto' }} onClick={() => fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ)}>Reload</button>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input placeholder="Search email or message" value={feedbackQ} onChange={e => { setFeedbackQ(e.target.value); setFeedbackPage(1) }} style={{ padding: 8, flex: 1 }} />
+                <select value={feedbackPerPage} onChange={e => { setFeedbackPerPage(parseInt(e.target.value, 10)); setFeedbackPage(1) }}>
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
             </div>
 
             <table className="admin-table">
@@ -289,7 +314,14 @@ export default function AdminPanel() {
                     <td style={{ padding: 10, fontFamily: 'monospace' }}>{f.user_id || '—'}</td>
                     <td style={{ padding: 10 }}>{f.email || '—'}</td>
                     <td style={{ padding: 10 }}>
-                      <div style={{ display: 'inline-block', padding: '4px 8px', borderRadius: 6, background: f.status === 'resolved' ? '#e6fffa' : '#fff7ed', color: f.status === 'resolved' ? '#0f766e' : '#92400e', fontWeight: 600, fontSize: 12 }}>{f.status || 'new'}</div>
+                      {(() => {
+                        const status = f.status || 'open'
+                        const display = status === 'resolved' ? 'closed' : (status === 'open' ? 'new' : status)
+                        const resolved = status === 'resolved'
+                        const bg = resolved ? '#e6fffa' : '#fff7ed'
+                        const color = resolved ? '#0f766e' : '#92400e'
+                        return <div style={{ display: 'inline-block', padding: '4px 8px', borderRadius: 6, background: bg, color, fontWeight: 600, fontSize: 12 }}>{display}</div>
+                      })()}
                     </td>
                     <td style={{ padding: 10 }}>
                       <div style={{ fontWeight: 700 }}>{f.headline || '(no headline)'}</div>

@@ -117,18 +117,36 @@ router.get('/audit', requireAdmin, async (req, res) => {
 })
 
 // List feedback entries for admin (admin only)
+// Supports optional filtering by statuses (comma-separated) and including deleted entries via includeDeleted=true
 router.get('/feedback', requireAdmin, async (req, res) => {
   const page = parseInt((req.query.page as string) || '1', 10)
   const perPage = parseInt((req.query.perPage as string) || '50', 10)
   const q = (req.query.q as string) || ''
+  const statusesCsv = (req.query.statuses as string) || ''
+  const includeDeleted = String(req.query.includeDeleted || 'false').toLowerCase() === 'true'
   const offset = (page - 1) * perPage
   try {
     const params: any[] = []
     let whereClauses: string[] = []
     if (q) {
       params.push(`%${q}%`)
-      whereClauses.push(`(email ILIKE $${params.length} OR message ILIKE $${params.length})`)
+      whereClauses.push(`(email ILIKE $${params.length} OR message ILIKE $${params.length} OR headline ILIKE $${params.length})`)
     }
+
+    // status filter (comma separated)
+    const statuses = statusesCsv.split(',').map(s => s.trim()).filter(Boolean)
+    if (statuses.length) {
+      const startIdx = params.length + 1
+      statuses.forEach(s => params.push(s))
+      const placeholders = statuses.map((_, i) => `$${startIdx + i}`)
+      whereClauses.push(`status IN (${placeholders.join(',')})`)
+    }
+
+    // by default exclude deleted entries unless explicitly requested
+    if (!includeDeleted) {
+      whereClauses.push('deleted_at IS NULL')
+    }
+
     const where = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : ''
     const totalR = await pool.query(`SELECT COUNT(*)::int as cnt FROM feedback ${where}`, params)
     const total = totalR.rows[0].cnt || 0
@@ -137,7 +155,7 @@ router.get('/feedback', requireAdmin, async (req, res) => {
     const limitIdx = params.length - 1
     const offsetIdx = params.length
     const rows = await pool.query(
-      `SELECT id, user_id, email, message, metadata, created_at FROM feedback ${where} ORDER BY created_at DESC LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+      `SELECT id, user_id, email, headline, status, message, metadata, created_at, resolved_at, deleted_at FROM feedback ${where} ORDER BY created_at DESC LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
       params
     )
     res.json({ total, entries: rows.rows })
