@@ -37,16 +37,16 @@ export default function AdminPanel() {
   const [feedbackPerPage, setFeedbackPerPage] = useState(25)
   const [feedbackTotal, setFeedbackTotal] = useState(0)
   const [feedbackQ, setFeedbackQ] = useState('')
-  // Filters: default checked = new (open) and completed (resolved). deleted must be explicitly shown.
+  // Filters: Neu / Offen / Abgeschlossen
+  const [showNew, setShowNew] = useState(true)
   const [showOpen, setShowOpen] = useState(true)
   const [showResolved, setShowResolved] = useState(true)
-  const [showDeleted, setShowDeleted] = useState(false)
   const [selectedFeedback, setSelectedFeedback] = useState<any | null>(null)
   const [feedbackDetailLoading, setFeedbackDetailLoading] = useState(false)
 
   useEffect(() => { fetchUsers(page, perPage, q) }, [auth.token, page, perPage, q])
   useEffect(() => { if (menu === 'audit') fetchAudit(auditPage, auditPerPage) }, [auth.token, menu, auditPage, auditPerPage])
-  useEffect(() => { if (menu === 'feedback') fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ) }, [auth.token, menu, feedbackPage, feedbackPerPage, feedbackQ])
+  useEffect(() => { if (menu === 'feedback') fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ) }, [auth.token, menu, feedbackPage, feedbackPerPage, feedbackQ, showNew, showOpen, showResolved])
 
   if (!auth.user) return <div style={{ padding: 24 }}>Nicht angemeldet</div>
   if (!(auth.user as any).is_admin) return <div style={{ padding: 24 }}>Zugriff verweigert</div>
@@ -90,10 +90,11 @@ export default function AdminPanel() {
     if (!auth.token) return
     try {
       const statuses: string[] = []
+      if (showNew) statuses.push('new')
       if (showOpen) statuses.push('open')
       if (showResolved) statuses.push('resolved')
       const statusesParam = statuses.join(',')
-      const res = await api.get(`/admin/feedback?page=${p}&perPage=${pp}&q=${encodeURIComponent(query)}&statuses=${encodeURIComponent(statusesParam)}&includeDeleted=${showDeleted ? 'true' : 'false'}`, auth.token ?? undefined)
+      const res = await api.get(`/admin/feedback?page=${p}&perPage=${pp}&q=${encodeURIComponent(query)}&statuses=${encodeURIComponent(statusesParam)}`, auth.token ?? undefined)
       setFeedbackEntries(res.entries || [])
       setFeedbackTotal(res.total || 0)
     } catch (e: any) {
@@ -134,7 +135,7 @@ export default function AdminPanel() {
 
   async function deleteFeedback(id: string) {
     if (!auth.token) return false
-    if (!confirm('Feedback wirklich löschen (soft delete)?')) return false
+    if (!confirm('Feedback wirklich endgültig löschen? Diese Aktion ist unwiderruflich.')) return false
     try {
       await api.del(`/admin/feedback/${id}`, auth.token ?? undefined)
       try { fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ) } catch {}
@@ -274,17 +275,18 @@ export default function AdminPanel() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
               <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                 <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input type="checkbox" checked={showNew} onChange={e => { setShowNew(e.target.checked); setFeedbackPage(1) }} />
+                  <span>Neu</span>
+                </label>
+                <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                   <input type="checkbox" checked={showOpen} onChange={e => { setShowOpen(e.target.checked); setFeedbackPage(1) }} />
-                  <span>New</span>
+                  <span>Offen</span>
                 </label>
                 <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                   <input type="checkbox" checked={showResolved} onChange={e => { setShowResolved(e.target.checked); setFeedbackPage(1) }} />
-                  <span>Completed</span>
+                  <span>Abgeschlossen</span>
                 </label>
-                <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <input type="checkbox" checked={showDeleted} onChange={e => { setShowDeleted(e.target.checked); setFeedbackPage(1) }} />
-                  <span>Deleted (show)</span>
-                </label>
+                {/* 'Gelöscht' filter removed — deleted feedback is permanently removed */}
                 <button style={{ marginLeft: 'auto' }} onClick={() => fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ)}>Reload</button>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -316,10 +318,15 @@ export default function AdminPanel() {
                     <td style={{ padding: 10 }}>
                       {(() => {
                         const status = f.status || 'open'
-                        const display = status === 'resolved' ? 'closed' : (status === 'open' ? 'new' : status)
+                        let display = status
+                        if (status === 'new') display = 'Neu'
+                        else if (status === 'open') display = 'Offen'
+                        else if (status === 'resolved') display = 'Abgeschlossen'
                         const resolved = status === 'resolved'
-                        const bg = resolved ? '#e6fffa' : '#fff7ed'
-                        const color = resolved ? '#0f766e' : '#92400e'
+                        let bg = '#fff7ed'
+                        let color = '#92400e'
+                        if (status === 'resolved') { bg = '#e6fffa'; color = '#0f766e' }
+                        else if (status === 'new') { bg = '#eff6ff'; color = '#1e3a8a' }
                         return <div style={{ display: 'inline-block', padding: '4px 8px', borderRadius: 6, background: bg, color, fontWeight: 600, fontSize: 12 }}>{display}</div>
                       })()}
                     </td>
@@ -378,7 +385,13 @@ export default function AdminPanel() {
                 <p><strong>User:</strong> {selectedFeedback.user_id || '—'}</p>
                 <p><strong>Email:</strong> {selectedFeedback.email || '—'}</p>
                 <p><strong>Created:</strong> {new Date(selectedFeedback.created_at).toLocaleString()}</p>
-                <p><strong>Status:</strong> {selectedFeedback.status}</p>
+                <p><strong>Status:</strong> {(() => {
+                  const s = selectedFeedback.status || 'open'
+                  if (s === 'new') return 'Neu'
+                  if (s === 'open') return 'Offen'
+                  if (s === 'resolved') return 'Abgeschlossen'
+                  return s
+                })()}</p>
                 <hr />
                 <p style={{ whiteSpace: 'pre-wrap' }}>{selectedFeedback.message}</p>
                 <hr />
@@ -404,11 +417,11 @@ export default function AdminPanel() {
                   <button onClick={async () => {
                     const ok = await resolveFeedback(String(selectedFeedback.id), !(selectedFeedback.status === 'resolved'))
                     if (ok) { setSelectedFeedback(null); fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ) }
-                  }}>{selectedFeedback.status === 'resolved' ? 'Mark as open' : 'Mark as resolved'}</button>
+                  }}>{selectedFeedback.status === 'resolved' ? 'Als offen markieren' : 'Als abgeschlossen markieren'}</button>
                   <button className="danger" onClick={async () => {
                     const ok = await deleteFeedback(String(selectedFeedback.id))
                     if (ok) { setSelectedFeedback(null); fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ) }
-                  }} style={{ marginLeft: 'auto' }}>Delete</button>
+                  }} style={{ marginLeft: 'auto' }}>Löschen</button>
                 </div>
               </div>
             )}

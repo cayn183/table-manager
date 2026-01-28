@@ -174,6 +174,18 @@ router.get('/feedback/:id', requireAdmin, async (req, res) => {
     const fb = r.rows[0]
     const commentsR = await pool.query('SELECT id, feedback_id, author_id, message, created_at FROM feedback_comments WHERE feedback_id=$1 ORDER BY created_at ASC', [id])
     fb.comments = commentsR.rows
+    // If feedback was 'new' (not yet viewed), mark as 'open' (viewed) when an admin reads it
+    try {
+      const actor = (req as any).user?.id || null
+      if (fb.status === 'new') {
+        await pool.query('UPDATE feedback SET status=$1 WHERE id=$2', ['open', id])
+        await pool.query('INSERT INTO admin_audit(id, actor_id, action, target_type, target_id, details) VALUES($1,$2,$3,$4,$5,$6)', [uuidv4(), actor, 'view', 'feedback', id, JSON.stringify({})])
+        fb.status = 'open'
+      }
+    } catch (e) {
+      logger.error('admin', { action: 'mark-feedback-viewed', err: e })
+    }
+
     res.json(fb)
   } catch (err) {
     logger.error('admin', { action: 'get-feedback', err })
@@ -218,13 +230,15 @@ router.post('/feedback/:id/resolve', requireAdmin, async (req, res) => {
   }
 })
 
-// Soft-delete feedback
+// Hard-delete feedback (permanent)
 router.delete('/feedback/:id', requireAdmin, async (req, res) => {
   const id = req.params.id
   const actor = (req as any).user?.id || null
   try {
-    await pool.query('UPDATE feedback SET deleted_at=now(), deleted_by=$1 WHERE id=$2', [actor, id])
-    await pool.query('INSERT INTO admin_audit(id, actor_id, action, target_type, target_id, details) VALUES($1,$2,$3,$4,$5,$6)', [uuidv4(), actor, 'soft-delete', 'feedback', id, JSON.stringify({})])
+    // remove comments first (if any), then the feedback row
+    await pool.query('DELETE FROM feedback_comments WHERE feedback_id=$1', [id])
+    await pool.query('DELETE FROM feedback WHERE id=$1', [id])
+    await pool.query('INSERT INTO admin_audit(id, actor_id, action, target_type, target_id, details) VALUES($1,$2,$3,$4,$5,$6)', [uuidv4(), actor, 'delete', 'feedback', id, JSON.stringify({ hard_deleted: true })])
     res.json({ ok: true })
   } catch (err) {
     logger.error('admin', { action: 'delete-feedback', err })
