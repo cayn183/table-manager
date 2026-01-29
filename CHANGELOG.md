@@ -6,6 +6,22 @@ Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
+## [Unreleased]
+
+## [0.8.1] - 2026-01-29
+
+### Added
+- Unload / keepalive sync: Frontend sends a compact batch to `/events/batch` using `fetch(..., { keepalive: true })` to persist latest events/rooms on page unload.
+- Hydration on login: server events and rooms are imported into user‑scoped localStorage when signing in.
+
+### Changed
+- `syncUserData()` implements retry with exponential backoff and surfaces persistent errors to callers.
+- Timeline rendering: height‑aware column segmentation and continuation headers to avoid mixed breaks across columns.
+- Manual saves await server sync and show saving UI; autosave skips when no changes present.
+
+### Fixed
+- Backend: `POST /events` supports upsert by client id when owned by the user; `DELETE /events/:id` implemented.
+- TypeScript and build fixes: added Vite import types, marked async functions, adjusted api calls to satisfy typings.
 
 ## [0.8.0] - 2026-01-27
 
