@@ -2153,7 +2153,7 @@ export default function Room() {
               display: 'flex',
               justifyContent: 'center',
               alignItems: 'flex-start',
-              padding: '40px 12px 12px',
+              padding: '12px 12px 12px',
               width: '100%',
               overflow: 'hidden',
               maxHeight: 'calc(100vh - 180px)'
@@ -4171,78 +4171,67 @@ function TimelineView({
 
   const slotEntries = Array.from(timeSlots.entries())
 
-  const columns: Array<Array<[string, typeof slotEntries[0][1]]>> = [[], [], []]
-  let currentColumn = 0
-  let currentColumnFamilies = 0
-
-  slotEntries.forEach(([slotKey, items]) => {
-    const familyCount = items.length
-    if (currentColumnFamilies + familyCount > 15 && currentColumn < 2) {
-      currentColumn++
-      currentColumnFamilies = 0
-    }
-    columns[currentColumn].push([slotKey, items])
-    currentColumnFamilies += familyCount
-  })
-
-  const filledColumns = columns.filter(col => col.length > 0)
-  const columnCount = Math.min(filledColumns.length, 4)
-  const columnGap = '12px'
-
+  // Use CSS multi-column flow for the timeline so the browser decides column breaks
+  // (this mirrors the behavior used in the print view and avoids manual family-count heuristics)
   return (
     <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
-      {[...unassignedNoTime, ...assignedNoTime].length > 0 && (
-        <div style={{ marginBottom: '8px' }}>
-          <h3 style={{ borderBottom: '2px solid #cbd5e1', paddingBottom: '12px', margin: '0 0 12px 0', fontSize: '16px', fontWeight: '700', color: '#1e293b' }}>Unzugeordnete Familien</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {unassignedNoTime.map((item, i) => (
-              <div key={`unassigned-${i}`} style={{ padding: '10px 12px', background: '#f1f5f9', borderLeft: '3px solid #94a3b8', borderRadius: '6px', fontSize: '14px' }}>
-                {item.group.note && <span title={item.group.note} style={{ fontSize: 13, color: '#f59e0b', marginRight: 6 }}>⚠️</span>}
-                {item.group.name} ({item.group.size} {item.group.toGo ? '| ToGo' : ''})
-              </div>
-            ))}
-            {assignedNoTime.map((item, i) => (
-              <div key={`assigned-notime-${i}`} style={{ padding: '10px 12px', background: '#f1f5f9', borderLeft: '3px solid #94a3b8', borderRadius: '6px', fontSize: '14px' }}>
-                {item.group.note && <span title={item.group.note} style={{ fontSize: 13, color: '#f59e0b', marginRight: 6 }}>⚠️</span>}
-                {item.group.name} ({item.group.size}) - {item.tableId === 'TOGO' ? 'ToGo' : `Tisch ${item.tableId?.slice(1)}`}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Unassigned families are rendered inside the timeline-list so they share scrolling and column wrapping */}
 
-      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${columnCount}, 1fr)`, gap: columnGap, alignItems: 'start', width: '100%', overflow: 'hidden' }}>
-        {columns.map((columnSlots, colIdx) => (
-          <div key={`column-${colIdx}`} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {columnSlots.map(([slotKey, items]) => {
-              const totalPeople = items.reduce((sum, item) => sum + item.group.size, 0)
-              const familyCount = items.length
-              return (
-                <div key={slotKey} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.08)', overflow: 'hidden' }}>
-                  <div style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', padding: '12px 14px', fontSize: '14px', fontWeight: '700' }}>
-                    🕐 {slotKey}
-                  </div>
-                  <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600', marginBottom: '4px' }}>
-                      {familyCount} Familien • {totalPeople} Personen
-                    </div>
-                    {items.map((item, i) => (
-                      <div key={`${slotKey}-${i}`} style={{ padding: '10px 12px', background: '#f8fafc', borderRadius: '8px', fontSize: '13px', fontWeight: '500', color: '#1e293b', borderLeft: '4px solid #2196F3', lineHeight: '1.4' }}>
-                        <div>{item.group.note && <span title={item.group.note} style={{ fontSize: 13, color: '#f59e0b', marginRight: 6 }}>⚠️</span>}{item.group.name}</div>
-                        <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-                          👥 {item.group.size} {item.isAssigned && item.tableId !== 'TOGO' ? `| Tisch ${item.tableId?.slice(1)}` : item.isAssigned && item.tableId === 'TOGO' ? '| ToGo' : ''}
-                        </div>
-                        {item.group.note && (
-                          <div style={{ fontSize: '12px', color: '#475569', marginTop: '6px' }}>{item.group.note}</div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+      <div className="timeline-scroll-wrapper" style={{ height: 'calc(100vh - 220px)', overflow: 'hidden' }}>
+        <div className="timeline-list">
+          {[...unassignedNoTime, ...assignedNoTime].length > 0 && (
+            <div className="timeline-slot" key="unassigned-block">
+              <div className="timeline-slot-header" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', padding: '12px 14px', fontSize: '14px', fontWeight: '700' }}>
+                Unzugeordnete Familien
+              </div>
+              <div style={{ padding: '12px 12px 0 12px', fontSize: '12px', color: '#64748b', fontWeight: '600', marginBottom: '6px' }}>
+                {unassignedNoTime.length + assignedNoTime.length} Einträge
+              </div>
+
+              {unassignedNoTime.map((item, i) => (
+                <div key={`unassigned-${i}`} className="timeline-slot-item" style={{ fontSize: '14px', fontWeight: '500', color: '#1e293b', borderLeft: '4px solid #94a3b8', lineHeight: '1.4' }}>
+                  {item.group.note && <span title={item.group.note} style={{ fontSize: 13, color: '#f59e0b', marginRight: 6 }}>⚠️</span>}
+                  {item.group.name} ({item.group.size} {item.group.toGo ? '| ToGo' : ''})
                 </div>
-              )
-            })}
-          </div>
-        ))}
+              ))}
+
+              {assignedNoTime.map((item, i) => (
+                <div key={`assigned-notime-${i}`} className="timeline-slot-item" style={{ fontSize: '14px', fontWeight: '500', color: '#1e293b', borderLeft: '4px solid #94a3b8', lineHeight: '1.4' }}>
+                  {item.group.note && <span title={item.group.note} style={{ fontSize: 13, color: '#f59e0b', marginRight: 6 }}>⚠️</span>}
+                  {item.group.name} ({item.group.size}) - {item.tableId === 'TOGO' ? 'ToGo' : `Tisch ${item.tableId?.slice(1)}`}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {slotEntries.map(([slotKey, items]) => {
+            const totalPeople = items.reduce((sum, item) => sum + item.group.size, 0)
+            const familyCount = items.length
+            return (
+              <div className="timeline-slot" key={slotKey}>
+                <div className="timeline-slot-header" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', padding: '12px 14px', fontSize: '14px', fontWeight: '700' }}>
+                  🕐 {slotKey}
+                </div>
+
+                <div style={{ padding: '12px 12px 0 12px', fontSize: '12px', color: '#64748b', fontWeight: '600', marginBottom: '6px' }}>
+                  {familyCount} Familien • {totalPeople} Personen
+                </div>
+
+                {items.map((item, i) => (
+                  <div key={`${slotKey}-${i}`} className="timeline-slot-item" style={{ fontSize: '13px', fontWeight: '500', color: '#1e293b', borderLeft: '4px solid #2196F3', lineHeight: '1.4' }}>
+                    <div>{item.group.note && <span title={item.group.note} style={{ fontSize: 13, color: '#f59e0b', marginRight: 6 }}>⚠️</span>}{item.group.name}</div>
+                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                      👥 {item.group.size} {item.isAssigned && item.tableId !== 'TOGO' ? `| Tisch ${item.tableId?.slice(1)}` : item.isAssigned && item.tableId === 'TOGO' ? '| ToGo' : ''}
+                    </div>
+                    {item.group.note && (
+                      <div style={{ fontSize: '12px', color: '#475569', marginTop: '6px' }}>{item.group.note}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )

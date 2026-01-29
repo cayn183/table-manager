@@ -191,7 +191,7 @@ export default function RoomEditor() {
     updateDragPreview(e)
   }
 
-  function confirmSaveRoom(name: string) {
+  async function confirmSaveRoom(name: string) {
     const room = { tables, viewFrame: viewFrame || undefined }
     userStorage.setItem('currentRoom', JSON.stringify(room), userId)
     const raw = userStorage.getItem('rooms', userId) || localStorage.getItem('rooms') || '[]'

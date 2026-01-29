@@ -88,7 +88,7 @@ export async function syncUserData(token: string | null, userId: string | null) 
       try {
         const systemId = `tm-rooms-${userId}`
         const systemPayload = { _system: true, name: '__rooms__', rooms: roomsList }
-        await api.post('/events', { id: systemId, title: '__rooms__', data: systemPayload }, token)
+        await api.post('/events', { id: systemId, title: '__rooms__', data: systemPayload }, token ?? undefined)
       } catch (err) {
         logger.error('sync', { action: 'sync-rooms-system', err })
         throw err
@@ -118,7 +118,7 @@ export async function syncUserData(token: string | null, userId: string | null) 
 
         const title = ev?.name || ev?.title || (ev?.data && ev.data.title) || 'Event'
         const id = ev?.id
-        await api.post('/events', { id, title, data }, token)
+        await api.post('/events', { id, title, data }, token ?? undefined)
       } catch (err) {
         logger.error('sync', { action: 'sync-event', err })
         throw err
