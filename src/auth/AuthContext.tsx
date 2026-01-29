@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/apiClient'
+import userStorage from '../utils/userStorage'
 import logger from '../utils/logger'
 import sentry from '../sentryClient'
+import { syncUserData, hydrateUserData, syncUserDataOnUnload } from '../utils/sync'
 
 type User = { id: string; name?: string; email?: string } | null
 
@@ -48,6 +50,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setToken(res.token)
       setUser(res.user)
       try { sentry.setUser({ id: res.user.id }) } catch (e) {}
+      // Try to load server-side events into user-scoped localStorage so
+      // the UI shows existing events when logging in from another browser.
+      try {
+        await hydrateUserData(res.token, res.user.id)
+      } catch (e) {
+        // ignore fetch errors
+      }
       // Automatic migration disabled — start with a clean state for new users
       return { ok: true, token: res.token, user: res.user }
     } catch (err: any) {
@@ -73,6 +82,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   function logout() {
+    try {
+      if (token && user && user.id) {
+        void syncUserData(token, user.id)
+      }
+    } catch (e) {}
     setToken(null)
     setUser(null)
     try { sentry.clearUser() } catch (e) {}
@@ -80,6 +94,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // so data of different accounts do not collide on the same browser.
     try { navigate('/login', { replace: true }) } catch (e) {}
   }
+
+  // Best-effort sync when the page is reloaded or closed. Uses fetch keepalive.
+  useEffect(() => {
+    function handleUnload() {
+      try {
+        if (token && user && user.id) {
+          syncUserDataOnUnload(token, user.id)
+        }
+      } catch (e) {}
+    }
+    window.addEventListener('beforeunload', handleUnload)
+    return () => window.removeEventListener('beforeunload', handleUnload)
+  }, [token, user])
 
   return (
     <AuthContext.Provider value={{ user, token, login, register, logout }}>

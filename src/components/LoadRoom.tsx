@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import userStorage from '../utils/userStorage'
+import { hydrateUserData, syncUserData } from '../utils/sync'
 
 type SavedRoom = { id: string; name: string; createdAt: string; data: any }
 
@@ -11,23 +12,38 @@ const STORAGE_KEY = 'currentRoom'
 export default function LoadRoom() {
   const navigate = useNavigate()
   const auth = useAuth()
+  const userId = auth.user ? auth.user.id : null
   const [rooms, setRooms] = useState<SavedRoom[]>([])
 
   useEffect(() => {
-    const raw = userStorage.getItem(ROOMS_KEY, auth.user ? auth.user.id : null) || localStorage.getItem(ROOMS_KEY) || '[]'
-    const list = JSON.parse(raw as string) as SavedRoom[]
-    setRooms(list)
-  }, [auth.user])
+    let mounted = true
+    ;(async () => {
+      if (auth.token && userId) {
+        await hydrateUserData(auth.token, userId)
+      }
+      if (!mounted) return
+      // Prefer user-scoped storage, fall back to legacy global keys if needed.
+      const raw = userStorage.getItem(ROOMS_KEY, userId) || localStorage.getItem(ROOMS_KEY) || '[]'
+      const list = JSON.parse(raw as string) as SavedRoom[]
+      setRooms(list)
+    })()
+    return () => { mounted = false }
+  }, [userId, auth.token])
 
   function loadRoom(room: SavedRoom) {
-    userStorage.setItem(STORAGE_KEY, JSON.stringify(room.data), auth.user ? auth.user.id : null)
+    userStorage.setItem(STORAGE_KEY, JSON.stringify(room.data), userId)
     navigate('/room')
   }
 
   function deleteRoom(id: string) {
     const updated = rooms.filter(r => r.id !== id)
-    userStorage.setItem(ROOMS_KEY, JSON.stringify(updated), auth.user ? auth.user.id : null)
+    userStorage.setItem(ROOMS_KEY, JSON.stringify(updated), userId)
     setRooms(updated)
+    try {
+      if (auth.token && userId) {
+        void syncUserData(auth.token, userId)
+      }
+    } catch (e) {}
   }
 
   return (

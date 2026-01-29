@@ -2,8 +2,22 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import userStorage from '../utils/userStorage'
+import api from '../api/apiClient'
+import { syncUserData } from '../utils/sync'
+import { hydrateUserData } from '../utils/sync'
 
-type EventItem = { id: string; name: string; from?: string; to?: string; roomId?: string; createdAt?: string; lastModified?: string; eventDate?: string; assignedGroups?: any; groups?: any }
+type EventItem = {
+  id: string
+  name: string
+  from?: string
+  to?: string
+  roomId?: string
+  createdAt?: string
+  lastModified?: string
+  eventDate?: string
+  assignedGroups?: any
+  groups?: any
+}
 
 const EVENTS_KEY = 'events'
 const CURRENT_EVENT_KEY = 'currentEvent'
@@ -13,22 +27,32 @@ const ROOMS_KEY = 'rooms'
 export default function LoadEvent() {
   const navigate = useNavigate()
   const auth = useAuth()
+  const userId = auth.user ? auth.user.id : null
   const [events, setEvents] = useState<EventItem[]>([])
 
   useEffect(() => {
-    const raw = userStorage.getItem(EVENTS_KEY, auth.user ? auth.user.id : null) || localStorage.getItem(EVENTS_KEY) || '[]'
-    const list = JSON.parse(raw as string) as EventItem[]
-    setEvents(list)
-  }, [])
+    let mounted = true
+    ;(async () => {
+      if (auth.token && userId) {
+        await hydrateUserData(auth.token, userId)
+      }
+      if (!mounted) return
+      // Prefer user-scoped storage, fall back to legacy global keys if needed.
+      const raw = userStorage.getItem(EVENTS_KEY, userId) || localStorage.getItem(EVENTS_KEY) || '[]'
+      const list = JSON.parse(raw as string) as EventItem[]
+      setEvents(list)
+    })()
+    return () => { mounted = false }
+  }, [userId, auth.token])
 
   function loadEvent(event: EventItem) {
-    userStorage.setItem(CURRENT_EVENT_KEY, JSON.stringify(event), auth.user ? auth.user.id : null)
+    userStorage.setItem(CURRENT_EVENT_KEY, JSON.stringify(event), userId)
     if (event.roomId) {
-      const raw = userStorage.getItem(ROOMS_KEY, auth.user ? auth.user.id : null) || localStorage.getItem(ROOMS_KEY) || '[]'
+      const raw = userStorage.getItem(ROOMS_KEY, userId) || localStorage.getItem(ROOMS_KEY) || '[]'
       const rooms = JSON.parse(raw as string)
       const room = rooms.find((r: any) => r.id === event.roomId)
       if (room) {
-        userStorage.setItem(STORAGE_KEY, JSON.stringify(room.data), auth.user ? auth.user.id : null)
+        userStorage.setItem(STORAGE_KEY, JSON.stringify(room.data), userId)
       }
     }
     navigate('/room')
@@ -36,8 +60,20 @@ export default function LoadEvent() {
 
   function deleteEvent(id: string) {
     const updated = events.filter(e => e.id !== id)
-    userStorage.setItem(EVENTS_KEY, JSON.stringify(updated), auth.user ? auth.user.id : null)
+    userStorage.setItem(EVENTS_KEY, JSON.stringify(updated), userId)
     setEvents(updated)
+    ;(async () => {
+      try {
+        if (auth.token) {
+          // Try delete on server (ignore errors)
+          try { await api.del(`/events/${id}`, auth.token) } catch (e) {}
+          // After deletion, sync remaining local data to server
+          await syncUserData(auth.token, userId)
+        }
+      } catch (err) {
+        // ignore
+      }
+    })()
   }
 
   return (

@@ -44,13 +44,13 @@ router.post('/register', async (req, res) => {
       // ignore
     }
   }
-  res.status(201).json({ token, user: { id, name, email } })
+  res.status(201).json({ token, user: { id, name, email, is_admin: false } })
 })
 
 router.post('/login', async (req, res) => {
   const { email, password } = req.body
   if (!email || !password) return res.status(400).json({ error: 'Missing fields' })
-  const r = await pool.query('SELECT id, name, password_hash FROM users WHERE email=$1', [email])
+  const r = await pool.query('SELECT id, name, password_hash, is_admin FROM users WHERE email=$1', [email])
   if (r.rowCount === 0) return res.status(404).json({ error: 'Nutzer nicht gefunden. Neu registrieren?' })
   if (r.rowCount === 0) {
     logger.warn('auth', { action: 'login-failed', reason: 'not-found', email, requestId: (req as any).requestId })
@@ -79,7 +79,7 @@ router.post('/login', async (req, res) => {
       // ignore
     }
   }
-  res.json({ token, user: { id: u.id, name: u.name, email } })
+  res.json({ token, user: { id: u.id, name: u.name, email, is_admin: !!u.is_admin } })
 })
 
 // Check if email is already registered
@@ -97,7 +97,7 @@ router.get('/me', async (req, res) => {
   try {
     const token = auth.slice(7)
     const payload = jwt.verify(token, JWT_SECRET) as any
-    const r = await pool.query('SELECT id, name, email, created_at FROM users WHERE id=$1', [payload.sub])
+    const r = await pool.query('SELECT id, name, email, created_at, is_admin FROM users WHERE id=$1', [payload.sub])
     if (r.rowCount === 0) return res.status(404).json({ error: 'User not found' })
     res.json(r.rows[0])
   } catch (err) {

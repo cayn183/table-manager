@@ -24,6 +24,25 @@
 			"type": "shell",
 			"command": "npm run build",
 			"group": "build"
+		},
+		{
+			"label": "Dev: Build & Run Docker (Windows)",
+			"type": "shell",
+			"windows": {
+				"command": "powershell",
+				"args": [
+					"-NoProfile",
+					"-ExecutionPolicy",
+					"Bypass",
+					"-Command",
+					"docker build -f backend/Dockerfile -t table-manager:dev-local --build-arg BUILD_SHA=local --build-arg BUILD_VERSION=dev .; docker rm -f TableManager-DEVBackend TableManager-DEVFrontend 2>$null; docker run -d --name TableManager-DEVBackend --network bridge -p 4000:4000 -e POSTGRES_HOST=192.168.178.2 -e POSTGRES_PORT=5432 -e POSTGRES_USER=tmanager -e POSTGRES_PASSWORD=variantensalami88 -e POSTGRES_DB=tablemanager -e JWT_SECRET=763d0a9de0a26751282522daff22fcd5 -e MIGRATE_ON_START=true -e SERVICE=backend -v \"C:\\Users\\aaron\\Documents\\TableManager\\backend:/app/data\" table-manager:dev-local; docker run -d --name TableManager-DEVFrontend --network bridge -p 5173:5173 -e SERVICE=frontend -e VITE_API_URL=http://localhost:4000 -v \"C:\\Users\\aaron\\Documents\\TableManager\\frontend:/app/data\" table-manager:dev-local"
+				]
+			},
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			},
+			"problemMatcher": []
 		}
 	]
 }

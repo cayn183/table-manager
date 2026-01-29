@@ -1,0 +1,65 @@
+/* Admin panel styles */
+:root{
+  --bg:#ffffff;
+  --muted:#64748b;
+  --border:#e6e7ea;
+  --accent:#4f46e5;
+  --accent-contrast:#eef2ff;
+}
+
+.admin-panel{
+  display:flex;
+  min-height:100vh;
+  background:var(--bg);
+  color:#0f172a;
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+}
+
+.admin-sidebar{
+  width:260px;
+  border-right:1px solid var(--border);
+  padding:16px;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  background: linear-gradient(180deg, rgba(79,70,229,0.02), transparent);
+}
+
+.admin-sidebar h3{ margin:0 0 8px 0; font-size:16px }
+.admin-nav{ display:flex; flex-direction:column; gap:6px }
+.admin-nav-button{
+  text-align:left;
+  padding:8px 10px;
+  background:transparent;
+  border:none;
+  cursor:pointer;
+  border-radius:6px;
+  color: #0f172a;
+}
+.admin-nav-button:hover{ background:#f4f6ff }
+.admin-nav-button.active{ background:var(--accent-contrast); box-shadow: inset 0 0 0 1px rgba(79,70,229,0.06) }
+
+.admin-leave-button{ padding:8px 10px; background:#fff; border:1px solid var(--border); cursor:pointer; border-radius:6px }
+
+.admin-main{ flex:1; padding:24px }
+.admin-main h2{ margin-top:0 }
+
+.admin-controls{ display:flex; gap:8px; margin-bottom:12px }
+.admin-controls input{ padding:8px; flex:1; border:1px solid var(--border); border-radius:6px }
+.admin-controls select{ padding:8px; border-radius:6px }
+
+.admin-table{ width:100%; border-collapse:collapse; background: #fff; border:1px solid var(--border); border-radius:6px; overflow:hidden }
+.admin-table thead th{ text-align:left; padding:10px; background:#fafafa; font-weight:600; font-size:13px }
+.admin-table tbody td{ padding:10px; border-top:1px solid var(--border); vertical-align:middle }
+.admin-table tbody tr:hover{ background:#fbfbfe }
+
+.admin-actions button{ margin-right:8px }
+.admin-actions .danger{ color:#b91c1c }
+
+.admin-pagination{ display:flex; justify-content:space-between; align-items:center; margin-top:12px }
+
+.admin-drawer{ position:fixed; right:0; top:0; bottom:0; width:420px; background:white; box-shadow:-6px 0 24px rgba(2,6,23,0.12); padding:16px; overflow:auto }
+
+/* generic button styles within admin panel */
+.admin-panel button{ padding:6px 10px; border-radius:6px; border:1px solid transparent; background:#f8fafc; cursor:pointer }
+.admin-panel button:hover{ filter:brightness(.98) }

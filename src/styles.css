@@ -36,6 +36,67 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
   }
 }
 
+/* Timeline styles for screen (ensure multi-column behaviour outside print) */
+.timeline-scroll-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.timeline-list {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+
+.timeline-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 220px;
+  width: 220px;
+}
+
+.timeline-slot {
+  margin-bottom: 14px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(15,23,42,0.06);
+  /* allow the slot content to flow across columns; don't create a new BFC */
+  overflow: visible;
+  break-inside: auto;
+  -webkit-column-break-inside: auto;
+  display: block;
+  width: auto;
+  padding: 0; /* padding applied to header/items instead to avoid forcing a single tall block */
+}
+
+.timeline-slot-header {
+  padding: 12px 14px;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+}
+
+.timeline-slot-item {
+  break-inside: avoid-column;
+  -webkit-column-break-inside: avoid;
+  page-break-inside: avoid;
+  display: block;
+  box-sizing: border-box;
+  /* make items slightly narrower than the header by adding horizontal margins */
+  margin: 0 8px 8px;
+  width: calc(100% - 16px);
+  background: rgba(217,227,237,0.7);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
 @keyframes slideIn {
   from {
     opacity: 0;
@@ -536,6 +597,8 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
   .timeline-row {
     page-break-inside: avoid;
   }
+
+  /* Timeline rules are defined globally; print will reuse them */
 
   .print-view.is-landscape .print-page--list .print-list {
     column-width: 52mm;

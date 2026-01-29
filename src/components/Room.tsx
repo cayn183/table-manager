@@ -1,10 +1,11 @@
 // ============================================================================
 // IMPORTS
 // ============================================================================
-import React, { useEffect, useMemo, useCallback, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useCallback, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import userStorage from '../utils/userStorage'
+import { syncUserData } from '../utils/sync'
 import Importer, { Group } from './Importer'
 import Papa from 'papaparse'
 import { bestFitAssign } from '../utils/placement'
@@ -64,6 +65,7 @@ export default function Room() {
   // --------------------------------------------------------------------------
   const [showEventSaveModal, setShowEventSaveModal] = useState(false)
   const [eventSaveName, setEventSaveName] = useState('')
+  const [isSavingEvent, setIsSavingEvent] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [lastSaveTime, setLastSaveTime] = useState<string | null>(null)
   const [lastSaveType, setLastSaveType] = useState<'auto' | 'manual' | null>(null)
@@ -888,6 +890,11 @@ export default function Room() {
     setLastSaveTime(event.lastModified)
     setLastSaveType('auto')
     setIsDirty(false)
+    try {
+      if (auth.token && auth.user && auth.user.id) {
+        void syncUserData(auth.token, auth.user.id)
+      }
+    } catch (e) {}
   }
 
   function handleCsvImportClick() {
@@ -1037,7 +1044,7 @@ export default function Room() {
     setCsvPreview([])
   }
 
-  function confirmSaveEvent(name: string) {
+  async function confirmSaveEvent(name: string) {
     const rawCurrent = userStorage.getItem('currentEvent', auth.user ? auth.user.id : null) || localStorage.getItem('currentEvent') || '{}'
     const event = JSON.parse(rawCurrent as string)
     event.name = name || event.name || `Event ${new Date().toLocaleDateString()}`
@@ -1052,12 +1059,23 @@ export default function Room() {
     if (!updated.find((e: any) => e.id === event.id)) updated.push(event)
     userStorage.setItem('events', JSON.stringify(updated), auth.user ? auth.user.id : null)
     userStorage.setItem('currentEvent', JSON.stringify(event), auth.user ? auth.user.id : null)
-    setShowEventSaveModal(false)
-    const timeStr = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`
-    setLastSaveTime(timeStr)
+    setLastSaveTime(`${now.toLocaleDateString()} ${now.toLocaleTimeString()}`)
     setLastSaveType('manual')
     setIsDirty(false)
-    setSaveToast({ type: 'success', message: 'Event gespeichert!' })
+
+    // show saving status and wait for server sync before closing modal
+    setIsSavingEvent(true)
+    try {
+      if (auth.token && auth.user && auth.user.id) {
+        await syncUserData(auth.token, auth.user.id)
+      }
+      setSaveToast({ type: 'success', message: 'Event gespeichert!' })
+    } catch (err) {
+      setSaveToast({ type: 'error', message: 'Speichern fehlgeschlagen' })
+    } finally {
+      setIsSavingEvent(false)
+      setShowEventSaveModal(false)
+    }
   }
 
   // Autosave countdown + save after 10 minutes of unsaved changes
@@ -2135,7 +2153,7 @@ export default function Room() {
               display: 'flex',
               justifyContent: 'center',
               alignItems: 'flex-start',
-              padding: '40px 12px 12px',
+              padding: '12px 12px 12px',
               width: '100%',
               overflow: 'hidden',
               maxHeight: 'calc(100vh - 180px)'
@@ -4051,7 +4069,7 @@ export default function Room() {
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
                   onClick={() => confirmSaveEvent(eventSaveName)}
-                  disabled={!eventSaveName.trim()}
+                  disabled={!eventSaveName.trim() || isSavingEvent}
                   style={{
                     flex: 1,
                     padding: '10px 16px',
@@ -4075,7 +4093,7 @@ export default function Room() {
                     e.currentTarget.style.boxShadow = 'none'
                   }}
                 >
-                  💾 Speichern
+                  {isSavingEvent ? 'Speichert…' : '💾 Speichern'}
                 </button>
                 <button
                   onClick={() => setShowEventSaveModal(false)}
@@ -4115,6 +4133,36 @@ function TimelineView({
   assignedGroups: Record<string, AssignedGroup[]>
   timeInterval: number
 }) {
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const [columnMaxHeight, setColumnMaxHeight] = useState<number>(0)
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const update = () => setColumnMaxHeight(el.clientHeight || 0)
+    update()
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const HEADER_HEIGHT = 44
+  const SUMMARY_HEIGHT = 28
+  const ITEM_BASE_HEIGHT = 32
+  const ITEM_PADDING = 20
+  const ITEM_MARGIN = 8
+  const ITEM_META_LINE = 16
+  const ITEM_NOTE_LINE = 16
+  const ITEM_NOTE_MAX_LINES = 2
+
+  const estimateItemHeight = (item: { group: Group }, variant: 'unassigned' | 'timed') => {
+    let height = ITEM_BASE_HEIGHT + ITEM_PADDING + ITEM_MARGIN
+    if (variant === 'timed') height += ITEM_META_LINE
+    if (variant === 'timed' && item.group.note) height += ITEM_NOTE_LINE * ITEM_NOTE_MAX_LINES
+    return height
+  }
+
   const allGroupsWithTime = groups.map(g => ({ group: g, tableId: null as string | null }))
   const assignedGroupsList: Array<{ group: Group; tableId: string }> = []
   
@@ -4128,6 +4176,11 @@ function TimelineView({
   const unassignedWithTime = allGroupsWithTime.filter(g => g.group.time)
   const assignedNoTime = assignedGroupsList.filter(g => !g.group.time)
   const assignedWithTime = assignedGroupsList.filter(g => g.group.time)
+
+  const unassignedCombined = [
+    ...unassignedNoTime.map(item => ({ kind: 'unassigned' as const, item })),
+    ...assignedNoTime.map(item => ({ kind: 'assigned' as const, item }))
+  ]
 
   const allWithTime = [...unassignedWithTime.map(g => ({ ...g, isAssigned: false })), ...assignedWithTime.map(g => ({ ...g, isAssigned: true }))]
   const sorted = allWithTime.sort((a, b) => (a.group.time || '').localeCompare(b.group.time || ''))
@@ -4153,78 +4206,136 @@ function TimelineView({
 
   const slotEntries = Array.from(timeSlots.entries())
 
-  const columns: Array<Array<[string, typeof slotEntries[0][1]]>> = [[], [], []]
-  let currentColumn = 0
-  let currentColumnFamilies = 0
+  const maxHeight = columnMaxHeight || 640
+  const columns: React.ReactNode[][] = []
+  let currentColumn: React.ReactNode[] = []
+  let remaining = maxHeight
+
+  const startNewColumn = () => {
+    if (currentColumn.length) columns.push(currentColumn)
+    currentColumn = []
+    remaining = maxHeight
+  }
+
+  const pushNode = (node: React.ReactNode, height: number) => {
+    if (height > remaining && currentColumn.length) startNewColumn()
+    currentColumn.push(node)
+    remaining = Math.max(0, remaining - height)
+  }
+
+  const addSlotSegments = <T,>(params: {
+    slotKey: string
+    continuationLabel?: string
+    items: T[]
+    variant: 'unassigned' | 'timed'
+    summaryText: string
+    renderItem: (item: T, index: number) => React.ReactNode
+  }) => {
+    const { slotKey, continuationLabel, items, variant, summaryText, renderItem } = params
+    let index = 0
+    let segmentIndex = 0
+    while (index < items.length) {
+      const continuation = continuationLabel || slotKey
+      const headerText = segmentIndex > 0 ? `Fortsetzung (${continuation})` : slotKey
+      const baseHeight = HEADER_HEIGHT + SUMMARY_HEIGHT
+      const minItemHeight = estimateItemHeight(items[index] as any, variant)
+      if (baseHeight + minItemHeight > remaining && currentColumn.length) startNewColumn()
+
+      let segmentItems: T[] = []
+      let height = baseHeight
+      while (index < items.length) {
+        const itemHeight = estimateItemHeight(items[index] as any, variant)
+        if (segmentItems.length > 0 && height + itemHeight > remaining) break
+        if (segmentItems.length === 0 && height + itemHeight > remaining && currentColumn.length === 0 && remaining < maxHeight) {
+          startNewColumn()
+        }
+        height += itemHeight
+        segmentItems.push(items[index])
+        index += 1
+      }
+
+      if (segmentItems.length === 0 && items[index]) {
+        height += estimateItemHeight(items[index] as any, variant)
+        segmentItems = [items[index]]
+        index += 1
+      }
+
+      const node = (
+        <div className="timeline-slot" key={`${slotKey}-${segmentIndex}`}>
+          <div className="timeline-slot-header" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', padding: '12px 14px', fontSize: '14px', fontWeight: '700' }}>
+            {segmentIndex > 0 ? headerText : slotKey}
+          </div>
+
+          <div style={{ padding: '12px 12px 0 12px', fontSize: '12px', color: '#64748b', fontWeight: '600', marginBottom: '6px' }}>
+            {summaryText}
+          </div>
+
+          {segmentItems.map((item, i) => renderItem(item, i))}
+        </div>
+      )
+
+      pushNode(node, height)
+      segmentIndex += 1
+    }
+  }
+
+  if (unassignedCombined.length > 0) {
+    addSlotSegments({
+      slotKey: 'Unzugeordnete Familien',
+      continuationLabel: 'Unzugeordnete',
+      items: unassignedCombined,
+      variant: 'unassigned',
+      summaryText: `${unassignedCombined.length} Einträge`,
+      renderItem: (entry, i) => (
+        <div key={`unassigned-${i}`} className="timeline-slot-item" style={{ fontSize: '14px', fontWeight: '500', color: '#1e293b', borderLeft: '4px solid #94a3b8', lineHeight: '1.4' }}>
+          {entry.item.group.note && <span title={entry.item.group.note} style={{ fontSize: 13, color: '#f59e0b', marginRight: 6 }}>⚠️</span>}
+          {entry.item.group.name} ({entry.item.group.size}{entry.kind === 'unassigned' && entry.item.group.toGo ? ' | ToGo' : ''})
+          {entry.kind === 'assigned' && (
+            <> - {entry.item.tableId === 'TOGO' ? 'ToGo' : `Tisch ${entry.item.tableId?.slice(1)}`}</>
+          )}
+        </div>
+      )
+    })
+  }
 
   slotEntries.forEach(([slotKey, items]) => {
+    const totalPeople = items.reduce((sum, item) => sum + item.group.size, 0)
     const familyCount = items.length
-    if (currentColumnFamilies + familyCount > 15 && currentColumn < 2) {
-      currentColumn++
-      currentColumnFamilies = 0
-    }
-    columns[currentColumn].push([slotKey, items])
-    currentColumnFamilies += familyCount
+    addSlotSegments({
+      slotKey: `🕐 ${slotKey}`,
+      continuationLabel: slotKey,
+      items,
+      variant: 'timed',
+      summaryText: `${familyCount} Familien • ${totalPeople} Personen`,
+      renderItem: (item, i) => (
+        <div key={`${slotKey}-${i}`} className="timeline-slot-item" style={{ fontSize: '13px', fontWeight: '500', color: '#1e293b', borderLeft: '4px solid #2196F3', lineHeight: '1.4' }}>
+          <div>{item.group.note && <span title={item.group.note} style={{ fontSize: 13, color: '#f59e0b', marginRight: 6 }}>⚠️</span>}{item.group.name}</div>
+          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+            👥 {item.group.size} {item.isAssigned && item.tableId !== 'TOGO' ? `| Tisch ${item.tableId?.slice(1)}` : item.isAssigned && item.tableId === 'TOGO' ? '| ToGo' : ''}
+          </div>
+          {item.group.note && (
+            <div style={{ fontSize: '12px', color: '#475569', marginTop: '6px' }}>{item.group.note}</div>
+          )}
+        </div>
+      )
+    })
   })
 
-  const filledColumns = columns.filter(col => col.length > 0)
-  const columnCount = Math.min(filledColumns.length, 4)
-  const columnGap = '12px'
+  if (currentColumn.length) columns.push(currentColumn)
 
+  // Manual column layout: height-based segmentation
   return (
     <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
-      {[...unassignedNoTime, ...assignedNoTime].length > 0 && (
-        <div style={{ marginBottom: '8px' }}>
-          <h3 style={{ borderBottom: '2px solid #cbd5e1', paddingBottom: '12px', margin: '0 0 12px 0', fontSize: '16px', fontWeight: '700', color: '#1e293b' }}>Unzugeordnete Familien</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {unassignedNoTime.map((item, i) => (
-              <div key={`unassigned-${i}`} style={{ padding: '10px 12px', background: '#f1f5f9', borderLeft: '3px solid #94a3b8', borderRadius: '6px', fontSize: '14px' }}>
-                {item.group.note && <span title={item.group.note} style={{ fontSize: 13, color: '#f59e0b', marginRight: 6 }}>⚠️</span>}
-                {item.group.name} ({item.group.size} {item.group.toGo ? '| ToGo' : ''})
-              </div>
-            ))}
-            {assignedNoTime.map((item, i) => (
-              <div key={`assigned-notime-${i}`} style={{ padding: '10px 12px', background: '#f1f5f9', borderLeft: '3px solid #94a3b8', borderRadius: '6px', fontSize: '14px' }}>
-                {item.group.note && <span title={item.group.note} style={{ fontSize: 13, color: '#f59e0b', marginRight: 6 }}>⚠️</span>}
-                {item.group.name} ({item.group.size}) - {item.tableId === 'TOGO' ? 'ToGo' : `Tisch ${item.tableId?.slice(1)}`}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Unassigned families are rendered inside the timeline-list so they share scrolling and column wrapping */}
 
-      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${columnCount}, 1fr)`, gap: columnGap, alignItems: 'start', width: '100%', overflow: 'hidden' }}>
-        {columns.map((columnSlots, colIdx) => (
-          <div key={`column-${colIdx}`} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {columnSlots.map(([slotKey, items]) => {
-              const totalPeople = items.reduce((sum, item) => sum + item.group.size, 0)
-              const familyCount = items.length
-              return (
-                <div key={slotKey} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.08)', overflow: 'hidden' }}>
-                  <div style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', padding: '12px 14px', fontSize: '14px', fontWeight: '700' }}>
-                    🕐 {slotKey}
-                  </div>
-                  <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600', marginBottom: '4px' }}>
-                      {familyCount} Familien • {totalPeople} Personen
-                    </div>
-                    {items.map((item, i) => (
-                      <div key={`${slotKey}-${i}`} style={{ padding: '10px 12px', background: '#f8fafc', borderRadius: '8px', fontSize: '13px', fontWeight: '500', color: '#1e293b', borderLeft: '4px solid #2196F3', lineHeight: '1.4' }}>
-                        <div>{item.group.note && <span title={item.group.note} style={{ fontSize: 13, color: '#f59e0b', marginRight: 6 }}>⚠️</span>}{item.group.name}</div>
-                        <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-                          👥 {item.group.size} {item.isAssigned && item.tableId !== 'TOGO' ? `| Tisch ${item.tableId?.slice(1)}` : item.isAssigned && item.tableId === 'TOGO' ? '| ToGo' : ''}
-                        </div>
-                        {item.group.note && (
-                          <div style={{ fontSize: '12px', color: '#475569', marginTop: '6px' }}>{item.group.note}</div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        ))}
+      <div ref={scrollRef} className="timeline-scroll-wrapper" style={{ height: 'calc(100vh - 220px)', overflow: 'hidden' }}>
+        <div className="timeline-list">
+          {columns.map((column, columnIndex) => (
+            <div className="timeline-column" key={`timeline-column-${columnIndex}`}>
+              {column}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
