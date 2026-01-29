@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import userStorage from '../utils/userStorage'
+import api from '../api/apiClient'
+import { syncUserData } from '../utils/sync'
+import { hydrateUserData } from '../utils/sync'
 
 type EventItem = {
   id: string
@@ -28,11 +31,19 @@ export default function LoadEvent() {
   const [events, setEvents] = useState<EventItem[]>([])
 
   useEffect(() => {
-    // Prefer user-scoped storage, fall back to legacy global keys if needed.
-    const raw = userStorage.getItem(EVENTS_KEY, userId) || localStorage.getItem(EVENTS_KEY) || '[]'
-    const list = JSON.parse(raw as string) as EventItem[]
-    setEvents(list)
-  }, [userId])
+    let mounted = true
+    ;(async () => {
+      if (auth.token && userId) {
+        await hydrateUserData(auth.token, userId)
+      }
+      if (!mounted) return
+      // Prefer user-scoped storage, fall back to legacy global keys if needed.
+      const raw = userStorage.getItem(EVENTS_KEY, userId) || localStorage.getItem(EVENTS_KEY) || '[]'
+      const list = JSON.parse(raw as string) as EventItem[]
+      setEvents(list)
+    })()
+    return () => { mounted = false }
+  }, [userId, auth.token])
 
   function loadEvent(event: EventItem) {
     userStorage.setItem(CURRENT_EVENT_KEY, JSON.stringify(event), userId)
@@ -51,6 +62,18 @@ export default function LoadEvent() {
     const updated = events.filter(e => e.id !== id)
     userStorage.setItem(EVENTS_KEY, JSON.stringify(updated), userId)
     setEvents(updated)
+    ;(async () => {
+      try {
+        if (auth.token) {
+          // Try delete on server (ignore errors)
+          try { await api.del(`/events/${id}`, auth.token) } catch (e) {}
+          // After deletion, sync remaining local data to server
+          await syncUserData(auth.token, userId)
+        }
+      } catch (err) {
+        // ignore
+      }
+    })()
   }
 
   return (

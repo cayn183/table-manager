@@ -303,7 +303,6 @@ export default function AdminPanel() {
               <thead>
                 <tr>
                   <th>Time</th>
-                  <th>User</th>
                   <th>Email</th>
                   <th>Status</th>
                   <th>Message</th>
@@ -313,7 +312,6 @@ export default function AdminPanel() {
                 {feedbackEntries.map(f => (
                   <tr key={f.id}>
                     <td style={{ padding: 10 }}>{new Date(f.created_at).toLocaleString()}</td>
-                    <td style={{ padding: 10, fontFamily: 'monospace' }}>{f.user_id || '—'}</td>
                     <td style={{ padding: 10 }}>{f.email || '—'}</td>
                     <td style={{ padding: 10 }}>
                       {(() => {
@@ -382,7 +380,6 @@ export default function AdminPanel() {
             {feedbackDetailLoading ? <p>Loading…</p> : (
               <div>
                 <p><strong>ID:</strong> {selectedFeedback.id}</p>
-                <p><strong>User:</strong> {selectedFeedback.user_id || '—'}</p>
                 <p><strong>Email:</strong> {selectedFeedback.email || '—'}</p>
                 <p><strong>Created:</strong> {new Date(selectedFeedback.created_at).toLocaleString()}</p>
                 <p><strong>Status:</strong> {(() => {

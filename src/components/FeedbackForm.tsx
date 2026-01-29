@@ -32,11 +32,11 @@ export default function FeedbackForm() {
     e.preventDefault()
     setHeadlineError(null)
     if (!headline.trim()) { setHeadlineError('Headline ist erforderlich'); return }
-    if (!message.trim()) return
     setLoading(true)
     try {
       const metadata = collectMetadata()
-      await api.post('/feedback', { headline: headline, email: email || null, message, metadata }, token ?? undefined)
+      // allow empty message (no description) — send empty string if none
+      await api.post('/feedback', { headline: headline, email: email || null, message: message || '', metadata }, token ?? undefined)
       setDone(true)
       setHeadline('')
       setMessage('')

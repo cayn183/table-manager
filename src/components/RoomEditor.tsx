@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import userStorage from '../utils/userStorage'
 import logger from '../utils/logger'
+import { syncUserData } from '../utils/sync'
 import { useNavigate } from 'react-router-dom'
 import type { Table } from '../types/room'
 
@@ -27,7 +28,8 @@ export default function RoomEditor() {
   const [renameModal, setRenameModal] = useState<{ tableId: string; newId: string; error?: string; warning?: string } | null>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, token } = useAuth()
+  const [isSavingRoom, setIsSavingRoom] = useState(false)
   const userId = user ? user.id : null
 
   const gridWidth = 28
@@ -196,6 +198,16 @@ export default function RoomEditor() {
     const list = JSON.parse(raw as string)
     const entry = { id: `r-${Date.now()}`, name: name || `Raum ${list.length + 1}`, createdAt: new Date().toLocaleDateString(), data: room }
     userStorage.setItem('rooms', JSON.stringify([...list, entry]), userId)
+    // show saving indicator and wait for sync to complete before navigating
+    setIsSavingRoom(true)
+    try {
+      if (token && userId) {
+        await syncUserData(token, userId)
+      }
+    } catch (e) {
+      // ignore errors for now
+    }
+    setIsSavingRoom(false)
     setShowSaveModal(false)
     navigate('/room')
   }
@@ -669,13 +681,14 @@ export default function RoomEditor() {
               onFocus={e => e.target.style.borderColor = '#667eea'}
               onBlur={e => e.target.style.borderColor = '#e2e8f0'}
             />
-            <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+              <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
               <button 
                 onClick={() => confirmSaveRoom(saveRoomName)}
-                style={{ flex: 1, padding: '12px 24px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', boxShadow: '0 2px 8px rgba(102,126,234,0.3)', transition: 'all 0.2s' }}
-                onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                disabled={isSavingRoom}
+                style={{ flex: 1, padding: '12px 24px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: '8px', cursor: isSavingRoom ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: '600', boxShadow: '0 2px 8px rgba(102,126,234,0.3)', transition: 'all 0.2s' }}
+                onMouseOver={e => { if (!isSavingRoom) e.currentTarget.style.transform = 'translateY(-2px)'}}
                 onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
-              >Speichern</button>
+              >{isSavingRoom ? 'Speichert…' : 'Speichern'}</button>
               <button 
                 onClick={() => setShowSaveModal(false)}
                 style={{ padding: '12px 24px', background: 'white', color: '#64748b', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', transition: 'all 0.2s' }}

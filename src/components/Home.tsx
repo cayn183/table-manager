@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import userStorage from '../utils/userStorage'
+import { syncUserData } from '../utils/sync'
 
 const EVENTS_KEY = 'events'
 const CURRENT_EVENT_KEY = 'currentEvent'
@@ -51,10 +52,20 @@ export default function Home() {
       }
       userStorage.setItem(CURRENT_EVENT_KEY, JSON.stringify(ev), userId)
       userStorage.setItem(EVENTS_KEY, JSON.stringify([...all, ev]), userId)
+      try {
+        if (auth.token && userId) {
+          void syncUserData(auth.token, userId)
+        }
+      } catch (e) {}
       navigate('/room')
     } else {
       userStorage.setItem(CURRENT_EVENT_KEY, JSON.stringify(ev), userId)
       userStorage.setItem(EVENTS_KEY, JSON.stringify([...all, ev]), userId)
+      try {
+        if (auth.token && userId) {
+          void syncUserData(auth.token, userId)
+        }
+      } catch (e) {}
       navigate('/new-room')
     }
   }

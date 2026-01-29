@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useCallback, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import userStorage from '../utils/userStorage'
+import { syncUserData } from '../utils/sync'
 import Importer, { Group } from './Importer'
 import Papa from 'papaparse'
 import { bestFitAssign } from '../utils/placement'
@@ -64,6 +65,7 @@ export default function Room() {
   // --------------------------------------------------------------------------
   const [showEventSaveModal, setShowEventSaveModal] = useState(false)
   const [eventSaveName, setEventSaveName] = useState('')
+  const [isSavingEvent, setIsSavingEvent] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [lastSaveTime, setLastSaveTime] = useState<string | null>(null)
   const [lastSaveType, setLastSaveType] = useState<'auto' | 'manual' | null>(null)
@@ -888,6 +890,11 @@ export default function Room() {
     setLastSaveTime(event.lastModified)
     setLastSaveType('auto')
     setIsDirty(false)
+    try {
+      if (auth.token && auth.user && auth.user.id) {
+        void syncUserData(auth.token, auth.user.id)
+      }
+    } catch (e) {}
   }
 
   function handleCsvImportClick() {
@@ -1037,7 +1044,7 @@ export default function Room() {
     setCsvPreview([])
   }
 
-  function confirmSaveEvent(name: string) {
+  async function confirmSaveEvent(name: string) {
     const rawCurrent = userStorage.getItem('currentEvent', auth.user ? auth.user.id : null) || localStorage.getItem('currentEvent') || '{}'
     const event = JSON.parse(rawCurrent as string)
     event.name = name || event.name || `Event ${new Date().toLocaleDateString()}`
@@ -1052,12 +1059,23 @@ export default function Room() {
     if (!updated.find((e: any) => e.id === event.id)) updated.push(event)
     userStorage.setItem('events', JSON.stringify(updated), auth.user ? auth.user.id : null)
     userStorage.setItem('currentEvent', JSON.stringify(event), auth.user ? auth.user.id : null)
-    setShowEventSaveModal(false)
-    const timeStr = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`
-    setLastSaveTime(timeStr)
+    setLastSaveTime(`${now.toLocaleDateString()} ${now.toLocaleTimeString()}`)
     setLastSaveType('manual')
     setIsDirty(false)
-    setSaveToast({ type: 'success', message: 'Event gespeichert!' })
+
+    // show saving status and wait for server sync before closing modal
+    setIsSavingEvent(true)
+    try {
+      if (auth.token && auth.user && auth.user.id) {
+        await syncUserData(auth.token, auth.user.id)
+      }
+      setSaveToast({ type: 'success', message: 'Event gespeichert!' })
+    } catch (err) {
+      setSaveToast({ type: 'error', message: 'Speichern fehlgeschlagen' })
+    } finally {
+      setIsSavingEvent(false)
+      setShowEventSaveModal(false)
+    }
   }
 
   // Autosave countdown + save after 10 minutes of unsaved changes
@@ -4051,7 +4069,7 @@ export default function Room() {
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
                   onClick={() => confirmSaveEvent(eventSaveName)}
-                  disabled={!eventSaveName.trim()}
+                  disabled={!eventSaveName.trim() || isSavingEvent}
                   style={{
                     flex: 1,
                     padding: '10px 16px',
@@ -4075,7 +4093,7 @@ export default function Room() {
                     e.currentTarget.style.boxShadow = 'none'
                   }}
                 >
-                  💾 Speichern
+                  {isSavingEvent ? 'Speichert…' : '💾 Speichern'}
                 </button>
                 <button
                   onClick={() => setShowEventSaveModal(false)}
