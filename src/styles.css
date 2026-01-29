@@ -44,15 +44,22 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
 }
 
 .timeline-list {
-  column-count: 5; /* maximum 5 columns */
-  column-width: 220px;
-  column-gap: 12px;
-  -webkit-column-fill: auto; /* fill first column completely before breaking */
-  column-fill: auto;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
   width: 100%;
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: auto;
+}
+
+.timeline-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 220px;
+  width: 220px;
 }
 
 .timeline-slot {
