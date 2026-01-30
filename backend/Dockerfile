@@ -32,6 +32,10 @@ COPY vite.config.ts ./vite.config.ts
 RUN npm run build
 
 FROM node:18-bullseye-slim
+ARG BUILD_SHA
+ARG BUILD_VERSION
+ENV BUILD_SHA=${BUILD_SHA}
+ENV BUILD_VERSION=${BUILD_VERSION}
 WORKDIR /app
 
 # Copy backend built artifacts and backend production deps
