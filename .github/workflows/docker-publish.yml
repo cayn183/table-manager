@@ -14,12 +14,58 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sync version (pre-build)
+        id: sync_version
+        run: |
+          set -euo pipefail
+          VERSION=$(grep '"version"' package.json | head -1 | sed 's/.*"version": "\(.*\)".*/\1/') || VERSION=""
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          RELEASE_DATE=$(date +%Y-%m-%d)
+
+          if grep -q "## \[$VERSION\]" CHANGELOG.md; then
+            echo "✓ Version [$VERSION] already in CHANGELOG"
+          else
+            awk -v ver="$VERSION" -v date="$RELEASE_DATE" '
+              BEGIN{inserted=0}
+              /^## \[Unreleased\]/ && !inserted {
+                print
+                print ""
+                print "## [" ver "] - " date
+                print ""
+                print "### Changed"
+                print "- Development version"
+                print ""
+                inserted=1
+                next
+              }
+              { print }
+            ' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
+            echo "✓ Updated CHANGELOG.md with version [$VERSION]"
+          fi
+
+          if git diff --quiet; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "⚠ No changes to commit"
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add CHANGELOG.md
+            git commit -m "chore: sync version to $VERSION [skip ci]" || true
+            BRANCH="${GITHUB_REF##*/}"
+            git push origin "HEAD:${BRANCH}"
+            echo "✓ Committed and pushed changelog"
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
