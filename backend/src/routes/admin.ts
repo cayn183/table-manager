@@ -187,18 +187,16 @@ router.get('/system', requireAdmin, async (req, res) => {
     }
 
     // package version + build info
-    let version: string | null = process.env.BUILD_VERSION || null
+    let version: string | null = null
     try {
-      if (!version) {
-        // package.json in backend root
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const pkg = require(path.resolve(__dirname, '..', '..', 'package.json'))
-        version = pkg?.version || null
-      }
+      // package.json in backend root
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const pkg = require(path.resolve(__dirname, '..', '..', 'package.json'))
+      version = pkg?.version || null
     } catch (e) {
       // ignore
     }
-    const buildSha = process.env.BUILD_SHA || null
+    const buildSha = process.env.BUILD_SHA || process.env.BUILD_VERSION || null
 
     return res.json({
       ok: true,
