@@ -3,6 +3,8 @@ import pool from '../db'
 import { requireAdmin } from '../middleware/authMiddleware'
 import logger from '../logger'
 import { v4 as uuidv4 } from 'uuid'
+import fs from 'fs'
+import path from 'path'
 
 const router = express.Router()
 
@@ -113,6 +115,105 @@ router.get('/audit', requireAdmin, async (req, res) => {
   } catch (err) {
     logger.error('admin', { action: 'list-audit', err })
     res.status(500).json({ error: 'Failed to list audit entries' })
+  }
+})
+
+// System information (DB, versions, basic metrics)
+router.get('/system', requireAdmin, async (req, res) => {
+  const t0 = Date.now()
+  try {
+    // quick DB health check
+    let dbOk = false
+    let dbError: any = null
+    try {
+      await pool.query('SELECT 1')
+      dbOk = true
+    } catch (e) {
+      dbError = (e as any)?.message || String(e)
+    }
+
+    // simple user metrics
+    let totalUsers = 0
+    let users24 = 0
+    try {
+      const r = await pool.query('SELECT COUNT(*)::int as cnt FROM users')
+      totalUsers = (r.rows && r.rows[0] && r.rows[0].cnt) || 0
+      const r2 = await pool.query("SELECT COUNT(*)::int as cnt FROM users WHERE created_at > now() - INTERVAL '24 hours'")
+      users24 = (r2.rows && r2.rows[0] && r2.rows[0].cnt) || 0
+    } catch (e) {
+      // ignore metric errors; surface via logs
+      logger.error('admin', { action: 'system-metrics', err: e })
+    }
+
+    // migrations: list available migration files (not authoritative for applied migrations)
+    let latestMigration: string | null = null
+    try {
+      const migrationsDir = path.resolve(__dirname, '..', '..', 'migrations')
+      if (fs.existsSync(migrationsDir)) {
+        const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort()
+        if (files.length) latestMigration = files[files.length - 1]
+      }
+    } catch (e) {
+      logger.warn('admin', 'failed to read migrations dir', e)
+    }
+
+    // last applied migration from system_meta (if present)
+    let lastApplied: any = null
+    try {
+      const r = await pool.query("SELECT value FROM system_meta WHERE key = $1", ['last_migration'])
+      if (r && r.rowCount && r.rowCount > 0) {
+        lastApplied = r.rows[0].value
+      }
+    } catch (e) {
+      logger.debug('admin', 'no system_meta.last_migration available', e)
+    }
+
+    // DB size (Postgres) and pool stats
+    let dbSizeBytes: number | null = null
+    let dbSizePretty: string | null = null
+    try {
+      const r = await pool.query("SELECT pg_database_size(current_database()) as size")
+      if (r && r.rowCount && r.rowCount > 0) dbSizeBytes = parseInt(r.rows[0].size, 10)
+      const r2 = await pool.query("SELECT pg_size_pretty(pg_database_size(current_database())) as pretty")
+      if (r2 && r2.rowCount && r2.rowCount > 0) dbSizePretty = r2.rows[0].pretty
+    } catch (e) {
+      // ignore (not all DBs support pg_ functions)
+    }
+
+    const poolStats = {
+      totalCount: (pool as any).totalCount ?? null,
+      idleCount: (pool as any).idleCount ?? null,
+      waitingCount: (pool as any).waitingCount ?? null,
+    }
+
+    // package version + build info
+    let version: string | null = null
+    try {
+      // package.json in backend root
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const pkg = require(path.resolve(__dirname, '..', '..', 'package.json'))
+      version = pkg?.version || null
+    } catch (e) {
+      // ignore
+    }
+    const buildSha = process.env.BUILD_SHA || process.env.BUILD_VERSION || null
+
+    return res.json({
+      ok: true,
+      db: { ok: dbOk, error: dbError },
+      dbSize: { bytes: dbSizeBytes, pretty: dbSizePretty },
+      pool: poolStats,
+      version: version,
+      buildSha: buildSha,
+      users: { total: totalUsers, created_last_24h: users24 },
+      migrations: { latest_available: latestMigration, last_applied: lastApplied },
+      uptimeSeconds: Math.floor(process.uptime()),
+      serverTime: new Date().toISOString(),
+      latencyMs: Date.now() - t0
+    })
+  } catch (err) {
+    logger.error('admin', { action: 'system', err })
+    res.status(500).json({ error: 'Failed to collect system info' })
   }
 })
 
@@ -247,3 +348,4 @@ router.delete('/feedback/:id', requireAdmin, async (req, res) => {
 })
 
 export default router
+

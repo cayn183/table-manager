@@ -11,6 +11,7 @@
     "clean:test": "node cleanup-test-data.js"
   },
   "dependencies": {
+    "prom-client": "^14.0.0",
     "@sentry/node": "^7.63.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",

@@ -1,4 +1,11 @@
+ARG BUILD_SHA=unknown
+ARG BUILD_VERSION=unknown
+
 FROM node:18-bullseye-slim AS backend-build
+ARG BUILD_SHA
+ARG BUILD_VERSION
+ENV BUILD_SHA=${BUILD_SHA}
+ENV BUILD_VERSION=${BUILD_VERSION}
 WORKDIR /build/backend
 
 # Build backend (install deps, build TS)
@@ -10,13 +17,18 @@ COPY backend/db ./db
 RUN npm run build
 
 FROM node:18-bullseye-slim AS frontend-build
+ARG BUILD_SHA
+ARG BUILD_VERSION
+# export Vite build env vars so `npm run build` picks them up during the frontend build
+ENV VITE_BUILD_SHA=${BUILD_SHA}
+ENV VITE_BUILD_VERSION=${BUILD_VERSION}
 WORKDIR /build/app
 COPY package*.json ./
 RUN npm ci
 COPY src ./src
-	COPY index.html ./
-	COPY scripts ./scripts
-	COPY vite.config.ts ./vite.config.ts
+COPY index.html ./
+COPY scripts ./scripts
+COPY vite.config.ts ./vite.config.ts
 RUN npm run build
 
 FROM node:18-bullseye-slim

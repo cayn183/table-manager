@@ -6,6 +6,8 @@ import eventsRoutes from './routes/events'
 import migrationRoutes from './routes/migration'
 import adminRoutes from './routes/admin'
 import feedbackRoutes from './routes/feedback'
+import pool from './db'
+import client from 'prom-client'
 import requestId from './middleware/requestId'
 import logger from './logger'
 import { runMigrations } from './migrate'
@@ -38,12 +40,24 @@ app.use(express.json({ limit: '5mb' }))
 // attach request id early so handlers can include it in logs
 app.use(requestId)
 // Request logging: method, path, status, duration, requestId
+// Prometheus metrics
+try {
+  client.collectDefaultMetrics({ prefix: 'table_manager_' })
+} catch (e) {
+  logger.warn('metrics', 'prom-client collectDefaultMetrics failed', e)
+}
+const httpReqCounter = new client.Counter({ name: 'table_manager_http_requests_total', help: 'Total HTTP requests', labelNames: ['method', 'route', 'code'] })
+const httpReqDuration = new client.Histogram({ name: 'table_manager_http_request_duration_seconds', help: 'HTTP request duration seconds', labelNames: ['method', 'route', 'code'], buckets: [0.005,0.01,0.05,0.1,0.3,0.5,1,2,5] })
+
 app.use((req, res, next) => {
   const start = Date.now()
   res.on('finish', () => {
-    const dur = Date.now() - start
+    const durSec = (Date.now() - start) / 1000
     try {
-      logger.info('http', { method: req.method, path: req.originalUrl || req.url, status: res.statusCode, durationMs: dur, requestId: (req as any).requestId })
+      const route = (req.route && req.route.path) || req.path || req.originalUrl || req.url
+      httpReqCounter.inc({ method: req.method, route: String(route), code: String(res.statusCode) }, 1)
+      httpReqDuration.observe({ method: req.method, route: String(route), code: String(res.statusCode) }, durSec)
+      logger.info('http', { method: req.method, path: req.originalUrl || req.url, status: res.statusCode, durationMs: Date.now() - start, requestId: (req as any).requestId })
     } catch (e) {
       // swallow logging errors
     }
@@ -55,6 +69,27 @@ app.use('/events', eventsRoutes)
 app.use('/migration', migrationRoutes)
 app.use('/admin', adminRoutes)
 app.use('/feedback', feedbackRoutes)
+
+// Health endpoint for probes
+app.get('/health', async (req, res) => {
+  try {
+    // lightweight db check
+    await pool.query('SELECT 1')
+    return res.json({ ok: true })
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: (e as any)?.message || String(e) })
+  }
+})
+
+// Prometheus metrics endpoint
+app.get('/metrics', async (req, res) => {
+  try {
+    res.set('Content-Type', client.register.contentType)
+    res.send(await client.register.metrics())
+  } catch (e) {
+    res.status(500).send((e as any)?.message || String(e))
+  }
+})
 
 app.get('/', (req, res) => res.json({ ok: true, version: '0.1.0' }))
 

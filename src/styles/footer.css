@@ -17,3 +17,15 @@
   font-family: 'Courier New', monospace;
   font-weight: 500;
 }
+
+.db-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(0,0,0,0.03) inset;
+}
+.db-dot.ok { background: #16a34a; }
+.db-dot.err { background: #dc2626; }
+.db-dot.unknown { background: #9ca3af; }
+.db-text { color: #1f2937; font-weight: 600; }

@@ -1,6 +1,6 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
+import { BrowserRouter, useLocation } from 'react-router-dom'
 import App from './App'
 import { AuthProvider } from './auth/AuthContext'
 import Footer from './components/Footer'
@@ -11,13 +11,14 @@ import './styles/footer.css'
 import sentry from './sentryClient'
 
 function Root() {
+  const location = useLocation()
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       <UserMenu />
       <div style={{ flex: 1, overflow: 'auto' }}>
         <App />
       </div>
-      <Footer />
+      {location && location.pathname === '/login' ? <Footer /> : null}
     </div>
   )
 }

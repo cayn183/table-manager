@@ -109,3 +109,10 @@ CREATE TABLE IF NOT EXISTS feedback_comments (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_feedback_comments_feedback_id ON feedback_comments(feedback_id);
+
+-- System metadata: store last applied migration, etc.
+CREATE TABLE IF NOT EXISTS system_meta (
+  key TEXT PRIMARY KEY,
+  value JSONB DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);

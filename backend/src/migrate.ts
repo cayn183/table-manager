@@ -32,6 +32,22 @@ export async function runMigrations() {
     // Execute full SQL script
     await client.query(sql)
     logger.info('migrate', 'Migration SQL executed')
+    // Record last applied migration info into system_meta (if table exists)
+    try {
+      const migrationsDir = path.resolve(__dirname, '..', 'migrations')
+      let latestMigration: string | null = null
+      if (fs.existsSync(migrationsDir)) {
+        const files = fs.readdirSync(migrationsDir).filter(f => f.endsWith('.sql')).sort()
+        if (files.length) latestMigration = files[files.length - 1]
+      }
+      const metaVal = { applied_at: new Date().toISOString(), latest_available: latestMigration }
+      await client.query(
+        `INSERT INTO system_meta(key, value, updated_at) VALUES($1, $2::jsonb, now()) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+        ['last_migration', JSON.stringify(metaVal)]
+      )
+    } catch (e) {
+      logger.warn('migrate', 'Failed to write system_meta last_migration', e)
+    }
   } finally {
     client.release()
   }

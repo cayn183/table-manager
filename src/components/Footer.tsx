@@ -1,34 +1,36 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import '../styles/footer.css'
-
-const VERSION_INFO = {
-  version: 'dev',
-  creator: 'Cayn183',
-  releaseDate: '2026-01-16'
-}
-
-const env = (import.meta as ImportMeta & { env?: { VITE_BUILD_SHA?: string; VITE_BUILD_VERSION?: string } }).env || {}
-const buildSha = env.VITE_BUILD_SHA
-const buildVersion = env.VITE_BUILD_VERSION
-
-const baseVersion = buildVersion && buildVersion !== 'unknown' ? buildVersion : VERSION_INFO.version
-const versionDisplay = (() => {
-  // For dev builds, include the short commit SHA when available
-  if ((baseVersion === 'dev' || VERSION_INFO.version === 'dev') && buildSha && buildSha !== 'unknown') {
-    return `${baseVersion} (${String(buildSha).substring(0, 7)})`
-  }
-  // Otherwise display the build version (release) or static version
-  return baseVersion
-})()
+import api from '../api/apiClient'
 
 export default function Footer() {
+  const [ok, setOk] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    let mounted = true
+    const check = async () => {
+      try {
+        await api.get('/')
+        if (mounted) setOk(true)
+      } catch (e) {
+        if (mounted) setOk(false)
+      }
+    }
+    check()
+    const id = setInterval(check, 30000)
+    return () => {
+      mounted = false
+      clearInterval(id)
+    }
+  }, [])
+
+  const text = ok === true ? 'DB erreichbar' : ok === false ? 'DB nicht erreichtbar' : 'DB...'
+
   return (
-    <footer className="app-footer no-print" style={{ padding: '0.5rem', borderTop: '1px solid #ccc', marginTop: 'auto' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center' }}>
-        <div className="footer-content" style={{ display: 'flex', gap: '1rem', justifyContent: 'center', alignItems: 'center' }}>
-          <span className="version-info">
-            {VERSION_INFO.creator} v{versionDisplay} ({VERSION_INFO.releaseDate})
-          </span>
+    <footer className="app-footer no-print" style={{ padding: '0.5rem', borderTop: '1px solid #ccc' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'center' }}>
+        <div className="footer-content" style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', alignItems: 'center' }}>
+          <span className={`db-dot ${ok === true ? 'ok' : ok === false ? 'err' : 'unknown'}`} aria-hidden="true" />
+          <span className="db-text">{text}</span>
         </div>
       </div>
     </footer>

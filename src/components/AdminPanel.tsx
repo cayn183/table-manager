@@ -48,6 +48,35 @@ export default function AdminPanel() {
   useEffect(() => { if (menu === 'audit') fetchAudit(auditPage, auditPerPage) }, [auth.token, menu, auditPage, auditPerPage])
   useEffect(() => { if (menu === 'feedback') fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ) }, [auth.token, menu, feedbackPage, feedbackPerPage, feedbackQ, showNew, showOpen, showResolved])
 
+  // System info state
+  const [backendInfo, setBackendInfo] = useState<any | null>(null)
+  const [systemLoading, setSystemLoading] = useState(false)
+  const [lastCheck, setLastCheck] = useState<number | null>(null)
+
+  useEffect(() => {
+    let id: any = null
+    const refresh = async () => {
+      if (menu !== 'system') return
+      if (!auth.token) return
+      setSystemLoading(true)
+      try {
+        const res = await api.get('/admin/system', auth.token)
+        setBackendInfo(res || null)
+        setLastCheck(Date.now())
+      } catch (e) {
+        setBackendInfo(null)
+        setLastCheck(Date.now())
+      } finally {
+        setSystemLoading(false)
+      }
+    }
+    if (menu === 'system') {
+      refresh()
+      id = setInterval(refresh, 30000)
+    }
+    return () => { if (id) clearInterval(id) }
+  }, [menu, auth.token])
+
   if (!auth.user) return <div style={{ padding: 24 }}>Nicht angemeldet</div>
   if (!(auth.user as any).is_admin) return <div style={{ padding: 24 }}>Zugriff verweigert</div>
 
@@ -151,8 +180,8 @@ export default function AdminPanel() {
           <nav className="admin-nav">
             <button onClick={() => setMenu('users')} className={`admin-nav-button ${menu === 'users' ? 'active' : ''}`}>Benutzerverwaltung</button>
             <button onClick={() => setMenu('audit')} className={`admin-nav-button ${menu === 'audit' ? 'active' : ''}`}>Audit Log</button>
-            <button onClick={() => setMenu('feedback')} className={`admin-nav-button ${menu === 'feedback' ? 'active' : ''}`}>Feedback (später)</button>
-            <button onClick={() => setMenu('system')} className={`admin-nav-button ${menu === 'system' ? 'active' : ''}`}>System (später)</button>
+            <button onClick={() => setMenu('feedback')} className={`admin-nav-button ${menu === 'feedback' ? 'active' : ''}`}>Feedbackübersicht</button>
+            <button onClick={() => setMenu('system')} className={`admin-nav-button ${menu === 'system' ? 'active' : ''}`}>System</button>
           </nav>
         </div>
         <div>
@@ -350,7 +379,67 @@ export default function AdminPanel() {
           </>
         )}
 
-        {menu !== 'users' && menu !== 'audit' && (
+        {menu === 'system' && (
+          <>
+            <h2>System</h2>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 12 }}>
+              <div style={{ flex: '1 1 280px', background: '#fff', padding: 12, borderRadius: 8, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                <h4>API / DB</h4>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div style={{ width: 12, height: 12, borderRadius: 6, background: backendInfo?.db?.ok ? '#16a34a' : '#dc2626' }} />
+                  <div>{backendInfo ? (backendInfo.db?.ok ? 'Backend & DB erreichbar' : `Backend erreichbar, DB Fehler: ${backendInfo.db?.error || 'unknown'}`) : 'Backend nicht erreichbar'}</div>
+                </div>
+                <div style={{ marginTop: 8, color: '#475569' }}>Letzter Check: {lastCheck ? new Date(lastCheck).toLocaleString() : '—'}</div>
+                <div style={{ marginTop: 8, color: '#475569' }}>DB size: {backendInfo?.dbSize?.pretty || '—'}</div>
+                <div style={{ marginTop: 6, color: '#475569' }}>Pool: total {backendInfo?.pool?.totalCount ?? '—'}, idle {backendInfo?.pool?.idleCount ?? '—'}, waiting {backendInfo?.pool?.waitingCount ?? '—'}</div>
+              </div>
+
+              <div style={{ flex: '1 1 300px', background: '#fff', padding: 12, borderRadius: 8, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                <h4>Versionen</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div style={{ color: '#64748b' }}>Frontend Version</div>
+                  <div style={{ fontFamily: 'monospace' }}>{(import.meta as any).env?.VITE_BUILD_VERSION || 'dev'}</div>
+                  <div style={{ color: '#64748b' }}>Frontend SHA</div>
+                  <div style={{ fontFamily: 'monospace' }}>{(import.meta as any).env?.VITE_BUILD_SHA || '—'}</div>
+
+                  <div style={{ color: '#64748b' }}>Backend Version</div>
+                  <div style={{ fontFamily: 'monospace' }}>{backendInfo?.version || '—'}</div>
+                  <div style={{ color: '#64748b' }}>Backend Build</div>
+                  <div style={{ fontFamily: 'monospace' }}>{backendInfo?.buildSha || backendInfo?.build_sha || '—'}</div>
+                </div>
+
+                <div style={{ marginTop: 12 }}>
+                  {((import.meta as any).env?.VITE_BUILD_VERSION || '') === (backendInfo?.version || '') ? (
+                    <div style={{ color: '#065f46', fontWeight: 700 }}>Frontend / Backend versionsync</div>
+                  ) : (
+                    <div style={{ color: '#b91c1c', fontWeight: 700 }}>Version mismatch — prüfen</div>
+                  )}
+                  <div style={{ marginTop: 8 }}>
+                    Last applied migration: {backendInfo?.migrations?.last_applied?.latest_available || backendInfo?.migrations?.last_applied?.applied_at || '—'}
+                  </div>
+                  {backendInfo?.migrations?.latest_available && backendInfo?.migrations?.last_applied && backendInfo?.migrations?.latest_available !== backendInfo?.migrations?.last_applied?.latest_available && (
+                    <div style={{ marginTop: 8, color: '#b91c1c', fontWeight: 700 }}>Migrationen verfügbar, prüfen</div>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ flex: '1 1 360px', background: '#fff', padding: 12, borderRadius: 8, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                <h4>Wichtige Metriken</h4>
+                <ul style={{ margin: 0, paddingLeft: 18, color: '#334155' }}>
+                  <li>API erreichbar / Latenz (letzter Check)</li>
+                  <li>DB Verbindungsstatus (Backend-seitig geprüft)</li>
+                  <li>Migrations-Status (letzte angewandte Migration)</li>
+                  <li>Anzahl aktiver Benutzer / neue Registrierungen (letzte 24h)</li>
+                  <li>Uptime / letzte Neustarts</li>
+                  <li>Sentry errors rate (falls integriert)</li>
+                </ul>
+                <div style={{ marginTop: 8, color: '#64748b' }}>Hinweis: Einige Metriken benötigen Backend-Unterstützung (API-Endpunkte).</div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {menu !== 'users' && menu !== 'audit' && menu !== 'system' && (
           <div style={{ marginTop: 24, color: '#64748b' }}>Diese Ansicht ist noch nicht implementiert.</div>
         )}
       </main>
