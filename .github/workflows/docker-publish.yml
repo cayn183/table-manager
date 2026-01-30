@@ -58,7 +58,7 @@ jobs:
           # compute BUILD_VERSION for the build args
           BUILD_VERSION=""
           if [[ "${GITHUB_REF}" == refs/heads/dev ]]; then
-            BUILD_VERSION="dev"
+            BUILD_VERSION="DEV"
           elif [[ "${GITHUB_REF}" == refs/heads/main ]]; then
             BUILD_VERSION="$VERSION"
           elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
@@ -71,6 +71,7 @@ jobs:
           fi
           echo "tags=$(echo $TAGS | tr ' ' ',')" >> "$GITHUB_OUTPUT"
           echo "build_version=$BUILD_VERSION" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$SHA" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -80,7 +81,7 @@ jobs:
           push: true
           tags: ${{ steps.tags.outputs.tags }}
           build-args: |
-            BUILD_SHA=${{ github.sha }}
+            BUILD_SHA=${{ steps.tags.outputs.short_sha }}
             BUILD_VERSION=${{ steps.tags.outputs.build_version }}
           platforms: linux/amd64,linux/arm64
           # Disabled cache backend causing buildx errors on runners.

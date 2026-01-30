@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pull-requests: write
+      issues: write
     
     steps:
       - name: Checkout
@@ -82,13 +82,25 @@ jobs:
 
       # Debug step removed to avoid YAML parsing issues in some linters
 
-      - name: Create Pull Request
+      - name: Upload changelog artifact
         if: steps.check_changes.outputs.has_changes == 'true'
-        uses: peter-evans/create-pull-request@v5
+        uses: actions/upload-artifact@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore: sync version to ${{ steps.version.outputs.version }} [skip ci]"
-          title: "chore: sync version to ${{ steps.version.outputs.version }}"
-          body: "Automated version sync from package.json"
-          base: dev
-          branch: "sync-version/${{ steps.version.outputs.version }}"
+          name: changelog
+          path: CHANGELOG.md
+
+      - name: Create issue with changelog
+        if: steps.check_changes.outputs.has_changes == 'true'
+        uses: actions/github-script@v6
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('CHANGELOG.md','utf8');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `changelog: sync version ${process.env.VERSION}`,
+              body
+            });
