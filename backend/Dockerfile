@@ -11,16 +11,34 @@ RUN npm run build
 
 FROM node:18-bullseye-slim AS frontend-build
 WORKDIR /build/app
+
+# Accept build args
+ARG BUILD_SHA=unknown
+ARG BUILD_VERSION=unknown
+
+# Set as environment variables for Vite
+ENV VITE_BUILD_SHA=${BUILD_SHA}
+ENV VITE_BUILD_VERSION=${BUILD_VERSION}
+
 COPY package*.json ./
 RUN npm ci
 COPY src ./src
-	COPY index.html ./
-	COPY scripts ./scripts
-	COPY vite.config.ts ./vite.config.ts
+COPY index.html ./
+COPY scripts ./scripts
+COPY vite.config.ts ./vite.config.ts
 RUN npm run build
 
 FROM node:18-bullseye-slim
+
+# Accept build args again for final stage
+ARG BUILD_SHA=unknown
+ARG BUILD_VERSION=unknown
+
 WORKDIR /app
+
+# Set environment variables for backend
+ENV BUILD_SHA=${BUILD_SHA}
+ENV BUILD_VERSION=${BUILD_VERSION}
 
 # Copy backend built artifacts and backend production deps
 COPY --from=backend-build /build/backend/dist /app/backend/dist
