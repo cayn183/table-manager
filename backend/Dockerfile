@@ -43,6 +43,7 @@ ENV BUILD_VERSION=${BUILD_VERSION}
 # Copy backend built artifacts and backend production deps
 COPY --from=backend-build /build/backend/dist /app/backend/dist
 COPY --from=backend-build /build/backend/node_modules /app/backend/node_modules
+COPY --from=backend-build /build/backend/package.json /app/backend/package.json
 # Include backend db schema for migrations
 COPY --from=backend-build /build/backend/db /app/backend/db
 

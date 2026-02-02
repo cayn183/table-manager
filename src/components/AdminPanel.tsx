@@ -409,10 +409,10 @@ export default function AdminPanel() {
                 </div>
 
                 <div style={{ marginTop: 12 }}>
-                  {((import.meta as any).env?.VITE_BUILD_VERSION || '') === (backendInfo?.version || '') ? (
-                    <div style={{ color: '#065f46', fontWeight: 700 }}>Frontend / Backend versionsync</div>
+                  {((import.meta as any).env?.VITE_BUILD_SHA || '') === (backendInfo?.buildSha || backendInfo?.build_sha || '') ? (
+                    <div style={{ color: '#065f46', fontWeight: 700 }}>Frontend / Backend SHA sync</div>
                   ) : (
-                    <div style={{ color: '#b91c1c', fontWeight: 700 }}>Version mismatch — prüfen</div>
+                    <div style={{ color: '#b91c1c', fontWeight: 700 }}>SHA mismatch — prüfen</div>
                   )}
                   <div style={{ marginTop: 8 }}>
                     Last applied migration: {backendInfo?.migrations?.last_applied?.latest_available || backendInfo?.migrations?.last_applied?.applied_at || '—'}
