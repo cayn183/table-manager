@@ -63,7 +63,7 @@ jobs:
           
           # Check if there are changes to commit
           if ! git diff --quiet; then
-            git add package.json src/components/Footer.tsx backend/package.json
+            git add package.json package-lock.json src/components/Footer.tsx backend/package.json backend/package-lock.json
             git commit -m "chore: set dev version [skip ci]"
             git push
             echo "✓ Version changes committed"
