@@ -35,6 +35,12 @@ jobs:
           echo "short=$SHORT_SHA" >> $GITHUB_OUTPUT
           echo "✓ Short SHA: $SHORT_SHA"
 
+      - name: Update Root package.json version
+        run: |
+          # Set root package.json to dev version
+          npm version 0.0.0-dev --no-git-tag-version --allow-same-version || true
+          echo "✓ Updated root package.json version to 0.0.0-dev"
+
       - name: Update Frontend version (Footer.tsx)
         run: |
           RELEASE_DATE=$(date +%Y-%m-%d)
@@ -57,7 +63,7 @@ jobs:
           
           # Check if there are changes to commit
           if ! git diff --quiet; then
-            git add src/components/Footer.tsx backend/package.json
+            git add package.json src/components/Footer.tsx backend/package.json
             git commit -m "chore: set dev version [skip ci]"
             git push
             echo "✓ Version changes committed"
