@@ -193,6 +193,10 @@ router.get('/system', requireAdmin, async (req, res) => {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const pkg = require(path.resolve(__dirname, '..', '..', 'package.json'))
       version = pkg?.version || null
+      // Normalize development marker versions to a simple 'dev' string
+      if (version && /dev/i.test(String(version))) {
+        version = 'dev'
+      }
     } catch (e) {
       // ignore
     }

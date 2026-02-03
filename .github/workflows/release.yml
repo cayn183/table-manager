@@ -1,0 +1,205 @@
+name: Release to Main
+
+# Triggered when a PR is merged to main or manually
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - closed
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.0.0)'
+        required: true
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  release:
+    # Only run if PR was merged (not just closed) or manual trigger
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            # Extract version from root package.json
+            VERSION=$(node -p "require('./package.json').version")
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "✓ Release version: $VERSION"
+
+      - name: Get short SHA
+        id: sha
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          echo "short=$SHORT_SHA" >> $GITHUB_OUTPUT
+          echo "✓ Short SHA: $SHORT_SHA"
+
+      - name: Update Frontend version (Footer.tsx)
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          RELEASE_DATE=$(date +%Y-%m-%d)
+          
+          # Set version to release version and update release date
+          sed -i "s/version: '[^']*'/version: '$VERSION'/" src/components/Footer.tsx
+          sed -i "s/releaseDate: '[^']*'/releaseDate: '$RELEASE_DATE'/" src/components/Footer.tsx
+          echo "✓ Updated Frontend Footer.tsx: version='$VERSION', releaseDate='$RELEASE_DATE'"
+
+      - name: Update Frontend package.json version
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          npm version $VERSION --no-git-tag-version --allow-same-version || true
+          echo "✓ Updated root package.json to $VERSION"
+
+      - name: Update Backend version (package.json)
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          cd backend
+          npm version $VERSION --no-git-tag-version --allow-same-version || true
+          echo "✓ Updated Backend package.json to $VERSION"
+
+      - name: Update CHANGELOG.md
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          RELEASE_DATE=$(date +%Y-%m-%d)
+          
+          # Check if version already exists
+          if grep -q "## \[$VERSION\]" CHANGELOG.md; then
+            echo "✓ Version [$VERSION] already in CHANGELOG, updating date"
+            sed -i "s/## \[$VERSION\] - [0-9-]*/## [$VERSION] - $RELEASE_DATE/" CHANGELOG.md
+          else
+            # Insert new version section after [Unreleased]
+            awk -v ver="$VERSION" -v date="$RELEASE_DATE" '
+              /^## \[Unreleased\]/ {
+                print
+                getline
+                print
+                print "## [" ver "] - " date
+                print ""
+                next
+              }
+              { print }
+            ' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
+            echo "✓ Added version [$VERSION] to CHANGELOG"
+          fi
+
+      - name: Commit version changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add -A
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: release v${{ steps.version.outputs.version }} [skip ci]"
+            git push
+            echo "✓ Version changes committed"
+          else
+            echo "⚠ No version changes to commit"
+          fi
+
+      - name: Create and push tag
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="v$VERSION"
+          
+          # Delete existing tag if it exists (local and remote)
+          git tag -d "$TAG" 2>/dev/null || true
+          git push origin --delete "$TAG" 2>/dev/null || true
+          
+          # Create new tag
+          git tag -a "$TAG" -m "Release $VERSION"
+          git push origin "$TAG"
+          echo "✓ Created and pushed tag: $TAG"
+
+      - name: Generate release notes from CHANGELOG
+        id: release_notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          # Extract the section for this version from CHANGELOG
+          awk -v ver="$VERSION" '
+            /^## \['"$VERSION"'\]/ { capture=1; next }
+            /^## \[/ && capture { exit }
+            capture { print }
+          ' CHANGELOG.md > release_notes.md
+          
+          # If empty, add default message
+          if [ ! -s release_notes.md ]; then
+            echo "Release $VERSION" > release_notes.md
+          fi
+          
+          echo "✓ Generated release notes"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Release ${{ steps.version.outputs.version }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Compute Docker tags
+        id: tags
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          IMAGE=$(echo $IMAGE | tr '[:upper:]' '[:lower:]')
+          VERSION="${{ steps.version.outputs.version }}"
+          SHORT_SHA="${{ steps.sha.outputs.short }}"
+          
+          # Release tags: version, latest, and sha
+          TAGS="$IMAGE:v$VERSION,$IMAGE:$VERSION,$IMAGE:latest,$IMAGE:sha-$SHORT_SHA"
+          
+          echo "tags=$TAGS" >> $GITHUB_OUTPUT
+          echo "✓ Docker tags: $TAGS"
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          build-args: |
+            BUILD_SHA=${{ steps.sha.outputs.short }}
+            BUILD_VERSION=${{ steps.version.outputs.version }}
+          platforms: linux/amd64,linux/arm64
