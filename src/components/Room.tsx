@@ -31,6 +31,7 @@ import {
   tryPlaceOnTable,
   generateUUID
 } from '../utils/roomUtils'
+import { openPrintDocument } from '../utils/printUtils'
 import logger from '../utils/logger'
 
 // ============================================================================
@@ -2082,7 +2083,7 @@ export default function Room() {
               
               <button
                 onClick={() => {
-                  // Speichere aktuelle Daten in LocalStorage und navigiere zur PrintView
+                  // Speichere aktuelle Daten in LocalStorage und navigiere zur PrintView (Vorschau)
                   const rawCurrent = userStorage.getItem('currentEvent', auth.user ? auth.user.id : null) || localStorage.getItem('currentEvent') || '{}'
                   const current = JSON.parse(rawCurrent as string)
                   const name = current.name || `Event ${new Date().toLocaleDateString()}`;
@@ -2114,7 +2115,57 @@ export default function Room() {
                 }}
                 onMouseOver={e => { e.currentTarget.style.background = '#e2e8f0'; e.currentTarget.style.borderColor = '#94a3b8'; }}
                 onMouseOut={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
-                title="Drucken oder als PDF speichern"
+                title="Druckvorschau öffnen"
+              >
+                👁️
+              </button>
+              
+              <button
+                onClick={() => {
+                  // Öffne Print-Dokument mit Sitzplan und Zeitplan in neuem Fenster
+                  const rawCurrent = userStorage.getItem('currentEvent', auth.user ? auth.user.id : null) || localStorage.getItem('currentEvent') || '{}'
+                  const current = JSON.parse(rawCurrent as string)
+                  const name = current.name || `Event ${new Date().toLocaleDateString()}`;
+                  const now = new Date();
+                  
+                  if (!room) return;
+                  
+                  openPrintDocument({
+                    eventName: name,
+                    printHeaderTitle: current.printHeaderTitle || name,
+                    printHeaderMapLabel: current.printHeaderMapLabel || 'Sitzplan',
+                    printHeaderListLabel: current.printHeaderListLabel || 'Zeitplan',
+                    eventDate: current.date || current.createdAt || null,
+                    eventTimeFrom: current.timeFrom || null,
+                    eventTimeTo: current.timeTo || null,
+                    showDate: current.showPrintDate !== false,
+                    showTimeRange: current.showPrintTimeRange !== false,
+                    lastModified: `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`,
+                    room: room,
+                    groups: groups,
+                    assignedGroups: assignedGroups
+                  });
+                }}
+                disabled={!room}
+                style={{
+                  flex: 1,
+                  padding: '12px 20px',
+                  background: room ? 'linear-gradient(90deg, #22c55e 0%, #16a34a 100%)' : '#e2e8f0',
+                  color: room ? '#fff' : '#94a3b8',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: room ? 'pointer' : 'not-allowed',
+                  fontSize: '14px',
+                  fontWeight: '700',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: room ? '0 2px 8px rgba(34,197,94,0.15)' : 'none'
+                }}
+                onMouseOver={e => { if (room) { e.currentTarget.style.background = 'linear-gradient(90deg, #16a34a 0%, #22c55e 100%)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(34,197,94,0.25)'; } }}
+                onMouseOut={e => { if (room) { e.currentTarget.style.background = 'linear-gradient(90deg, #22c55e 0%, #16a34a 100%)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(34,197,94,0.15)'; } }}
+                title="Sitzplan & Zeitplan drucken (2 Seiten)"
               >
                 🖨️
               </button>
