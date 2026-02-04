@@ -28,11 +28,11 @@ export type PrintData = {
 // ============================================================================
 // CONSTANTS FOR COLUMN LAYOUT
 // ============================================================================
-const PRINT_MAX_HEIGHT = 420 // px available height for list content
+const PRINT_MAX_HEIGHT = 390 // px available height for list content (reduced to avoid overflow)
 const HEADER_HEIGHT = 32
 const SUMMARY_HEIGHT = 20
-const ITEM_HEIGHT = 28
-const ITEM_WITH_NOTE_HEIGHT = 44
+const ITEM_HEIGHT = 30
+const ITEM_WITH_NOTE_HEIGHT = 46
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -383,22 +383,22 @@ function generateListPageHTML(data: PrintData): string {
       // Generate HTML for this segment
       let itemsHTML = ''
       for (const item of segmentItems) {
-        const accessibleIcon = item.group.accessible ? '<span style="font-size:10px;margin-right:4px;">♿</span>' : ''
-        const noteHTML = item.group.note ? `<div class="list-note"><span class="list-note-icon">⚠️</span>${escapeHtml(item.group.note)}</div>` : ''
+        const noteIcon = item.group.note ? '<span class="timeline-note-icon">⚠️</span>' : ''
         const tableLabel = item.tableId === 'TOGO' ? 'ToGo' : `Tisch ${item.tableId.replace(/^T/, '')}`
+        const noteHTML = item.group.note ? `<div class="timeline-note">${escapeHtml(item.group.note)}</div>` : ''
         itemsHTML += `
-          <div class="list-item">
-            <span class="list-name">${escapeHtml(item.group.name)}</span>
-            <span class="list-meta">${tableLabel} • ${accessibleIcon}👥 ${item.group.size}</span>
+          <div class="timeline-slot-item timeline-slot-item--timed">
+            <div class="timeline-item-title">${noteIcon}${escapeHtml(item.group.name)}</div>
+            <div class="timeline-item-meta">👥 ${item.group.size} • ${tableLabel}${item.group.accessible ? ' • ♿' : ''}</div>
             ${noteHTML}
           </div>
         `
       }
 
       const sectionHTML = `
-        <div class="list-section">
-          <div class="list-title">${headerText}</div>
-          <div class="list-summary">${summaryText}</div>
+        <div class="timeline-slot">
+          <div class="timeline-slot-header">${headerText}</div>
+          <div class="timeline-slot-summary">${summaryText}</div>
           ${itemsHTML}
         </div>
       `
@@ -451,21 +451,21 @@ function generateListPageHTML(data: PrintData): string {
 
       let itemsHTML = ''
       for (const g of segmentItems) {
-        const accessibleIcon = g.accessible ? '<span style="font-size:10px;margin-right:4px;">♿</span>' : ''
-        const noteHTML = g.note ? `<div class="list-note"><span class="list-note-icon">⚠️</span>${escapeHtml(g.note)}</div>` : ''
+        const noteIcon = g.note ? '<span class="timeline-note-icon">⚠️</span>' : ''
+        const noteHTML = g.note ? `<div class="timeline-note">${escapeHtml(g.note)}</div>` : ''
         itemsHTML += `
-          <div class="list-item">
-            <span class="list-name">${escapeHtml(g.name)}</span>
-            <span class="list-meta">${accessibleIcon}👥 ${g.size}${g.time ? ` • ${g.time}` : ''}</span>
+          <div class="timeline-slot-item timeline-slot-item--unassigned">
+            <div class="timeline-item-title">${noteIcon}${escapeHtml(g.name)} (${g.size}${g.toGo ? ' | ToGo' : ''})</div>
+            <div class="timeline-item-meta">${g.time ? `🕐 ${g.time}` : 'Zeit: offen'}${g.accessible ? ' • ♿' : ''}</div>
             ${noteHTML}
           </div>
         `
       }
 
       currentColumn.push(`
-        <div class="list-section list-section--unassigned">
-          <div class="list-title">${headerText}</div>
-          <div class="list-summary">${unassignedGroups.length} Einträge</div>
+        <div class="timeline-slot timeline-slot--unassigned">
+          <div class="timeline-slot-header">${headerText}</div>
+          <div class="timeline-slot-summary">${unassignedGroups.length} Einträge</div>
           ${itemsHTML}
         </div>
       `)
@@ -502,21 +502,21 @@ function generateListPageHTML(data: PrintData): string {
 
       let itemsHTML = ''
       for (const ag of segmentItems) {
-        const accessibleIcon = ag.group.accessible ? '<span style="font-size:10px;margin-right:4px;">♿</span>' : ''
-        const noteHTML = ag.group.note ? `<div class="list-note"><span class="list-note-icon">⚠️</span>${escapeHtml(ag.group.note)}</div>` : ''
+        const noteIcon = ag.group.note ? '<span class="timeline-note-icon">⚠️</span>' : ''
+        const noteHTML = ag.group.note ? `<div class="timeline-note">${escapeHtml(ag.group.note)}</div>` : ''
         itemsHTML += `
-          <div class="list-item">
-            <span class="list-name">${escapeHtml(ag.group.name)}</span>
-            <span class="list-meta">${accessibleIcon}👥 ${ag.group.size}${ag.group.time ? ` • ${ag.group.time}` : ''}</span>
+          <div class="timeline-slot-item timeline-slot-item--togo">
+            <div class="timeline-item-title">${noteIcon}${escapeHtml(ag.group.name)}</div>
+            <div class="timeline-item-meta">👥 ${ag.group.size}${ag.group.time ? ` • ${ag.group.time}` : ''}${ag.group.accessible ? ' • ♿' : ''}</div>
             ${noteHTML}
           </div>
         `
       }
 
       currentColumn.push(`
-        <div class="list-section list-section--togo">
-          <div class="list-title">${headerText}</div>
-          <div class="list-summary">${toGoGroups.length} Einträge</div>
+        <div class="timeline-slot timeline-slot--togo">
+          <div class="timeline-slot-header">${headerText}</div>
+          <div class="timeline-slot-summary">${toGoGroups.length} Einträge</div>
           ${itemsHTML}
         </div>
       `)
@@ -528,36 +528,48 @@ function generateListPageHTML(data: PrintData): string {
   // Push final column
   if (currentColumn.length > 0) columns.push(currentColumn)
 
-  // Generate columns HTML
-  let columnsHTML = ''
-  for (let i = 0; i < columns.length; i++) {
-    columnsHTML += `<div class="print-column">${columns[i].join('')}</div>`
+  // Split columns into pages of max 5 columns each
+  const COLUMNS_PER_PAGE = 5
+  const pages: string[][][] = []
+  for (let i = 0; i < columns.length; i += COLUMNS_PER_PAGE) {
+    pages.push(columns.slice(i, i + COLUMNS_PER_PAGE))
   }
 
-  return `
-    <div class="print-page">
-      <div class="print-header">
-        <div class="print-header-main">
-          <h1 class="print-title">${escapeHtml(printHeaderTitle)}</h1>
-          ${eventInfoLine ? `<span class="print-info">${eventInfoLine}</span>` : ''}
+  // Generate a page for each chunk of columns
+  let pagesHTML = ''
+  pages.forEach((pageColumns, pageIndex) => {
+    let columnsHTML = ''
+    for (let i = 0; i < pageColumns.length; i++) {
+      columnsHTML += `<div class="timeline-column print-timeline-column">${pageColumns[i].join('')}</div>`
+    }
+
+    pagesHTML += `
+      <div class="print-page">
+        <div class="print-header">
+          <div class="print-header-main">
+            <h1 class="print-title">${escapeHtml(printHeaderTitle)}</h1>
+            ${eventInfoLine ? `<span class="print-info">${eventInfoLine}</span>` : ''}
+          </div>
+          <div class="print-subtitle">${escapeHtml(printHeaderListLabel)}${pageIndex > 0 ? ` (Seite ${pageIndex + 1})` : ''}</div>
         </div>
-        <div class="print-subtitle">${escapeHtml(printHeaderListLabel)}</div>
-      </div>
 
-      <div class="print-summary">
-        <div><strong>${totalTables}</strong> Tische</div>
-        <div><strong>${totalAssigned}</strong> Gruppen zugeordnet</div>
-        <div><strong>${unassignedGroups.length}</strong> unzugeordnet</div>
-        <div><strong>${toGoGroups.length}</strong> ToGo</div>
-      </div>
+        <div class="print-summary">
+          <div><strong>${totalTables}</strong> Tische</div>
+          <div><strong>${totalAssigned}</strong> Gruppen zugeordnet</div>
+          <div><strong>${unassignedGroups.length}</strong> unzugeordnet</div>
+          <div><strong>${toGoGroups.length}</strong> ToGo</div>
+        </div>
 
-      <div class="print-list">
-        ${columnsHTML}
-      </div>
+        <div class="timeline-list print-timeline-list">
+          ${columnsHTML}
+        </div>
 
-      <div class="print-footer">Stand: ${lastModified || new Date().toLocaleString()}</div>
-    </div>
-  `
+        <div class="print-footer print-footer--below">Stand: ${lastModified || new Date().toLocaleString()}</div>
+      </div>
+    `
+  })
+
+  return pagesHTML
 }
 
 // ============================================================================
@@ -659,7 +671,7 @@ export function openPrintDocument(data: PrintData): void {
     }
     .print-footer--below {
       position: static;
-      margin-top: 6px;
+      margin-top: 12px;
       text-align: right;
       font-size: 9px;
       color: #94a3b8;
@@ -703,6 +715,107 @@ export function openPrintDocument(data: PrintData): void {
       gap: 10px;
       flex: 1;
       overflow: hidden;
+    }
+
+    .print-timeline-list {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      width: 100%;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .print-timeline-column {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 195px;
+      width: 195px;
+    }
+
+    .timeline-slot {
+      margin-bottom: 10px;
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(15,23,42,0.06);
+      overflow: visible;
+      display: block;
+      width: auto;
+      padding: 0;
+    }
+
+    .timeline-slot--unassigned .timeline-slot-header {
+      background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+    }
+
+    .timeline-slot--togo .timeline-slot-header {
+      background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+    }
+
+    .timeline-slot-header {
+      padding: 8px 10px;
+      border-top-left-radius: 10px;
+      border-top-right-radius: 10px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .timeline-slot-summary {
+      padding: 6px 10px 0 10px;
+      font-size: 10px;
+      color: #64748b;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .timeline-slot-item {
+      margin: 0 6px 6px;
+      width: calc(100% - 16px);
+      background: rgba(217,227,237,0.7);
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 11px;
+      color: #1e293b;
+      line-height: 1.4;
+      border-left: 4px solid #2196f3;
+    }
+
+    .timeline-slot-item--unassigned {
+      border-left-color: #94a3b8;
+    }
+
+    .timeline-slot-item--togo {
+      border-left-color: #22c55e;
+    }
+
+    .timeline-item-title {
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .timeline-item-meta {
+      font-size: 10px;
+      color: #64748b;
+      margin-top: 1px;
+    }
+
+    .timeline-note {
+      font-size: 10px;
+      color: #475569;
+      margin-top: 4px;
+    }
+
+    .timeline-note-icon {
+      font-size: 11px;
+      line-height: 1;
+      color: #f59e0b;
     }
 
     .print-column {
