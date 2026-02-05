@@ -4228,8 +4228,13 @@ function TimelineView({
   const assignedNoTime = assignedGroupsList.filter(g => !g.group.time)
   const assignedWithTime = assignedGroupsList.filter(g => g.group.time)
 
+  const unassignedWithTimeNonToGo = unassignedWithTime.filter(item => !item.group.toGo)
+  const unassignedToGoNoTime = unassignedNoTime.filter(item => item.group.toGo)
+
   const unassignedCombined = [
-    ...unassignedNoTime.map(item => ({ kind: 'unassigned' as const, item })),
+    ...unassignedNoTime.filter(item => !item.group.toGo).map(item => ({ kind: 'unassigned' as const, item })),
+    ...unassignedWithTimeNonToGo.map(item => ({ kind: 'unassigned' as const, item })),
+    ...unassignedToGoNoTime.map(item => ({ kind: 'unassigned' as const, item })),
     ...assignedNoTime.map(item => ({ kind: 'assigned' as const, item }))
   ]
 
@@ -4255,7 +4260,19 @@ function TimelineView({
     timeSlots.get(slotKey)!.push(item)
   })
 
-  const slotEntries = Array.from(timeSlots.entries())
+  // Sort items within each time slot alphabetically by group name
+  for (const [k, arr] of timeSlots.entries()) {
+    arr.sort((a, b) => (a.group.name || '').localeCompare(b.group.name || ''))
+  }
+
+  // Order slots chronologically by their start time (slotKey format: "HH:MM - HH:MM")
+  const parseStart = (slotKey: string) => {
+    const m = slotKey.match(/(\d{2}):(\d{2})/) 
+    if (!m) return 0
+    return parseInt(m[1], 10) * 60 + parseInt(m[2], 10)
+  }
+
+  const slotEntries = Array.from(timeSlots.entries()).sort((a, b) => parseStart(a[0]) - parseStart(b[0]))
 
   const maxHeight = columnMaxHeight || 640
   const columns: React.ReactNode[][] = []
@@ -4337,15 +4354,33 @@ function TimelineView({
       items: unassignedCombined,
       variant: 'unassigned',
       summaryText: `${unassignedCombined.length} Einträge`,
-      renderItem: (entry, i) => (
-        <div key={`unassigned-${i}`} className="timeline-slot-item" style={{ fontSize: '14px', fontWeight: '500', color: '#1e293b', borderLeft: '4px solid #94a3b8', lineHeight: '1.4' }}>
-          {entry.item.group.note && <span title={entry.item.group.note} style={{ fontSize: 13, color: '#f59e0b', marginRight: 6 }}>⚠️</span>}
-          {entry.item.group.name} ({entry.item.group.size}{entry.kind === 'unassigned' && entry.item.group.toGo ? ' | ToGo' : ''})
-          {entry.kind === 'assigned' && (
-            <> - {entry.item.tableId === 'TOGO' ? 'ToGo' : `Tisch ${entry.item.tableId?.slice(1)}`}</>
-          )}
-        </div>
-      )
+      renderItem: (entry, i) => {
+        const isToGo = entry.item.group.toGo
+        return (
+          <div
+            key={`unassigned-${i}`}
+            className="timeline-slot-item"
+            style={{
+              fontSize: '14px',
+              fontWeight: '500',
+              color: '#1e293b',
+              borderLeft: `4px solid ${isToGo ? '#f59e0b' : '#94a3b8'}`,
+              lineHeight: '1.4'
+            }}
+          >
+            {entry.item.group.note && <span title={entry.item.group.note} style={{ fontSize: 13, color: '#f59e0b', marginRight: 6 }}>⚠️</span>}
+            <div>{entry.item.group.name}</div>
+            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+              {entry.item.group.time ? `🕐 ${entry.item.group.time} • ` : ''}👥 {entry.item.group.size}
+              {entry.kind === 'assigned' && (entry.item.tableId ? ` • Tisch ${entry.item.tableId?.slice(1)}` : '')}
+              {entry.kind === 'unassigned' && entry.item.group.toGo && !entry.item.group.time ? ' • ToGo' : ''}
+            </div>
+            {entry.item.group.note && (
+              <div style={{ fontSize: '12px', color: '#475569', marginTop: '6px' }}>{entry.item.group.note}</div>
+            )}
+          </div>
+        )
+      }
     })
   }
 
@@ -4359,10 +4394,20 @@ function TimelineView({
       variant: 'timed',
       summaryText: `${familyCount} Familien • ${totalPeople} Personen`,
       renderItem: (item, i) => (
-        <div key={`${slotKey}-${i}`} className="timeline-slot-item" style={{ fontSize: '13px', fontWeight: '500', color: '#1e293b', borderLeft: '4px solid #2196F3', lineHeight: '1.4' }}>
+        <div
+          key={`${slotKey}-${i}`}
+          className="timeline-slot-item"
+          style={{
+            fontSize: '13px',
+            fontWeight: '500',
+            color: '#1e293b',
+            borderLeft: `4px solid ${item.isAssigned && item.tableId === 'TOGO' ? '#f59e0b' : '#2196F3'}`,
+            lineHeight: '1.4'
+          }}
+        >
           <div>{item.group.note && <span title={item.group.note} style={{ fontSize: 13, color: '#f59e0b', marginRight: 6 }}>⚠️</span>}{item.group.name}</div>
           <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-            👥 {item.group.size} {item.isAssigned && item.tableId !== 'TOGO' ? `| Tisch ${item.tableId?.slice(1)}` : item.isAssigned && item.tableId === 'TOGO' ? '| ToGo' : ''}
+            🕐 {item.group.time || ''} • 👥 {item.group.size} {item.isAssigned && item.tableId !== 'TOGO' ? `| Tisch ${item.tableId?.slice(1)}` : item.isAssigned && item.tableId === 'TOGO' ? '| ToGo' : ''}
           </div>
           {item.group.note && (
             <div style={{ fontSize: '12px', color: '#475569', marginTop: '6px' }}>{item.group.note}</div>

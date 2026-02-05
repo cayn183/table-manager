@@ -335,6 +335,17 @@ function generateListPageHTML(data: PrintData): string {
     if (!timeSlots.has(slotKey)) timeSlots.set(slotKey, [])
     timeSlots.get(slotKey)!.push(item)
   })
+  // Sort items within each slot alphabetically by name
+  for (const [k, arr] of timeSlots.entries()) {
+    arr.sort((a, b) => (a.group.name || '').localeCompare(b.group.name || ''))
+  }
+
+  // Ensure slot order is chronological
+  const parseStart = (slotKey: string) => {
+    const m = slotKey.match(/(\d{2}):(\d{2})/)
+    if (!m) return 0
+    return parseInt(m[1], 10) * 60 + parseInt(m[2], 10)
+  }
 
   // Build column layout with "Fortsetzung" logic
   const columns: string[][] = []
@@ -384,12 +395,13 @@ function generateListPageHTML(data: PrintData): string {
       let itemsHTML = ''
       for (const item of segmentItems) {
         const noteIcon = item.group.note ? '<span class="timeline-note-icon">⚠️</span>' : ''
-        const tableLabel = item.tableId === 'TOGO' ? 'ToGo' : `Tisch ${item.tableId.replace(/^T/, '')}`
+        const isToGo = item.tableId === 'TOGO'
+        const tableLabel = isToGo ? 'ToGo' : `Tisch ${item.tableId.replace(/^T/, '')}`
         const noteHTML = item.group.note ? `<div class="timeline-note">${escapeHtml(item.group.note)}</div>` : ''
         itemsHTML += `
-          <div class="timeline-slot-item timeline-slot-item--timed">
+          <div class="timeline-slot-item ${isToGo ? 'timeline-slot-item--togo' : 'timeline-slot-item--timed'}">
             <div class="timeline-item-title">${noteIcon}${escapeHtml(item.group.name)}</div>
-            <div class="timeline-item-meta">👥 ${item.group.size} • ${tableLabel}${item.group.accessible ? ' • ♿' : ''}</div>
+            <div class="timeline-item-meta">🕐 ${item.group.time || ''} • 👥 ${item.group.size} • ${tableLabel}${item.group.accessible ? ' • ♿' : ''}</div>
             ${noteHTML}
           </div>
         `
@@ -466,57 +478,6 @@ function generateListPageHTML(data: PrintData): string {
         <div class="timeline-slot timeline-slot--unassigned">
           <div class="timeline-slot-header">${headerText}</div>
           <div class="timeline-slot-summary">${unassignedGroups.length} Einträge</div>
-          ${itemsHTML}
-        </div>
-      `)
-      remainingHeight -= segmentHeight
-      segmentIndex++
-    }
-  }
-
-  // Add ToGo groups
-  if (toGoGroups.length > 0) {
-    let index = 0
-    let segmentIndex = 0
-
-    while (index < toGoGroups.length) {
-      const isFirstSegment = segmentIndex === 0
-      const headerText = isFirstSegment ? 'ToGo' : 'Fortsetzung (ToGo)'
-      const baseHeight = HEADER_HEIGHT + SUMMARY_HEIGHT
-
-      const firstItemHeight = estimateItemHeight(!!toGoGroups[index]?.group.note)
-      if (baseHeight + firstItemHeight > remainingHeight && currentColumn.length > 0) {
-        startNewColumn()
-      }
-
-      const segmentItems: AssignedGroup[] = []
-      let segmentHeight = baseHeight
-
-      while (index < toGoGroups.length) {
-        const itemHeight = estimateItemHeight(!!toGoGroups[index].group.note)
-        if (segmentItems.length > 0 && segmentHeight + itemHeight > remainingHeight) break
-        segmentHeight += itemHeight
-        segmentItems.push(toGoGroups[index])
-        index++
-      }
-
-      let itemsHTML = ''
-      for (const ag of segmentItems) {
-        const noteIcon = ag.group.note ? '<span class="timeline-note-icon">⚠️</span>' : ''
-        const noteHTML = ag.group.note ? `<div class="timeline-note">${escapeHtml(ag.group.note)}</div>` : ''
-        itemsHTML += `
-          <div class="timeline-slot-item timeline-slot-item--togo">
-            <div class="timeline-item-title">${noteIcon}${escapeHtml(ag.group.name)}</div>
-            <div class="timeline-item-meta">👥 ${ag.group.size}${ag.group.time ? ` • ${ag.group.time}` : ''}${ag.group.accessible ? ' • ♿' : ''}</div>
-            ${noteHTML}
-          </div>
-        `
-      }
-
-      currentColumn.push(`
-        <div class="timeline-slot timeline-slot--togo">
-          <div class="timeline-slot-header">${headerText}</div>
-          <div class="timeline-slot-summary">${toGoGroups.length} Einträge</div>
           ${itemsHTML}
         </div>
       `)
@@ -790,7 +751,7 @@ export function openPrintDocument(data: PrintData): void {
     }
 
     .timeline-slot-item--togo {
-      border-left-color: #22c55e;
+      border-left-color: #f59e0b;
     }
 
     .timeline-item-title {
