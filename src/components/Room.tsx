@@ -2083,45 +2083,6 @@ export default function Room() {
               
               <button
                 onClick={() => {
-                  // Speichere aktuelle Daten in LocalStorage und navigiere zur PrintView (Vorschau)
-                  const rawCurrent = userStorage.getItem('currentEvent', auth.user ? auth.user.id : null) || localStorage.getItem('currentEvent') || '{}'
-                  const current = JSON.parse(rawCurrent as string)
-                  const name = current.name || `Event ${new Date().toLocaleDateString()}`;
-                  const event = { ...current };
-                  event.name = name;
-                  if (!event.createdAt) event.createdAt = new Date().toLocaleDateString();
-                  const now = new Date();
-                  event.lastModified = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
-                  event.assignedGroups = assignedGroups;
-                  event.groups = groups;
-                  event.room = room;
-                  userStorage.setItem('currentEvent', JSON.stringify(event), auth.user ? auth.user.id : null);
-                  navigate("/printview");
-                }}
-                style={{
-                  flex: 1,
-                  padding: '12px 20px',
-                  background: '#f1f5f9',
-                  color: '#667eea',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  transition: 'all 0.2s',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-                onMouseOver={e => { e.currentTarget.style.background = '#e2e8f0'; e.currentTarget.style.borderColor = '#94a3b8'; }}
-                onMouseOut={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
-                title="Druckvorschau öffnen"
-              >
-                👁️
-              </button>
-              
-              <button
-                onClick={() => {
                   // Öffne Print-Dokument mit Sitzplan und Zeitplan in neuem Fenster
                   const rawCurrent = userStorage.getItem('currentEvent', auth.user ? auth.user.id : null) || localStorage.getItem('currentEvent') || '{}'
                   const current = JSON.parse(rawCurrent as string)
