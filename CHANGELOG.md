@@ -20,6 +20,12 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ### Fixed
 - Minor chore/finalization items around release drafting and changelog cleanup.
 
+<<<<<<< HEAD
+=======
+## [Unreleased]
+## [0.8.2] - 2026-02-03
+
+>>>>>>> e9193b40cb9277838258bdca91b61159c026c35e
 
 ## [0.8.1] - 2026-01-29
 

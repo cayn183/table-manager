@@ -17,11 +17,9 @@ try {
   pkgVersion = pkg.version || 'dev';
 } catch (e) {}
 
-// Prefer environment-provided build info (set by Docker build args or CI)
-const envVersion = process.env.VITE_BUILD_VERSION || process.env.BUILD_VERSION;
-const envSha = process.env.VITE_BUILD_SHA || process.env.BUILD_SHA;
-process.env.VITE_BUILD_VERSION = envVersion || pkgVersion;
-process.env.VITE_BUILD_SHA = envSha || getGitSha();
+// Only set VITE_BUILD_* if they are not already provided by the environment
+process.env.VITE_BUILD_VERSION = process.env.VITE_BUILD_VERSION || pkgVersion;
+process.env.VITE_BUILD_SHA = process.env.VITE_BUILD_SHA || getGitSha();
 
 console.log(`Building with VITE_BUILD_VERSION=${process.env.VITE_BUILD_VERSION} VITE_BUILD_SHA=${process.env.VITE_BUILD_SHA}`);
 
