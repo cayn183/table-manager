@@ -17,6 +17,8 @@ type EventItem = {
   eventDate?: string
   assignedGroups?: any
   groups?: any
+  isToGo?: boolean
+  toGoConfig?: any
 }
 
 const EVENTS_KEY = 'events'
@@ -47,6 +49,13 @@ export default function LoadEvent() {
 
   function loadEvent(event: EventItem) {
     userStorage.setItem(CURRENT_EVENT_KEY, JSON.stringify(event), userId)
+    
+    // ToGo events go to /togo route
+    if (event.isToGo) {
+      navigate('/togo')
+      return
+    }
+    
     if (event.roomId) {
       const raw = userStorage.getItem(ROOMS_KEY, userId) || localStorage.getItem(ROOMS_KEY) || '[]'
       const rooms = JSON.parse(raw as string)
@@ -123,7 +132,14 @@ export default function LoadEvent() {
               onMouseOut={e => { e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; e.currentTarget.style.transform = 'translateY(0)'; }}
             >
               <div style={{ flex: 1 }}>
-                <h3 style={{ margin: '0 0 12px', fontSize: '20px', fontWeight: '600', color: '#1e293b' }}>{event.name}</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                  <h3 style={{ margin: '0', fontSize: '20px', fontWeight: '600', color: '#1e293b' }}>{event.name}</h3>
+                  {event.isToGo && (
+                    <span style={{ padding: '3px 10px', background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', color: 'white', borderRadius: '12px', fontSize: '11px', fontWeight: '600' }}>
+                      🥡 ToGo
+                    </span>
+                  )}
+                </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '8px' }}>
                   <span style={{ padding: '4px 12px', background: '#e0e7ff', color: '#667eea', borderRadius: '6px', fontSize: '13px', fontWeight: '500' }}>
                     {event.eventDate ? event.eventDate : 'Kein Datum'}
@@ -131,6 +147,11 @@ export default function LoadEvent() {
                   {event.from && <span style={{ padding: '4px 12px', background: '#dbeafe', color: '#3b82f6', borderRadius: '6px', fontSize: '13px', fontWeight: '500' }}>
                     {event.from}{event.to ? ` - ${event.to}` : ''}
                   </span>}
+                  {event.isToGo && event.toGoConfig && (
+                    <span style={{ padding: '4px 12px', background: '#fef3c7', color: '#d97706', borderRadius: '6px', fontSize: '13px', fontWeight: '500' }}>
+                      {event.toGoConfig.orders?.length || 0} Bestellungen
+                    </span>
+                  )}
                 </div>
                 <p style={{ margin: '4px 0', fontSize: '12px', color: '#94a3b8' }}>
                   Erstellt: {event.createdAt || 'unbekannt'}
@@ -140,7 +161,22 @@ export default function LoadEvent() {
               <div style={{ display: 'flex', gap: 10 }}>
                 <button 
                   onClick={() => loadEvent(event)}
-                  style={{ padding: '10px 20px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', boxShadow: '0 2px 8px rgba(102,126,234,0.3)', transition: 'all 0.2s' }}
+                  style={{ 
+                    padding: '10px 20px', 
+                    background: event.isToGo 
+                      ? 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' 
+                      : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
+                    color: 'white', 
+                    border: 'none', 
+                    borderRadius: '8px', 
+                    cursor: 'pointer', 
+                    fontSize: '14px', 
+                    fontWeight: '600', 
+                    boxShadow: event.isToGo 
+                      ? '0 2px 8px rgba(249,115,22,0.3)' 
+                      : '0 2px 8px rgba(102,126,234,0.3)', 
+                    transition: 'all 0.2s' 
+                  }}
                   onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'}
                   onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
                 >Laden</button>

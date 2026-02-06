@@ -9,6 +9,7 @@ import LoadEvent from './components/LoadEvent'
 import Login from './components/Login'
 import Profile from './components/Profile'
 import AdminPanel from './components/AdminPanel'
+import ToGo from './components/ToGo'
 
 export default function App() {
   const auth = useAuth()
@@ -22,6 +23,7 @@ export default function App() {
       <Route path="/load-room" element={<LoadRoom />} />
       <Route path="/load-event" element={<LoadEvent />} />
       <Route path="/room" element={<Room />} />
+      <Route path="/togo" element={<ToGo />} />
     </Routes>
   )
 }
