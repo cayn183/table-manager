@@ -6,17 +6,20 @@ Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
+
+## [0.8.3] - 2026-02-06
+
 ### Added
-- Print: Timeline/print layout improvements — kompakte Darstellung, Paging und Footer für bessere Druck-Layouts.
-- Print: Verbesserte Karten-/Map-Skalierung und Positionierung des Last‑Modified Footers.
+- Print: Improved timeline/print layouts — compact layout, paging and footer for multi‑page print outputs.
+- Print: Better map scaling and moved `last modified` footer below the map for clearer print exports.
 
 ### Changed
-- Print: Entfernen veralteter Legacy-Print-Views und Konsolidierung der Timeline/Print-Tweaks.
+- Removed legacy print view implementations and consolidated timeline/print tweaks into a single print pipeline.
+- Included local `Room.tsx` edits to harmonize room rendering for print output.
 
 ### Fixed
-- Verschiedene kleine CI/Dev-Chores und Version-Sync-Adjustments (intern).
+- Minor chore/finalization items around release drafting and changelog cleanup.
 
-## [Unreleased]
 
 ## [0.8.1] - 2026-01-29
 
