@@ -6,7 +6,6 @@ import RoomEditor from './components/RoomEditor'
 import Room from './components/Room'
 import LoadRoom from './components/LoadRoom'
 import LoadEvent from './components/LoadEvent'
-import PrintViewPage from './components/PrintViewPage'
 import Login from './components/Login'
 import Profile from './components/Profile'
 import AdminPanel from './components/AdminPanel'
@@ -23,7 +22,6 @@ export default function App() {
       <Route path="/load-room" element={<LoadRoom />} />
       <Route path="/load-event" element={<LoadEvent />} />
       <Route path="/room" element={<Room />} />
-      <Route path="/printview" element={<PrintViewPage />} />
     </Routes>
   )
 }

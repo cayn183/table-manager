@@ -1,3 +1,9 @@
+/* Print page setup - MUST be at the top for proper page detection */
+@page {
+  size: A4 landscape;
+  margin: 10mm;
+}
+
 :root{--bg:#f7f7fb;--panel:#fff;--muted:#666}
 * { box-sizing: border-box; }
 body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;padding:0;overflow-x:hidden}
@@ -649,4 +655,327 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
 .modal .print-preview.rotated .print-page {
   transform-origin: center center;
 }
+
+/* ============================================================================
+   PRINT DOCUMENT STYLES - Two-page printable document
+   ============================================================================ */
+
+/* Container */
+.print-document {
+  min-height: 100vh;
+  background: #f1f5f9;
+}
+
+/* Toolbar (hidden in print) */
+.print-document-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  gap: 12px;
+  padding: 12px 20px;
+  background: white;
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.print-document-toolbar button {
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #1e293b;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.print-document-toolbar button:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+}
+
+.print-document-btn-print {
+  margin-left: auto !important;
+  background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%) !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(34,197,94,0.15);
+}
+
+.print-document-btn-print:hover {
+  background: linear-gradient(90deg, #16a34a 0%, #22c55e 100%) !important;
+  box-shadow: 0 4px 16px rgba(34,197,94,0.25) !important;
+}
+
+/* Error state */
+.print-document-error {
+  margin: 40px auto;
+  padding: 20px 24px;
+  max-width: 600px;
+  background: #fee2e2;
+  color: #b91c1c;
+  border-radius: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* Page container */
+.print-document-page {
+  position: relative;
+  width: 297mm;
+  height: 210mm;
+  margin: 20px auto;
+  padding: 15mm 20mm;
+  background: white;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  box-sizing: border-box;
+  page-break-after: always;
+  break-after: page;
+  overflow: hidden;
+}
+
+.print-document-page:last-child {
+  page-break-after: auto;
+  break-after: auto;
+}
+
+/* Header */
+.print-document-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.print-document-header-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.print-document-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.print-document-info {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.print-document-subtitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+/* Footer */
+.print-document-footer {
+  position: absolute;
+  bottom: 10mm;
+  right: 15mm;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+/* Map container */
+.print-document-map-container {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  min-height: 160mm;
+  overflow: hidden;
+}
+
+.print-document-map {
+  position: relative;
+  border: 2px solid #94a3b8;
+  border-radius: 10px;
+  background: white;
+  background-image:
+    linear-gradient(to right, #e2e8f0 1px, transparent 1px),
+    linear-gradient(to bottom, #e2e8f0 1px, transparent 1px);
+}
+
+.print-document-table {
+  position: absolute;
+  border: 2px solid #94a3b8;
+  border-radius: 8px;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.08);
+  z-index: 1;
+}
+
+.print-document-table-label {
+  position: absolute;
+  top: -34px;
+  width: 75px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+  color: #1e293b;
+  background: rgba(0, 0, 0, 0.1);
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(148,163,184,0.6);
+  z-index: 2;
+}
+
+.print-document-seat {
+  position: absolute;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  border-radius: 6px;
+  z-index: 2;
+}
+
+/* Summary */
+.print-document-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+/* List */
+.print-document-list {
+  column-count: 4;
+  column-gap: 14px;
+  column-fill: balance;
+  height: 140mm;
+  overflow: hidden;
+}
+
+.print-document-list-section {
+  break-inside: avoid;
+  margin-bottom: 12px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.print-document-list-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.print-document-list-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 12px;
+}
+
+.print-document-list-item:last-child {
+  border-bottom: none;
+}
+
+.print-document-list-name {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.print-document-list-meta {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.print-document-list-note {
+  font-size: 11px;
+  color: #374151;
+  margin-top: 2px;
+  font-weight: 600;
+}
+
+.print-document-list-note-icon {
+  font-size: 12px;
+  line-height: 1;
+  margin-right: 6px;
+  vertical-align: text-bottom;
+  color: #f59e0b;
+}
+
+.print-document-list-empty {
+  font-size: 12px;
+  color: #94a3b8;
+  padding: 6px 0;
+}
+
+/* Print-specific styles for PrintDocument */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  .print-document {
+    background: white;
+  }
+
+  .print-document-toolbar,
+  .print-document .no-print {
+    display: none !important;
+  }
+
+  .print-document-page {
+    width: 100%;
+    height: 100vh;
+    margin: 0;
+    padding: 8mm 12mm;
+    box-shadow: none;
+    page-break-after: always;
+    break-after: page;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .print-document-page:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  .print-document-map-container {
+    min-height: auto;
+    max-height: calc(100vh - 60mm);
+  }
+
+  .print-document-footer {
+    position: absolute;
+    bottom: 8mm;
+    right: 10mm;
+  }
+
+  .print-document-list {
+    column-count: 4;
+    column-width: auto;
+    column-gap: 8mm;
+    height: calc(100vh - 90mm);
+    column-fill: balance;
+  }
+}
+
 
