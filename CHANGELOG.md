@@ -6,6 +6,16 @@ Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
+### Added
+- Print: Timeline/print layout improvements — kompakte Darstellung, Paging und Footer für bessere Druck-Layouts.
+- Print: Verbesserte Karten-/Map-Skalierung und Positionierung des Last‑Modified Footers.
+
+### Changed
+- Print: Entfernen veralteter Legacy-Print-Views und Konsolidierung der Timeline/Print-Tweaks.
+
+### Fixed
+- Verschiedene kleine CI/Dev-Chores und Version-Sync-Adjustments (intern).
+
 ## [Unreleased]
 
 ## [0.8.1] - 2026-01-29
