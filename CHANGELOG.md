@@ -23,6 +23,25 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 - Backend: `POST /events` supports upsert by client id when owned by the user; `DELETE /events/:id` implemented.
 - TypeScript and build fixes: added Vite import types, marked async functions, adjusted api calls to satisfy typings.
 
+
+
+## [0.8.2] - 2026-02-03
+
+### Added
+- Neue GitHub Actions Workflows: `dev` und `release` zur automatischen Version-/SHA-Setzung und Release-Verwaltung.
+- `RELEASE_GUIDE.md` mit detaillierter Anleitung zum Release-Prozess.
+- User‑scoped LocalStorage: LocalStorage‑Keys werden nun pro Nutzer gekapselt; `AuthProvider.logout()` leitet zu `/login` weiter.
+
+### Changed
+- Entfernte alte Workflows: `docker-publish.yml`, `sync-version.yml`, `version-release.yml`.
+- CI/Build: Dev-Workflow setzt `version='dev'`; Build verwendet bevorzugt `BUILD_SHA`/`BUILD_VERSION` Umgebungsvariablen.
+
+### Fixed
+- Backend version & SHA sync: `backend/package.json` wird in das Docker‑Image kopiert; Version‑Mismatch‑Check basiert nun auf SHA, damit Admin‑Panel korrekte Build‑Informationen anzeigt.
+- Korrekte Übergabe von `BUILD_SHA`/`BUILD_VERSION` in Dockerfile und Vite‑Defines.
+- Lockfiles (`package-lock.json`) wurden in Version‑Commits aufgenommen.
+- Dev‑Package‑Version im Admin wurde normalisiert.
+
 ## [0.8.0] - 2026-01-27
 
 ### Added
