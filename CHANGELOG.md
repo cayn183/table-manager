@@ -17,6 +17,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 - Verschiedene kleine CI/Dev-Chores und Version-Sync-Adjustments (intern).
 
 ## [Unreleased]
+## [0.8.2] - 2026-02-03
+
 
 ## [0.8.1] - 2026-01-29
 
