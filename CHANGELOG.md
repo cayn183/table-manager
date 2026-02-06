@@ -7,6 +7,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 ### Added
+## [0.8.3] - 2026-02-06
+
 - Print: Timeline/print layout improvements — kompakte Darstellung, Paging und Footer für bessere Druck-Layouts.
 - Print: Verbesserte Karten-/Map-Skalierung und Positionierung des Last‑Modified Footers.
 
@@ -18,6 +20,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 ## [0.8.2] - 2026-02-03
+## [0.8.3] - 2026-02-06
+
 
 
 ## [0.8.1] - 2026-01-29
