@@ -20,7 +20,6 @@ export type OrderItem = {
 export type ToGoOrder = {
   id: string
   familyName: string
-  salutation: 'Fam' | 'Frau' | 'Herr' | string
   time: string  // Pickup time, e.g., "12:30"
   items: OrderItem[]
   note?: string
