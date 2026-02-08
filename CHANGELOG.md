@@ -7,6 +7,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-02-08
+
 ### Added
 - ToGo feature: new standalone ToGo/Takeaway module with full UI for managing menu items, creating and editing orders, and importing orders via CSV.
 - ToGo: CSV import/export support (delimiter detection, encoding heuristics, example & blank CSV generation).
