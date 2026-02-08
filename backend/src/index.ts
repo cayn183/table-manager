@@ -1,5 +1,6 @@
 import express from 'express'
 import cors from 'cors'
+import cookieParser from 'cookie-parser'
 import dotenv from 'dotenv'
 import authRoutes from './routes/auth'
 import eventsRoutes from './routes/events'
@@ -11,8 +12,14 @@ import client from 'prom-client'
 import requestId from './middleware/requestId'
 import logger from './logger'
 import { runMigrations } from './migrate'
+import { generalLimiter } from './middleware/rateLimit'
 
 dotenv.config()
+
+if (!process.env.JWT_SECRET) {
+  logger.error('config', 'JWT_SECRET is required. Refusing to start without it.')
+  process.exit(1)
+}
 
 const app = express()
 
@@ -34,8 +41,33 @@ if (process.env.SENTRY_DSN) {
     logger.warn('sentry', 'Failed to initialize Sentry', e)
   }
 }
-app.use(cors())
+const rawOrigins = process.env.CORS_ORIGIN
+const allowedOrigins = rawOrigins
+  ? rawOrigins.split(',').map((o) => o.trim()).filter(Boolean)
+  : (process.env.NODE_ENV !== 'production'
+    ? ['http://localhost:5173', 'http://127.0.0.1:5173']
+    : [])
+
+if (!rawOrigins && allowedOrigins.length > 0) {
+  logger.warn('cors', 'CORS_ORIGIN not set; using localhost defaults for development.')
+}
+
+if (allowedOrigins.length === 0) {
+  // Same-origin only; no CORS headers are emitted.
+  app.use(cors({ origin: false }))
+} else {
+  app.use(cors({
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true)
+      if (allowedOrigins.includes(origin)) return cb(null, true)
+      return cb(new Error('CORS blocked'), false)
+    },
+    credentials: true,
+  }))
+}
+app.use(cookieParser())
 app.use(express.json({ limit: '5mb' }))
+app.use(generalLimiter)
 
 // attach request id early so handlers can include it in logs
 app.use(requestId)
@@ -82,7 +114,21 @@ app.get('/health', async (req, res) => {
 })
 
 // Prometheus metrics endpoint
-app.get('/metrics', async (req, res) => {
+const metricsToken = process.env.METRICS_TOKEN
+if (!metricsToken) {
+  logger.warn('metrics', 'METRICS_TOKEN not set; /metrics will be disabled.')
+}
+
+function requireMetricsToken(req: express.Request, res: express.Response, next: express.NextFunction) {
+  if (!metricsToken) return res.status(503).json({ error: 'Metrics disabled' })
+  const auth = req.headers.authorization
+  if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ error: 'Missing token' })
+  const token = auth.slice(7)
+  if (token !== metricsToken) return res.status(403).json({ error: 'Invalid token' })
+  return next()
+}
+
+app.get('/metrics', requireMetricsToken, async (req, res) => {
   try {
     res.set('Content-Type', client.register.contentType)
     res.send(await client.register.metrics())

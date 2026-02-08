@@ -5,7 +5,7 @@ import logger from '../utils/logger'
 import FeedbackForm from './FeedbackForm'
 
 export default function UserMenu() {
-  const { user, logout, token } = useAuth()
+  const { user, logout } = useAuth()
   const [showFeedback, setShowFeedback] = useState(false)
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement | null>(null)

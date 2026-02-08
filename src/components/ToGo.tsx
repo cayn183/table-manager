@@ -146,7 +146,7 @@ export default function ToGo() {
     
     // Sync to server
     try {
-      if (auth.token && userId) {
+      if (userId) {
         await syncUserData(auth.token, userId)
       }
     } catch (e) {

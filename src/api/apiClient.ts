@@ -32,7 +32,8 @@ async function request(method: string, path: string, body?: any, opts: Opts = {}
     res = await fetch(`${BASE}${path}`, {
       method,
       headers,
-      body: body ? JSON.stringify(body) : undefined
+      body: body ? JSON.stringify(body) : undefined,
+      credentials: 'include'
     })
   } catch (e: any) {
     logger.error('api', { requestId, method, path, error: e && e.message ? e.message : String(e) })

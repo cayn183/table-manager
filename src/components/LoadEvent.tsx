@@ -35,7 +35,7 @@ export default function LoadEvent() {
   useEffect(() => {
     let mounted = true
     ;(async () => {
-      if (auth.token && userId) {
+      if (userId) {
         await hydrateUserData(auth.token, userId)
       }
       if (!mounted) return
@@ -73,12 +73,10 @@ export default function LoadEvent() {
     setEvents(updated)
     ;(async () => {
       try {
-        if (auth.token) {
-          // Try delete on server (ignore errors)
-          try { await api.del(`/events/${id}`, auth.token) } catch (e) {}
-          // After deletion, sync remaining local data to server
-          await syncUserData(auth.token, userId)
-        }
+        // Try delete on server (ignore errors)
+        try { await api.del(`/events/${id}`, auth.token ?? undefined) } catch (e) {}
+        // After deletion, sync remaining local data to server
+        if (userId) await syncUserData(auth.token, userId)
       } catch (err) {
         // ignore
       }

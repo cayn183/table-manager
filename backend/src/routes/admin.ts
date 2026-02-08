@@ -8,10 +8,15 @@ import path from 'path'
 
 const router = express.Router()
 
+function clampPerPage(value: number, max = 100) {
+  if (!Number.isFinite(value)) return 50
+  return Math.max(1, Math.min(value, max))
+}
+
 // List users (admin only). Simple pagination & optional query by email
 router.get('/users', requireAdmin, async (req, res) => {
   const page = parseInt((req.query.page as string) || '1', 10)
-  const perPage = parseInt((req.query.perPage as string) || '50', 10)
+  const perPage = clampPerPage(parseInt((req.query.perPage as string) || '50', 10))
   const q = (req.query.q as string) || ''
   const offset = (page - 1) * perPage
   try {
@@ -105,7 +110,7 @@ router.post('/users/:id/purge', requireAdmin, async (req, res) => {
 // List admin audit entries (admin only)
 router.get('/audit', requireAdmin, async (req, res) => {
   const page = parseInt((req.query.page as string) || '1', 10)
-  const perPage = parseInt((req.query.perPage as string) || '50', 10)
+  const perPage = clampPerPage(parseInt((req.query.perPage as string) || '50', 10))
   const offset = (page - 1) * perPage
   try {
     const totalR = await pool.query('SELECT COUNT(*)::int as cnt FROM admin_audit')
@@ -225,7 +230,7 @@ router.get('/system', requireAdmin, async (req, res) => {
 // Supports optional filtering by statuses (comma-separated) and including deleted entries via includeDeleted=true
 router.get('/feedback', requireAdmin, async (req, res) => {
   const page = parseInt((req.query.page as string) || '1', 10)
-  const perPage = parseInt((req.query.perPage as string) || '50', 10)
+  const perPage = clampPerPage(parseInt((req.query.perPage as string) || '50', 10))
   const q = (req.query.q as string) || ''
   const statusesCsv = (req.query.statuses as string) || ''
   const includeDeleted = String(req.query.includeDeleted || 'false').toLowerCase() === 'true'

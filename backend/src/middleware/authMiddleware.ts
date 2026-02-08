@@ -2,12 +2,20 @@ import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import pool from '../db'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret'
+const JWT_SECRET = process.env.JWT_SECRET as string
+const COOKIE_NAME = process.env.AUTH_COOKIE_NAME || 'tm_token'
+
+function getToken(req: Request): string | null {
+  const auth = req.headers.authorization
+  if (auth && auth.startsWith('Bearer ')) return auth.slice(7)
+  const cookies = (req as any).cookies
+  if (cookies && cookies[COOKIE_NAME]) return String(cookies[COOKIE_NAME])
+  return null
+}
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  const auth = req.headers.authorization
-  if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ error: 'Missing token' })
-  const token = auth.slice(7)
+  const token = getToken(req)
+  if (!token) return res.status(401).json({ error: 'Missing token' })
   try {
     const payload = jwt.verify(token, JWT_SECRET) as any
     ;(req as any).user = { id: payload.sub, email: payload.email }
@@ -24,9 +32,8 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 }
 
 export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
-  const auth = req.headers.authorization
-  if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ error: 'Missing token' })
-  const token = auth.slice(7)
+  const token = getToken(req)
+  if (!token) return res.status(401).json({ error: 'Missing token' })
   try {
     const payload = jwt.verify(token, JWT_SECRET) as any
     const userId = payload.sub

@@ -2,11 +2,12 @@ import express from 'express'
 import pool from '../db'
 import logger from '../logger'
 import { v4 as uuidv4 } from 'uuid'
+import { feedbackLimiter } from '../middleware/rateLimit'
 
 const router = express.Router()
 
 // Public feedback submission
-router.post('/', async (req, res) => {
+router.post('/', feedbackLimiter, async (req, res) => {
   const { headline, message, email, metadata } = req.body || {}
   const userId = (req as any).user?.id || null
   // require headline, but allow empty message (no description)

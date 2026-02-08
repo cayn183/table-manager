@@ -69,7 +69,7 @@ export default function Home() {
       userStorage.setItem(CURRENT_EVENT_KEY, JSON.stringify(ev), userId)
       userStorage.setItem(EVENTS_KEY, JSON.stringify([...all, ev]), userId)
       try {
-        if (auth.token && userId) {
+        if (userId) {
           void syncUserData(auth.token, userId)
         }
       } catch (e) {}
@@ -86,7 +86,7 @@ export default function Home() {
       userStorage.setItem(CURRENT_EVENT_KEY, JSON.stringify(ev), userId)
       userStorage.setItem(EVENTS_KEY, JSON.stringify([...all, ev]), userId)
       try {
-        if (auth.token && userId) {
+        if (userId) {
           void syncUserData(auth.token, userId)
         }
       } catch (e) {}
@@ -95,7 +95,7 @@ export default function Home() {
       userStorage.setItem(CURRENT_EVENT_KEY, JSON.stringify(ev), userId)
       userStorage.setItem(EVENTS_KEY, JSON.stringify([...all, ev]), userId)
       try {
-        if (auth.token && userId) {
+        if (userId) {
           void syncUserData(auth.token, userId)
         }
       } catch (e) {}

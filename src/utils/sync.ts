@@ -170,12 +170,15 @@ export async function syncUserDataOnUnload(token: string | null, userId: string 
 
   const payload = { events: events.map(e => ({ id: e.id, title: e.name || e.title || 'Event', data: { ...(e.data || {}), ...e, rooms: roomsList } })), rooms: roomsList }
   try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (token) headers['Authorization'] = `Bearer ${token}`
     // use fetch keepalive to attempt sending before unload
     void fetch(`${BASE}/events/batch`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      headers,
       body: JSON.stringify(payload),
       keepalive: true,
+      credentials: 'include',
     })
   } catch (e) {
     // best-effort

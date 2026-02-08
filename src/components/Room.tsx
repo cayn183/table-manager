@@ -892,7 +892,7 @@ export default function Room() {
     setLastSaveType('auto')
     setIsDirty(false)
     try {
-      if (auth.token && auth.user && auth.user.id) {
+      if (auth.user && auth.user.id) {
         void syncUserData(auth.token, auth.user.id)
       }
     } catch (e) {}
@@ -1067,7 +1067,7 @@ export default function Room() {
     // show saving status and wait for server sync before closing modal
     setIsSavingEvent(true)
     try {
-      if (auth.token && auth.user && auth.user.id) {
+      if (auth.user && auth.user.id) {
         await syncUserData(auth.token, auth.user.id)
       }
       setSaveToast({ type: 'success', message: 'Event gespeichert!' })
@@ -1239,7 +1239,7 @@ export default function Room() {
           alignItems: 'center', 
           gap: '12px' 
         }}>
-          <Link to="/" style={{ textDecoration: 'none', color: 'white', display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}>
+          <Link to="/app" style={{ textDecoration: 'none', color: 'white', display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}>
             <span 
               style={{ 
                 fontSize: '24px', 

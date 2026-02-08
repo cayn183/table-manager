@@ -1,15 +1,20 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import api from '../api/apiClient'
 
-export default function Login() {
+type LoginProps = {
+  initialMode?: 'login' | 'register'
+}
+
+export default function Login({ initialMode }: LoginProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
-  const [mode, setMode] = useState<'login'|'register'>('login')
+  const [mode, setMode] = useState<'login'|'register'>(initialMode || 'login')
   const auth = useAuth()
   const nav = useNavigate()
+  const location = useLocation()
   const [error, setError] = useState<string | null>(null)
   const [emailExists, setEmailExists] = useState<boolean | null>(null)
   const [checkingEmail, setCheckingEmail] = useState(false)
@@ -19,12 +24,22 @@ export default function Login() {
     setError(null)
     try {
       const result = mode === 'login' ? await auth.login(email, password) : await auth.register(name, email, password)
-      if (result.ok) nav('/')
+      if (result.ok) nav('/app')
       else setError(result.error)
     } catch (err: any) {
       setError(err?.message || 'Fehler')
     }
   }
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const requested = params.get('mode')
+    if (requested === 'login' || requested === 'register') {
+      setMode(requested)
+    } else if (initialMode) {
+      setMode(initialMode)
+    }
+  }, [location.search, initialMode])
 
   useEffect(() => {
     let mounted = true

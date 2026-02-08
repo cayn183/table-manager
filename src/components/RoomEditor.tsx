@@ -201,7 +201,7 @@ export default function RoomEditor() {
     // show saving indicator and wait for sync to complete before navigating
     setIsSavingRoom(true)
     try {
-      if (token && userId) {
+      if (userId) {
         await syncUserData(token, userId)
       }
     } catch (e) {

@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import api from '../api/apiClient'
 
 export default function Profile() {
-  const { token, user, logout } = useAuth()
+  const { user, logout } = useAuth()
   const [stats, setStats] = useState<{ events: number; rooms: number } | null>(null)
   const [createdAt, setCreatedAt] = useState<string | null>(null)
   const [changing, setChanging] = useState(false)
@@ -15,27 +15,26 @@ export default function Profile() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (!token) return
     let mounted = true
     ;(async () => {
       try {
-        const me = await api.get('/auth/me', token)
+        const me = await api.get('/auth/me')
         if (mounted) setCreatedAt(me.created_at || null)
       } catch (e) {}
       try {
-        const s = await api.get('/auth/stats', token)
+        const s = await api.get('/auth/stats')
         if (mounted) setStats(s)
       } catch (e) {}
     })()
     return () => { mounted = false }
-  }, [token])
+  }, [])
 
   async function handleChange() {
     setMsg(null)
     if (!oldPwd || !newPwd) { setMsg('Bitte beide Felder ausfüllen'); return }
     setChanging(true)
     try {
-      await api.post('/auth/change-password', { oldPassword: oldPwd, newPassword: newPwd }, token ?? undefined)
+      await api.post('/auth/change-password', { oldPassword: oldPwd, newPassword: newPwd })
       setMsg('Passwort geändert')
       setOldPwd('')
       setNewPwd('')
@@ -45,10 +44,8 @@ export default function Profile() {
   }
 
   async function handleDeleteAccount() {
-    if (!token) return
     try {
-      await api.del('/auth/me', token)
-      try { localStorage.removeItem('tm_token'); localStorage.removeItem('tm_user') } catch (e) {}
+      await api.del('/auth/me')
       logout()
     } catch (e) {
       setMsg('Account-Löschen fehlgeschlagen')

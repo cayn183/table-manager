@@ -18,7 +18,7 @@ export default function LoadRoom() {
   useEffect(() => {
     let mounted = true
     ;(async () => {
-      if (auth.token && userId) {
+      if (userId) {
         await hydrateUserData(auth.token, userId)
       }
       if (!mounted) return
@@ -40,7 +40,7 @@ export default function LoadRoom() {
     userStorage.setItem(ROOMS_KEY, JSON.stringify(updated), userId)
     setRooms(updated)
     try {
-      if (auth.token && userId) {
+      if (userId) {
         void syncUserData(auth.token, userId)
       }
     } catch (e) {}
