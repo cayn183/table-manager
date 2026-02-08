@@ -38,29 +38,6 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ### Fixed
 - Minor chore/finalization items around release drafting and changelog cleanup.
 
-<<<<<<< HEAD
-=======
-## [Unreleased]
-## [0.8.2] - 2026-02-03
-
->>>>>>> e9193b40cb9277838258bdca91b61159c026c35e
-
-## [0.8.1] - 2026-01-29
-
-### Added
-- Unload / keepalive sync: Frontend sends a compact batch to `/events/batch` using `fetch(..., { keepalive: true })` to persist latest events/rooms on page unload.
-- Hydration on login: server events and rooms are imported into user‑scoped localStorage when signing in.
-
-### Changed
-- `syncUserData()` implements retry with exponential backoff and surfaces persistent errors to callers.
-- Timeline rendering: height‑aware column segmentation and continuation headers to avoid mixed breaks across columns.
-- Manual saves await server sync and show saving UI; autosave skips when no changes present.
-
-### Fixed
-- Backend: `POST /events` supports upsert by client id when owned by the user; `DELETE /events/:id` implemented.
-- TypeScript and build fixes: added Vite import types, marked async functions, adjusted api calls to satisfy typings.
-
-
 
 ## [0.8.2] - 2026-02-03
 
@@ -78,6 +55,22 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 - Korrekte Übergabe von `BUILD_SHA`/`BUILD_VERSION` in Dockerfile und Vite‑Defines.
 - Lockfiles (`package-lock.json`) wurden in Version‑Commits aufgenommen.
 - Dev‑Package‑Version im Admin wurde normalisiert.
+
+## [0.8.1] - 2026-01-29
+
+### Added
+- Unload / keepalive sync: Frontend sends a compact batch to `/events/batch` using `fetch(..., { keepalive: true })` to persist latest events/rooms on page unload.
+- Hydration on login: server events and rooms are imported into user‑scoped localStorage when signing in.
+
+### Changed
+- `syncUserData()` implements retry with exponential backoff and surfaces persistent errors to callers.
+- Timeline rendering: height‑aware column segmentation and continuation headers to avoid mixed breaks across columns.
+- Manual saves await server sync and show saving UI; autosave skips when no changes present.
+
+### Fixed
+- Backend: `POST /events` supports upsert by client id when owned by the user; `DELETE /events/:id` implemented.
+- TypeScript and build fixes: added Vite import types, marked async functions, adjusted api calls to satisfy typings.
+
 
 ## [0.8.0] - 2026-01-27
 
