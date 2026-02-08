@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import userStorage from '../utils/userStorage'
 import { syncUserData } from '../utils/sync'
+import type { ToGoEventConfig } from '../types/togo'
 
 const EVENTS_KEY = 'events'
 const CURRENT_EVENT_KEY = 'currentEvent'
@@ -10,7 +11,16 @@ const ROOMS_KEY = 'rooms'
 const STORAGE_KEY = 'currentRoom'
 
 type SavedRoom = { id: string; name: string; data: any }
-type EventItem = { id: string; name: string; from?: string; to?: string; roomId?: string; eventDate?: string }
+type EventItem = { 
+  id: string
+  name: string
+  from?: string
+  to?: string
+  roomId?: string
+  eventDate?: string
+  isToGo?: boolean
+  toGoConfig?: ToGoEventConfig
+}
 
 export default function Home() {
   const navigate = useNavigate()
@@ -21,6 +31,7 @@ export default function Home() {
   const [eventDate, setEventDate] = useState('')
   const [fromTime, setFromTime] = useState('')
   const [toTime, setToTime] = useState('')
+  const [isToGo, setIsToGo] = useState(false)
   const [useExistingRoom, setUseExistingRoom] = useState<'existing' | 'new'>('existing')
   const [rooms, setRooms] = useState<SavedRoom[]>([])
   const [selectedRoomId, setSelectedRoomId] = useState<string>('')
@@ -41,9 +52,31 @@ export default function Home() {
 
   function createEvent() {
     const id = `e-${Date.now()}`
-    const ev: EventItem = { id, name: eventName || `Event ${new Date().toLocaleDateString()}`, eventDate: eventDate || undefined, from: fromTime || undefined, to: toTime || undefined }
+    const ev: EventItem = { 
+      id, 
+      name: eventName || `Event ${new Date().toLocaleDateString()}`, 
+      eventDate: eventDate || undefined, 
+      from: fromTime || undefined, 
+      to: toTime || undefined,
+      isToGo: isToGo || undefined,
+      toGoConfig: isToGo ? { menuItems: [], orders: [] } : undefined
+    }
     const rawEvents = userStorage.getItem(EVENTS_KEY, userId) || localStorage.getItem(EVENTS_KEY) || '[]'
     const all = JSON.parse(rawEvents as string) as EventItem[]
+    
+    // ToGo events don't need a room
+    if (isToGo) {
+      userStorage.setItem(CURRENT_EVENT_KEY, JSON.stringify(ev), userId)
+      userStorage.setItem(EVENTS_KEY, JSON.stringify([...all, ev]), userId)
+      try {
+        if (auth.token && userId) {
+          void syncUserData(auth.token, userId)
+        }
+      } catch (e) {}
+      navigate('/togo')
+      return
+    }
+    
     if (useExistingRoom === 'existing' && selectedRoomId) {
       const room = rooms.find(r => r.id === selectedRoomId)
       if (room) {
@@ -231,9 +264,69 @@ export default function Home() {
                   onBlur={e => e.target.style.borderColor = '#e2e8f0'}
                 />
               </div>
-              <div style={{ background: '#f1f5f9', padding: '16px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              
+              {/* ToGo Toggle */}
+              <div style={{ 
+                background: isToGo ? 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' : '#f1f5f9', 
+                padding: '16px', 
+                borderRadius: '8px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                transition: 'all 0.3s ease'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '24px' }}>{isToGo ? '🥡' : '🍽️'}</span>
+                  <div>
+                    <div style={{ fontWeight: '600', fontSize: '14px', color: isToGo ? 'white' : '#1e293b' }}>
+                      {isToGo ? 'ToGo / Abholung' : 'Vor Ort essen'}
+                    </div>
+                    <div style={{ fontSize: '12px', color: isToGo ? 'rgba(255,255,255,0.8)' : '#64748b' }}>
+                      {isToGo ? 'Bestellungen ohne Tischplatzierung' : 'Mit Raum- und Tischplanung'}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsToGo(!isToGo)}
+                  style={{
+                    width: '56px',
+                    height: '30px',
+                    borderRadius: '15px',
+                    border: 'none',
+                    background: isToGo ? 'rgba(255,255,255,0.3)' : '#cbd5e1',
+                    cursor: 'pointer',
+                    position: 'relative',
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  <div style={{
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '12px',
+                    background: 'white',
+                    position: 'absolute',
+                    top: '3px',
+                    left: isToGo ? '29px' : '3px',
+                    transition: 'all 0.3s ease',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                  }} />
+                </button>
+              </div>
+
+              {/* Room selection - only show when NOT ToGo */}
+              <div style={{ 
+                background: '#f1f5f9', 
+                padding: '16px', 
+                borderRadius: '8px', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: '12px',
+                opacity: isToGo ? 0.4 : 1,
+                pointerEvents: isToGo ? 'none' : 'auto',
+                transition: 'opacity 0.3s ease'
+              }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '500' }}>
-                  <input type="radio" checked={useExistingRoom === 'existing'} onChange={() => setUseExistingRoom('existing')} /> 
+                  <input type="radio" checked={useExistingRoom === 'existing'} onChange={() => setUseExistingRoom('existing')} disabled={isToGo} /> 
                   Bestehenden Raum verwenden
                 </label>
                 {useExistingRoom === 'existing' && (
@@ -243,12 +336,13 @@ export default function Home() {
                     onChange={e => setSelectedRoomId(e.target.value)}
                     onFocus={e => e.target.style.borderColor = '#667eea'}
                     onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                    disabled={isToGo}
                   >
                     {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                   </select>
                 )}
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '500' }}>
-                  <input type="radio" checked={useExistingRoom === 'new'} onChange={() => setUseExistingRoom('new')} /> 
+                  <input type="radio" checked={useExistingRoom === 'new'} onChange={() => setUseExistingRoom('new')} disabled={isToGo} /> 
                   Neuen Raum anlegen
                 </label>
               </div>

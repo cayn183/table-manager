@@ -6,39 +6,37 @@ Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
-### Added
-## [0.8.3] - 2026-02-06
-
-- Print: Timeline/print layout improvements — kompakte Darstellung, Paging und Footer für bessere Druck-Layouts.
-- Print: Verbesserte Karten-/Map-Skalierung und Positionierung des Last‑Modified Footers.
-
-### Changed
-- Print: Entfernen veralteter Legacy-Print-Views und Konsolidierung der Timeline/Print-Tweaks.
-
-### Fixed
-- Verschiedene kleine CI/Dev-Chores und Version-Sync-Adjustments (intern).
-
-## [Unreleased]
-## [0.8.2] - 2026-02-03
-## [0.8.3] - 2026-02-06
-
-
-
-## [0.8.1] - 2026-01-29
 
 ### Added
-- Unload / keepalive sync: Frontend sends a compact batch to `/events/batch` using `fetch(..., { keepalive: true })` to persist latest events/rooms on page unload.
-- Hydration on login: server events and rooms are imported into user‑scoped localStorage when signing in.
+- ToGo feature: new standalone ToGo/Takeaway module with full UI for managing menu items, creating and editing orders, and importing orders via CSV.
+- ToGo: CSV import/export support (delimiter detection, encoding heuristics, example & blank CSV generation).
+- ToGo: Compact portrait A4 print export (single-column), with slot-based grouping (15‑minute bins), continuation headers and per-page numbering.
 
 ### Changed
-- `syncUserData()` implements retry with exponential backoff and surfaces persistent errors to callers.
-- Timeline rendering: height‑aware column segmentation and continuation headers to avoid mixed breaks across columns.
-- Manual saves await server sync and show saving UI; autosave skips when no changes present.
+- Print: Smarter pagination algorithm — calculates header height, family entries and note heights to avoid premature page breaks and to allow graceful "Fortsetzung" segments.
+- ToGo: Reduced print font sizes for name/price/items/notes and inline item formatting (pipe-separated) to increase density on A4 pages.
+- Print pipeline: unified render path for Room and ToGo print outputs; improved color and contrast for printed badges and notes.
 
 ### Fixed
-- Backend: `POST /events` supports upsert by client id when owned by the user; `DELETE /events/:id` implemented.
-- TypeScript and build fixes: added Vite import types, marked async functions, adjusted api calls to satisfy typings.
+- Print: Fixed issues where long item lists or notes caused early page breaks; single large orders now correctly span pages without dropping headers.
+- CSV: Improved menu-matching and fuzzy suggestion logic when importing names that don't exactly match menu entries.
 
+### Release note
+- Prepared for release `0.9.0` — includes ToGo feature, print improvements, and CSV import/export enhancements.
+
+
+## [0.8.3] - 2026-02-06
+
+### Added
+- Print: Improved timeline/print layouts — compact layout, paging and footer for multi‑page print outputs.
+- Print: Better map scaling and moved `last modified` footer below the map for clearer print exports.
+
+### Changed
+- Removed legacy print view implementations and consolidated timeline/print tweaks into a single print pipeline.
+- Included local `Room.tsx` edits to harmonize room rendering for print output.
+
+### Fixed
+- Minor chore/finalization items around release drafting and changelog cleanup.
 
 
 ## [0.8.2] - 2026-02-03
@@ -57,6 +55,22 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 - Korrekte Übergabe von `BUILD_SHA`/`BUILD_VERSION` in Dockerfile und Vite‑Defines.
 - Lockfiles (`package-lock.json`) wurden in Version‑Commits aufgenommen.
 - Dev‑Package‑Version im Admin wurde normalisiert.
+
+## [0.8.1] - 2026-01-29
+
+### Added
+- Unload / keepalive sync: Frontend sends a compact batch to `/events/batch` using `fetch(..., { keepalive: true })` to persist latest events/rooms on page unload.
+- Hydration on login: server events and rooms are imported into user‑scoped localStorage when signing in.
+
+### Changed
+- `syncUserData()` implements retry with exponential backoff and surfaces persistent errors to callers.
+- Timeline rendering: height‑aware column segmentation and continuation headers to avoid mixed breaks across columns.
+- Manual saves await server sync and show saving UI; autosave skips when no changes present.
+
+### Fixed
+- Backend: `POST /events` supports upsert by client id when owned by the user; `DELETE /events/:id` implemented.
+- TypeScript and build fixes: added Vite import types, marked async functions, adjusted api calls to satisfy typings.
+
 
 ## [0.8.0] - 2026-01-27
 
