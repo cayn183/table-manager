@@ -741,90 +741,487 @@ export default function ToGo() {
   const printOrders = useCallback(() => {
     const printWindow = window.open('', '_blank')
     if (!printWindow) return
-    
+
+    const escapeHtml = (value: string) => value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+
+    const formatDateDE = (dateStr?: string | null) => {
+      if (!dateStr) return null
+      let d: Date | null = null
+      if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+        d = new Date(dateStr)
+      } else if (/^\d{2}\.\d{2}\.\d{4}/.test(dateStr)) {
+        const [day, month, year] = dateStr.split('.')
+        d = new Date(`${year}-${month}-${day}`)
+      } else {
+        d = new Date(dateStr)
+      }
+      if (!d || isNaN(d.getTime())) return dateStr
+      const dd = String(d.getDate()).padStart(2, '0')
+      const mm = String(d.getMonth() + 1).padStart(2, '0')
+      const yyyy = d.getFullYear()
+      return `${dd}.${mm}.${yyyy}`
+    }
+
+    type Slot = {
+      key: string
+      label: string
+      sortKey: number
+      orders: ToGoOrder[]
+      isNoTime?: boolean
+    }
+
+    const timeInterval = 15
+    const slotsMap = new Map<string, Slot>()
+    const noTimeOrders: ToGoOrder[] = []
+
+    sortedOrders.forEach(order => {
+      if (!order.time) {
+        noTimeOrders.push(order)
+        return
+      }
+      const [hours, minutes] = order.time.split(':').map(Number)
+      if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+        noTimeOrders.push(order)
+        return
+      }
+      const slotMinutes = Math.floor(minutes / timeInterval) * timeInterval
+      const slotTime = `${String(hours).padStart(2, '0')}:${String(slotMinutes).padStart(2, '0')}`
+      const endMinutesRaw = slotMinutes + timeInterval
+      const endHours = hours + Math.floor(endMinutesRaw / 60)
+      const endMinutes = endMinutesRaw % 60
+      const endTime = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`
+      const label = `${slotTime} - ${endTime}`
+      const key = label
+      const sortKey = hours * 60 + slotMinutes
+      if (!slotsMap.has(key)) {
+        slotsMap.set(key, { key, label, sortKey, orders: [] })
+      }
+      slotsMap.get(key)!.orders.push(order)
+    })
+
+    const slots = Array.from(slotsMap.values()).sort((a, b) => a.sortKey - b.sortKey)
+    if (noTimeOrders.length > 0) {
+      slots.push({
+        key: 'no-time',
+        label: 'Ohne Zeitangabe',
+        sortKey: Number.POSITIVE_INFINITY,
+        orders: noTimeOrders,
+        isNoTime: true
+      })
+    }
+
+    const PAGE_HEIGHT = 980
+    const HEADER_HEIGHT = 110
+    const FOOTER_HEIGHT = 32
+    const SLOT_HEADER_HEIGHT = 34
+    const ORDER_GAP = 8
+    const ORDER_BASE_HEIGHT = 32
+    const ORDER_ITEM_HEIGHT = 14
+    const ORDER_NOTE_HEIGHT = 16
+    const AVAILABLE_HEIGHT = PAGE_HEIGHT - HEADER_HEIGHT - FOOTER_HEIGHT
+
+    const estimateOrderHeight = (order: ToGoOrder) => {
+      const itemLines = Math.max(1, order.items.length)
+      const noteHeight = order.note ? ORDER_NOTE_HEIGHT : 0
+      return ORDER_BASE_HEIGHT + itemLines * ORDER_ITEM_HEIGHT + noteHeight
+    }
+
+    const formatCompactPrice = (cents: number) => {
+      const hasCents = cents % 100 !== 0
+      return (cents / 100).toLocaleString('de-DE', {
+        minimumFractionDigits: hasCents ? 2 : 0,
+        maximumFractionDigits: hasCents ? 2 : 0
+      }) + '€'
+    }
+
+    type PageSection = { label: string; orders: ToGoOrder[]; isNoTime?: boolean }
+    type Page = { sections: PageSection[] }
+
+    const pages: Page[] = []
+    let currentPage: Page = { sections: [] }
+    let remainingHeight = AVAILABLE_HEIGHT
+
+    const startNewPage = () => {
+      if (currentPage.sections.length > 0) pages.push(currentPage)
+      currentPage = { sections: [] }
+      remainingHeight = AVAILABLE_HEIGHT
+    }
+
+    slots.forEach(slot => {
+      let index = 0
+      let segmentIndex = 0
+      while (index < slot.orders.length) {
+        const headerLabel = segmentIndex === 0 ? slot.label : `Fortsetzung (${slot.label})`
+        let segmentOrders: ToGoOrder[] = []
+        let segmentHeight = SLOT_HEADER_HEIGHT
+
+        while (index < slot.orders.length) {
+          const order = slot.orders[index]
+          const orderHeight = ORDER_GAP + estimateOrderHeight(order)
+
+          if (segmentOrders.length === 0 && segmentHeight + orderHeight > remainingHeight) {
+            if (currentPage.sections.length > 0) {
+              startNewPage()
+              segmentHeight = SLOT_HEADER_HEIGHT
+              continue
+            }
+          } else if (segmentOrders.length > 0 && segmentHeight + orderHeight > remainingHeight) {
+            break
+          }
+
+          segmentHeight += orderHeight
+          segmentOrders.push(order)
+          index += 1
+        }
+
+        if (segmentOrders.length === 0 && index < slot.orders.length) {
+          const order = slot.orders[index]
+          const forcedHeight = ORDER_GAP + estimateOrderHeight(order)
+          segmentHeight += forcedHeight
+          segmentOrders.push(order)
+          index += 1
+        }
+
+        currentPage.sections.push({ label: headerLabel, orders: segmentOrders, isNoTime: slot.isNoTime })
+        remainingHeight -= segmentHeight
+        if (remainingHeight < 0) remainingHeight = 0
+        segmentIndex += 1
+
+        if (index < slot.orders.length && remainingHeight < SLOT_HEADER_HEIGHT + ORDER_GAP + estimateOrderHeight(slot.orders[index])) {
+          startNewPage()
+        }
+      }
+    })
+
+    if (currentPage.sections.length > 0) pages.push(currentPage)
+    if (pages.length === 0) pages.push({ sections: [] })
+
+    const eventDate = formatDateDE(event?.eventDate || null)
+    const timeRangeRaw = event?.from || event?.to ? `${event?.from || ''}${event?.from && event?.to ? ' – ' : ''}${event?.to || ''}` : ''
+    const timeRange = timeRangeRaw ? `${timeRangeRaw} Uhr` : ''
+    const headerMeta = [eventDate, timeRange].filter(Boolean).join(' • ')
+    const printedAt = new Date().toLocaleString('de-DE')
+    const eventName = escapeHtml(event?.name || 'ToGo-Bestellungen')
+
+    const renderOrder = (order: ToGoOrder) => {
+      const total = calculateOrderTotal(order, menuItems)
+      const familyLabel = order.time
+        ? `${order.familyName} (${order.time} Uhr)`
+        : order.familyName
+      const itemsLine = order.items
+        .map(item => {
+          const menuItem = menuItems.find(m => m.id === item.menuItemId)
+          if (!menuItem) return ''
+          return `${item.quantity}x ${escapeHtml(menuItem.name)} (${item.quantity}x${formatCompactPrice(menuItem.price)})`
+        })
+        .filter(Boolean)
+        .join(' | ')
+
+      const noteHTML = order.note
+        ? `<div class="togo-order-note">📝 ${escapeHtml(order.note)}</div>`
+        : ''
+
+      return `
+        <div class="togo-order-card">
+          <div class="togo-order-header">
+            <div>
+              <div class="togo-order-name">${escapeHtml(familyLabel)}</div>
+            </div>
+            <div class="togo-order-total">${formatPrice(total)}</div>
+          </div>
+          <div class="togo-order-items">${itemsLine || '-'}</div>
+          ${noteHTML}
+        </div>
+      `
+    }
+
+    const renderSection = (section: PageSection) => {
+      const sectionClass = section.isNoTime ? 'togo-slot togo-slot--no-time' : 'togo-slot'
+      const headerClass = section.isNoTime ? 'togo-slot-header togo-slot-header--muted' : 'togo-slot-header'
+      return `
+        <section class="${sectionClass}">
+          <div class="${headerClass}">${escapeHtml(section.label)}</div>
+          ${section.orders.map(renderOrder).join('')}
+        </section>
+      `
+    }
+
+    const pagesHTML = pages.map((page, pageIndex) => {
+      const sectionsHTML = page.sections.length > 0
+        ? page.sections.map(renderSection).join('')
+        : `<div class="togo-empty">Keine Bestellungen vorhanden.</div>`
+      return `
+        <div class="togo-print-page">
+          <div class="togo-print-header">
+            <div class="togo-header-main">
+              <div class="togo-header-title-block">
+                <h1 class="togo-header-title">${eventName}</h1>
+                ${headerMeta ? `<div class="togo-header-meta">${escapeHtml(headerMeta)}</div>` : ''}
+              </div>
+              <div class="togo-header-stats">
+                <span class="togo-header-stat-pill">
+                  <span>Bestellungen:</span>
+                  <span class="togo-header-stat-value">${stats.totalOrders}</span>
+                </span>
+              </div>
+            </div>
+          </div>
+          <div class="togo-print-body">${sectionsHTML}</div>
+          <div class="togo-print-footer">
+            <span>Stand: ${escapeHtml(printedAt)}</span>
+            <span>Seite ${pageIndex + 1} / ${pages.length}</span>
+          </div>
+        </div>
+      `
+    }).join('')
+
     const html = `
 <!DOCTYPE html>
-<html>
+<html lang="de">
 <head>
-  <title>${event?.name || 'ToGo'} - Bestellungen</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${eventName} - Druckansicht</title>
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; padding: 20px; }
-    h1 { font-size: 24px; margin-bottom: 8px; }
-    .meta { color: #666; margin-bottom: 20px; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; }
-    th { background: #f5f5f5; }
-    .total { font-weight: bold; }
-    .summary { margin-top: 20px; padding: 16px; background: #f5f5f5; border-radius: 8px; }
-    .summary h3 { margin: 0 0 12px; }
-    .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-    .summary-item { text-align: center; }
-    .summary-value { font-size: 24px; font-weight: bold; }
-    .summary-label { font-size: 12px; color: #666; }
-    @media print { 
-      body { padding: 0; } 
-      button { display: none; }
+    @page {
+      size: A4 portrait;
+      margin: 10mm;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #f1f5f9;
+      color: #0f172a;
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .togo-print-page {
+      position: relative;
+      width: 210mm;
+      height: 297mm;
+      margin: 16px auto;
+      padding: 12mm 12mm 14mm;
+      background: white;
+      box-shadow: 0 6px 24px rgba(15,23,42,0.15);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      page-break-after: always;
+      break-after: page;
+      overflow: hidden;
+    }
+
+    .togo-print-page:last-child {
+      page-break-after: auto;
+      break-after: auto;
+    }
+
+    .togo-print-header {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      border: 1px solid #e2e8f0;
+    }
+
+    .togo-header-main {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .togo-header-title-block {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .togo-header-title {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: 0.2px;
+    }
+
+    .togo-header-meta {
+      font-size: 12px;
+      font-weight: 600;
+      color: #475569;
+    }
+
+    .togo-header-stats {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+    }
+
+    .togo-header-stat-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 4px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #475569;
+    }
+
+    .togo-header-stat-value {
+      font-size: 14px;
+      font-weight: 700;
+      color: #ea580c;
+    }
+
+    .togo-print-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow: hidden;
+    }
+
+    .togo-slot {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .togo-slot-header {
+      padding: 8px 12px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: #0f172a;
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      border-left: 6px solid #f97316;
+    }
+
+    .togo-slot-header--muted {
+      background: #f1f5f9;
+      border-color: #e2e8f0;
+      border-left-color: #94a3b8;
+      color: #475569;
+    }
+
+    .togo-order-card {
+      margin-top: 8px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+      background: white;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .togo-order-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .togo-order-name {
+      font-size: 12px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .togo-order-total {
+      font-size: 12px;
+      font-weight: 700;
+      color: #0f172a;
+      white-space: nowrap;
+    }
+
+    .togo-order-items {
+      font-size: 11px;
+      font-weight: 600;
+      color: #475569;
+      line-height: 1.4;
+      word-break: break-word;
+    }
+
+    .togo-order-note {
+      margin-top: 6px;
+      font-size: 10px;
+      font-weight: 600;
+      color: #b45309;
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      padding: 6px 8px;
+      border-radius: 8px;
+    }
+
+    .togo-print-footer {
+      margin-top: auto;
+      font-size: 9px;
+      color: #94a3b8;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding-top: 4px;
+    }
+
+    .togo-print-footer span {
+      font-weight: 500;
+    }
+
+    .togo-empty {
+      font-size: 12px;
+      color: #94a3b8;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px dashed #e2e8f0;
+      background: #f8fafc;
+    }
+
+    @media print {
+      body {
+        background: white;
+      }
+
+      .togo-print-page {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 8mm 8mm 10mm;
+        box-shadow: none;
+        page-break-after: always;
+        break-after: page;
+      }
+
+      .togo-print-page:last-child {
+        page-break-after: auto;
+        break-after: auto;
+      }
     }
   </style>
 </head>
 <body>
-  <h1>🥡 ${event?.name || 'ToGo-Bestellungen'}</h1>
-  <div class="meta">${event?.eventDate || ''} ${event?.from ? '• ' + event.from : ''}${event?.to ? ' - ' + event.to : ''}</div>
-  
-  <table>
-    <thead>
-      <tr>
-        <th>Zeit</th>
-        <th>Name</th>
-        <th>Bestellung</th>
-        <th>Summe</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${sortedOrders.map(order => {
-        const total = calculateOrderTotal(order, menuItems)
-        const itemsStr = order.items.map(i => {
-          const mi = menuItems.find(m => m.id === i.menuItemId)
-          if (!mi) return ''
-          return `${i.quantity}x ${mi.name} (${formatPrice(mi.price)})`
-        }).filter(Boolean).join(', ')
-        return `
-          <tr>
-            <td>${order.time || '-'}</td>
-            <td>${order.familyName}${order.note ? '<br><small>📝 ' + order.note + '</small>' : ''}</td>
-            <td>${itemsStr}</td>
-            <td class="total">${formatPrice(total)}</td>
-          </tr>
-        `
-      }).join('')}
-    </tbody>
-  </table>
-  
-  <div class="summary">
-    <h3>Zusammenfassung</h3>
-    <div class="summary-grid">
-      <div class="summary-item">
-        <div class="summary-value">${stats.totalOrders}</div>
-        <div class="summary-label">Bestellungen</div>
-      </div>
-      <div class="summary-item">
-        <div class="summary-value">${formatPrice(stats.totalRevenue)}</div>
-        <div class="summary-label">Gesamtumsatz</div>
-      </div>
-    </div>
-    <h4 style="margin-top: 16px; margin-bottom: 8px;">Bestellte Artikel:</h4>
-    <ul style="margin: 0; padding-left: 20px;">
-      ${menuItems.filter(m => stats.itemCounts[m.id]).map(m => 
-        `<li>${stats.itemCounts[m.id]}× ${m.name}</li>`
-      ).join('')}
-    </ul>
-  </div>
-  
-  <button onclick="window.print()" style="margin-top: 20px; padding: 10px 20px; cursor: pointer;">🖨️ Drucken</button>
+  ${pagesHTML}
 </body>
 </html>
     `
-    
+
     printWindow.document.write(html)
     printWindow.document.close()
   }, [event, sortedOrders, menuItems, stats])
