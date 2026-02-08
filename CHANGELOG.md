@@ -7,6 +7,17 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Added
+- ToGo: Compact A4 (portrait) print export with per-page header/footer and improved pagination (slot-aware breaks).
+
+### Changed
+- ToGo: Reduced font sizes for compact printing (names/prices/items/notes) and inline item formatting.
+- Print pagination: smarter calculation of headers, family entries and notes to avoid premature page breaks.
+
+### Release note
+- Prepared for release `0.9.0`.
+
+
 ## [0.8.3] - 2026-02-06
 
 ### Added
