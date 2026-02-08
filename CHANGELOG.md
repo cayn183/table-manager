@@ -8,14 +8,21 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 
 ### Added
-- ToGo: Compact A4 (portrait) print export with per-page header/footer and improved pagination (slot-aware breaks).
+- ToGo feature: new standalone ToGo/Takeaway module with full UI for managing menu items, creating and editing orders, and importing orders via CSV.
+- ToGo: CSV import/export support (delimiter detection, encoding heuristics, example & blank CSV generation).
+- ToGo: Compact portrait A4 print export (single-column), with slot-based grouping (15‑minute bins), continuation headers and per-page numbering.
 
 ### Changed
-- ToGo: Reduced font sizes for compact printing (names/prices/items/notes) and inline item formatting.
-- Print pagination: smarter calculation of headers, family entries and notes to avoid premature page breaks.
+- Print: Smarter pagination algorithm — calculates header height, family entries and note heights to avoid premature page breaks and to allow graceful "Fortsetzung" segments.
+- ToGo: Reduced print font sizes for name/price/items/notes and inline item formatting (pipe-separated) to increase density on A4 pages.
+- Print pipeline: unified render path for Room and ToGo print outputs; improved color and contrast for printed badges and notes.
+
+### Fixed
+- Print: Fixed issues where long item lists or notes caused early page breaks; single large orders now correctly span pages without dropping headers.
+- CSV: Improved menu-matching and fuzzy suggestion logic when importing names that don't exactly match menu entries.
 
 ### Release note
-- Prepared for release `0.9.0`.
+- Prepared for release `0.9.0` — includes ToGo feature, print improvements, and CSV import/export enhancements.
 
 
 ## [0.8.3] - 2026-02-06
