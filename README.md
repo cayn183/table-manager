@@ -35,7 +35,7 @@ Docker, Deployments, Postgres-Umgebungen, Build-Args und Wartungshinweise sind i
 
 ## Landing Page & App
 
-- Die Marketing-Startseite liegt auf `/` und funktioniert ohne Frontdomain direkt unter eventplaner.caydan.de.
+- Die Marketing-Startseite liegt auf `/` und funktioniert ohne Frontdomain direkt..
 - Der eigentliche Planner ist unter `/app` erreichbar; Login/Register laufen ueber `/login` bzw. `/register`.
 
 ## Sonstiges
