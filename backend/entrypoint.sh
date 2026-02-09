@@ -2,7 +2,13 @@
 set -e
 
 DATA_DIR=${DATA_DIR:-/app/data}
-LOGFILE=${LOG_FILE:-$DATA_DIR/backend.log}
+CASE_SERVICE=${SERVICE:-}
+if [ "$CASE_SERVICE" = "frontend" ]; then
+  DEFAULT_LOGFILE="$DATA_DIR/frontend.log"
+else
+  DEFAULT_LOGFILE="$DATA_DIR/backend.log"
+fi
+LOGFILE=${LOG_FILE:-$DEFAULT_LOGFILE}
 
 log() { echo "[entrypoint] $1"; }
 
@@ -12,7 +18,7 @@ if [ ! -d "$DATA_DIR" ]; then
   mkdir -p "$DATA_DIR"
 fi
 if [ ! -f "$LOGFILE" ]; then
-  log "Creating backend log file $LOGFILE"
+  log "Creating log file $LOGFILE"
   touch "$LOGFILE"
 fi
 # ensure predictable permissions so rotation and writes succeed
