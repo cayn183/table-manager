@@ -33,31 +33,52 @@ services:
       - JWT_SECRET=${JWT_SECRET:-replace_with_a_strong_secret}
       - NODE_ENV=production
       - MIGRATE_ON_START=true
-      # Logging: logs written to /app/data/backend.log
+      # CORS: set to your external frontend URL (comma-separated for multiple)
+      # e.g. https://app.example.com or http://192.168.1.100:5173
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:5173}
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-info}
       - LOG_FILE=/app/data/backend.log
+      # Reverse proxy: trust first proxy hop (set to 'false' to disable)
+      - TRUST_PROXY=${TRUST_PROXY:-1}
     depends_on:
       postgres:
         condition: service_healthy
     ports:
       - "4000:4000"
     volumes:
-      # Backend data and logs
       - backend-data:/app/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   frontend:
     image: ghcr.io/cayn183/table-manager:latest
     container_name: table-manager-frontend
     environment:
-      # API URL must be accessible from browser (use external hostname in production)
+      # API URL as seen by the BROWSER (external URL, not Docker-internal)
+      # e.g. https://api.example.com or http://192.168.1.100:4000
       - VITE_API_URL=${VITE_API_URL:-http://localhost:4000}
-      # Frontend preview server log level: info|warn|error|silent|debug
+      # Log level for Vite preview server (info|warn|error|silent|debug)
       - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-info}
+      # Allowed hostnames for reverse proxy (comma-separated, or '*' for all)
+      - VITE_PREVIEW_ALLOWED_HOSTS=${VITE_PREVIEW_ALLOWED_HOSTS:-*}
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
       - "5173:5173"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5173/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 volumes:
   postgres-data:

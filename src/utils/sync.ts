@@ -153,9 +153,10 @@ export async function syncUserDataOnUnload(token: string | null, userId: string 
   const events = safeParse<any[]>(eventsRaw, [])
   const roomsList = dedupeRooms(safeParse<any[]>(roomsRaw, []))
 
-  // determine backend base (same logic as apiClient)
+  // determine backend base (runtime config > build-time > window.location fallback)
+  const RUNTIME_BASE = typeof window !== 'undefined' && (window as any).__RUNTIME_CONFIG__?.VITE_API_URL
   const BUILD_BASE = (import.meta as any).env?.VITE_API_URL
-  let BASE = BUILD_BASE
+  let BASE = RUNTIME_BASE || BUILD_BASE
   if (!BASE) {
     try {
       if (typeof window !== 'undefined' && window.location) {

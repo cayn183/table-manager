@@ -17,6 +17,7 @@ RUN npm ci
 
 # Copy source and build
 COPY src ./src
+COPY public ./public
 COPY index.html ./
 COPY vite.config.ts ./
 COPY tsconfig.json ./
@@ -32,9 +33,14 @@ COPY --from=build /build/dist ./dist
 COPY --from=build /build/node_modules ./node_modules
 COPY --from=build /build/package.json ./package.json
 COPY --from=build /build/scripts ./scripts
+COPY --from=build /build/vite.config.ts ./vite.config.ts
+
+# Entrypoint generates runtime-config.js from env vars, then starts preview
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN sed -i 's/\r$//' /usr/local/bin/entrypoint.sh && chmod +x /usr/local/bin/entrypoint.sh
 
 # Expose Vite preview port
 EXPOSE 5173
 
-# Start production preview server
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["npm", "run", "start"]

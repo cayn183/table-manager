@@ -1,7 +1,7 @@
 version: '3.8'
 
 # Unraid-optimized 2-Container setup for Table-Manager
-# Logging: Backend writes to /app/data/backend.log (accessible in Unraid at /mnt/user/appdata/table-manager/backend-data/backend.log)
+# See README or anleitungen/deployment.md for setup instructions.
 
 services:
   postgres:
@@ -21,7 +21,6 @@ services:
       retries: 5
 
   backend:
-    # Backend repository: Cayn183/backend-table-manager
     image: ghcr.io/cayn183/backend-table-manager:latest
     container_name: table-manager-backend
     environment:
@@ -30,51 +29,84 @@ services:
       - POSTGRES_USER=${POSTGRES_USER:-tm_user}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-verysecurepassword}
       - POSTGRES_DB=${POSTGRES_DB:-tablemanager}
-      - POSTGRES_SSL=${POSTGRES_SSL:-false}
       - JWT_SECRET=${JWT_SECRET:-replace_with_a_strong_secret}
       - NODE_ENV=production
       - MIGRATE_ON_START=true
-      # Logging configuration for Unraid
-      # Log file accessible at: /mnt/user/appdata/table-manager/backend-data/backend.log
+      # CORS: Set to your external frontend URL!
+      # Examples: https://app.example.com  or  http://192.168.178.2:5173
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:5173}
+      # Logging: visible in Unraid Docker Logs AND written to file
+      - LOG_LEVEL=${LOG_LEVEL:-info}
       - LOG_FILE=/app/data/backend.log
+      # Reverse proxy support
+      - TRUST_PROXY=${TRUST_PROXY:-1}
       # Optional Sentry
-      - SENTRY_DSN=${SENTRY_DSN}
-      - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE}
+      - SENTRY_DSN=${SENTRY_DSN:-}
     depends_on:
       postgres:
         condition: service_healthy
     ports:
       - "4000:4000"
     volumes:
-      # Backend data and logs - accessible in Unraid file browser
       - /mnt/user/appdata/table-manager/backend-data:/app/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   frontend:
-    # Frontend repository: Cayn183/table-manager
     image: ghcr.io/cayn183/table-manager:latest
     container_name: table-manager-frontend
+    environment:
+      # API URL as seen by the BROWSER (not Docker-internal!)
+      # Use your Unraid IP or external domain, e.g.:
+      #   http://192.168.178.2:4000
+      #   https://api.example.com
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:4000}
+      # Log level for Vite preview server
+      - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-info}
+      # Reverse proxy: set to '*' to accept all host headers
+      - VITE_PREVIEW_ALLOWED_HOSTS=${VITE_PREVIEW_ALLOWED_HOSTS:-*}
+    depends_on:
+      backend:
+        condition: service_healthy
     ports:
       - "5173:5173"
-    environment:
-      # For Unraid: use your server IP or domain, e.g., http://192.168.1.100:4000
-      - VITE_API_URL=${VITE_API_URL:-http://backend:4000}
-      # Frontend preview server log level: info|warn|error|silent|debug
-      - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-info}
-      - VITE_SENTRY_DSN=${VITE_SENTRY_DSN}
-    depends_on:
-      - backend
     restart: unless-stopped
-    # Frontend is stateless - no volume needed
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5173/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
-# Logging Notes for Unraid:
-# - Backend logs: /mnt/user/appdata/table-manager/backend-data/backend.log
-# - PostgreSQL logs: docker logs tablemanager-db
-# - Frontend logs: docker logs table-manager-frontend (stdout only, stateless)
-# 
-# To view backend logs in Unraid:
-# 1. Open Unraid terminal: cat /mnt/user/appdata/table-manager/backend-data/backend.log
-# 2. Or use Unraid file browser to navigate to the log file
+# ============================================================================
+# QUICK SETUP FOR UNRAID
+# ============================================================================
 #
-# Security Notes:
-# - Set JWT_SECRET and POSTGRES_PASSWORD to secure values via Unraid Docker UI
+# 1. Set secure passwords:
+#    - POSTGRES_PASSWORD  (strong, random)
+#    - JWT_SECRET          (strong, random — e.g. openssl rand -hex 32)
+#
+# 2. Set CORS_ORIGIN to your frontend's external URL:
+#    - Direct access:   http://192.168.178.2:5173
+#    - Reverse proxy:   https://app.example.com
+#
+# 3. Set VITE_API_URL to your backend's external URL:
+#    - Direct access:   http://192.168.178.2:4000
+#    - Reverse proxy:   https://api.example.com
+#
+# LOGGING:
+#   - Unraid Docker Logs GUI:  All logs appear in stdout (no extra config)
+#   - Persistent log file:     /mnt/user/appdata/table-manager/backend-data/backend.log
+#
+# REVERSE PROXY EXAMPLE (Nginx Proxy Manager):
+#   - Frontend: app.example.com → http://192.168.178.2:5173
+#   - Backend:  api.example.com → http://192.168.178.2:4000
+#   Then set:
+#     CORS_ORIGIN=https://app.example.com
+#     VITE_API_URL=https://api.example.com
+# ============================================================================

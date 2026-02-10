@@ -7,12 +7,15 @@ const allowedHostsEnv = rawPreviewHostEnv
   .map((h) => h.trim())
   .filter(Boolean)
 
-const previewAllowedHosts = [...allowedHostsEnv, 'localhost', '127.0.0.1']
+// If '*' or 'all' is specified, allow all hosts (required for reverse proxy)
+const useAllHosts = allowedHostsEnv.includes('*') || allowedHostsEnv.includes('all')
+const previewAllowedHosts: true | string[] = useAllHosts
+  ? true
+  : [...allowedHostsEnv, 'localhost', '127.0.0.1']
 
 // Debug log: shows what Vite will allow at startup for preview requests.
 console.log('[vite] preview.allowedHosts =', previewAllowedHosts)
-console.log('[vite] raw VITE_PREVIEW_ALLOWED_HOSTS =', rawPreviewHostEnv)
-console.log('[vite] NODE_ENV =', process.env.NODE_ENV || 'undefined', 'mode =', process.env.MODE || 'undefined')
+console.log('[vite] raw VITE_PREVIEW_ALLOWED_HOSTS =', rawPreviewHostEnv || '<not set>')
 
 export default defineConfig({
   plugins: [react()],
