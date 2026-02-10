@@ -4,45 +4,69 @@
 
 - Node.js 18 oder höher
 - npm oder yarn
+- Docker (für Backend)
 
-## Projekt einrichten
+## Frontend einrichten (Entwicklung)
 
 ```bash
-git clone https://github.com/Cayn183/Table-Manager.git
-cd Table-Manager
+git clone https://github.com/Cayn183/table-manager.git
+cd table-manager
 npm install
-```
-
-Zum Starten des Frontends:
-
-```bash
 npm run dev
 ```
 
 Die Anwendung läuft danach unter http://localhost:5173.
 
-## Optionales lokales Backend
+## Backend einrichten (separates Repository)
 
-1. PostgreSQL-Datenbank anlegen und `backend/.env` mit `DATABASE_URL` sowie `JWT_SECRET` füllen.
-2. Backend starten:
+Das Backend befindet sich in einem separaten Repository: [Cayn183/backend-table-manager](https://github.com/Cayn183/backend-table-manager)
 
-```powershell
-cd backend
+### Option 1: Docker (empfohlen)
+
+```bash
+docker run -d \
+  --name table-manager-backend \
+  -p 4000:4000 \
+  -e POSTGRES_HOST=your-db-host \
+  -e POSTGRES_PORT=5432 \
+  -e POSTGRES_USER=tm_user \
+  -e POSTGRES_PASSWORD=your-password \
+  -e POSTGRES_DB=tablemanager \
+  -e JWT_SECRET=your-secret \
+  -e MIGRATE_ON_START=true \
+  ghcr.io/cayn183/backend-table-manager:latest
+```
+
+### Option 2: Lokale Entwicklung
+
+```bash
+git clone https://github.com/Cayn183/backend-table-manager.git
+cd backend-table-manager
 npm install
+# .env Datei mit Datenbank-Zugangsdaten erstellen
 npm run dev
 ```
 
-3. Frontend mit `VITE_API_URL` auf die Backend-URL zeigen lassen:
+## Frontend mit Backend verbinden
 
 ```powershell
 $env:VITE_API_URL = 'http://localhost:4000'
 npm run dev
 ```
 
-> Die Skripte im `backend/`-Ordner helfen beim Testen:
-> - `smoke-test.ps1` legt einen Testuser an und importiert Beispiel-Daten.
-> - `check-events.js` zeigt aktuelle Events aus der Datenbank.
-> - `cleanup-test-data.js` entfernt vom Smoke-Test erzeugte Daten.
+Oder als Environment-Variable in `.env.local`:
+
+```
+VITE_API_URL=http://localhost:4000
+```
+
+## Docker Compose (Full Stack)
+
+Für einen kompletten Stack mit Frontend, Backend und PostgreSQL:
+
+```bash
+docker-compose up -d
+```
 
 ## Produktions-Build
 
@@ -51,6 +75,7 @@ npm run build
 npm run preview
 ```
 
-## Tests
+## Weitere Anleitungen
 
-Aktuell gibt es keine automatisierten Tests. Weitere Anleitungen findest du unter [anleitungen/deployment.md](anleitungen/deployment.md) für Deployments und Docker.
+- [Deployment & Docker](deployment.md) - Ausführliche Deployment-Dokumentation
+- [Backend README](https://github.com/Cayn183/backend-table-manager#readme) - Backend-Dokumentation

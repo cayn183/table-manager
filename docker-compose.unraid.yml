@@ -1,5 +1,8 @@
 version: '3.8'
 
+# Unraid-optimized 2-Container setup for Table-Manager
+# Logging: Backend writes to /app/data/backend.log (accessible in Unraid at /mnt/user/appdata/table-manager/backend-data/backend.log)
+
 services:
   postgres:
     image: postgres:15
@@ -11,67 +14,65 @@ services:
     volumes:
       - /mnt/user/appdata/table-manager/postgres:/var/lib/postgresql/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tm_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   backend:
-    # Backend is now in separate repository: Cayn183/backend-table-manager
+    # Backend repository: Cayn183/backend-table-manager
     image: ghcr.io/cayn183/backend-table-manager:latest
     container_name: table-manager-backend
     environment:
-      # Prefer separate POSTGRES_* variables (fallback to DATABASE_URL supported)
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_USER=${POSTGRES_USER:-tm_user}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-verysecurepassword}
       - POSTGRES_DB=${POSTGRES_DB:-tablemanager}
       - POSTGRES_SSL=${POSTGRES_SSL:-false}
-      # Optional full DATABASE_URL (kept for backward compatibility)
-      - DATABASE_URL=postgres://${POSTGRES_USER:-tm_user}:${POSTGRES_PASSWORD:-verysecurepassword}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-tablemanager}
       - JWT_SECRET=${JWT_SECRET:-replace_with_a_strong_secret}
       - NODE_ENV=production
       - MIGRATE_ON_START=true
+      # Logging configuration for Unraid
+      # Log file accessible at: /mnt/user/appdata/table-manager/backend-data/backend.log
+      - LOG_FILE=/app/data/backend.log
       # Optional Sentry
       - SENTRY_DSN=${SENTRY_DSN}
       - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE}
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     ports:
       - "4000:4000"
-    # Mount only app data directory; avoid mounting over /app or /app/dist which would hide built files
     volumes:
+      # Backend data and logs - accessible in Unraid file browser
       - /mnt/user/appdata/table-manager/backend-data:/app/data
     restart: unless-stopped
 
-  # Optional one-shot migrate service: runs migrations once and exits (commented example)
-  # migrate:
-  #   image: ghcr.io/cayn183/backend-table-manager:latest
-  #   command: ["/usr/local/bin/entrypoint.sh"]
-  #   environment:
-  #     - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
-  #     - POSTGRES_PORT=${POSTGRES_PORT:-5432}
-  #     - POSTGRES_USER=${POSTGRES_USER}
-  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-  #     - POSTGRES_DB=${POSTGRES_DB}
-  #     - MIGRATE_ON_START=true
-  #   depends_on:
-  #     - postgres
-  #   restart: "no"
-
   frontend:
+    # Frontend repository: Cayn183/table-manager
     image: ghcr.io/cayn183/table-manager:latest
     container_name: table-manager-frontend
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_URL=http://backend:4000
+      # For Unraid: use your server IP or domain, e.g., http://192.168.1.100:4000
+      - VITE_API_URL=${VITE_API_URL:-http://backend:4000}
       - VITE_SENTRY_DSN=${VITE_SENTRY_DSN}
     depends_on:
       - backend
-    volumes:
-      # Keep frontend data isolated from backend and postgres
-      - /mnt/user/appdata/table-manager/frontend-data:/app/data
     restart: unless-stopped
+    # Frontend is stateless - no volume needed
 
-# Notes:
-# - Replace image names with build context / local images if you prefer to build from source on Unraid.
-# - Ensure `JWT_SECRET` and `POSTGRES_PASSWORD` are set to secure values via the Unraid Docker UI or an env file.
-# - You can also add an Adminer or pgAdmin service for DB management if desired.
+# Logging Notes for Unraid:
+# - Backend logs: /mnt/user/appdata/table-manager/backend-data/backend.log
+# - PostgreSQL logs: docker logs tablemanager-db
+# - Frontend logs: docker logs table-manager-frontend (stdout only, stateless)
+# 
+# To view backend logs in Unraid:
+# 1. Open Unraid terminal: cat /mnt/user/appdata/table-manager/backend-data/backend.log
+# 2. Or use Unraid file browser to navigate to the log file
+#
+# Security Notes:
+# - Set JWT_SECRET and POSTGRES_PASSWORD to secure values via Unraid Docker UI

@@ -1,43 +1,64 @@
 # Deployment & Docker
 
+## Container-Architektur
+
+Table-Manager verwendet eine 2-Container-Architektur:
+
+| Container | Image | Port | Repository |
+|-----------|-------|------|------------|
+| Backend | `ghcr.io/cayn183/backend-table-manager:latest` | 4000 | [Cayn183/backend-table-manager](https://github.com/Cayn183/backend-table-manager) |
+| Frontend | `ghcr.io/cayn183/table-manager:latest` | 5173 | [Cayn183/table-manager](https://github.com/Cayn183/table-manager) |
+
 ## Images aus GitHub Container Registry
 
-- Stable (main): `ghcr.io/cayn183/table-manager:latest` oder `ghcr.io/cayn183/table-manager:v0.6.1`
-- Vorschau/Dev: `ghcr.io/cayn183/table-manager:dev-latest` oder `dev-<shortsha>`
+**Frontend:**
+- Stable: `ghcr.io/cayn183/table-manager:latest`
+- Dev: `ghcr.io/cayn183/table-manager:dev-latest`
 
-## Lokaler Docker-Build
+**Backend:**
+- Stable: `ghcr.io/cayn183/backend-table-manager:latest`
+- Dev: `ghcr.io/cayn183/backend-table-manager:dev-latest`
 
-```bash
-docker build -t table-manager .
-docker run -d -p 5173:5173 --name table-manager-frontend table-manager
-docker logs -f table-manager-frontend
-```
-
-## Docker Compose
+## Docker Compose (empfohlen)
 
 ```bash
-docker-compose up
+docker-compose up -d
 ```
+
+Für Unraid-spezifische Konfiguration verwende `docker-compose.unraid.yml`.
 
 ## Backend-Umgebungsvariablen
 
-- `DATABASE_URL`: Postgres-Verbindungsstring (Fallback, wenn keine einzelnen `POSTGRES_*`-Variablen gesetzt sind)
-- `POSTGRES_HOST` / `POSTGRES_PORT` / `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB`: bevorzugte Einzel-Variablen
+- `POSTGRES_HOST` / `POSTGRES_PORT` / `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB`: Datenbank-Verbindung
 - `POSTGRES_SSL`: `true` oder `false`
 - `JWT_SECRET`: mindestens 32 Zeichen, zufälliger Secret-String
 - `PORT`: optional (Standard `4000`)
 - `NODE_ENV`: `production` empfohlen
+- `MIGRATE_ON_START`: `true` für automatische Migrationen beim Start
+- `LOG_FILE`: Pfad zur Log-Datei (Standard `/app/data/backend.log`)
 - `SENTRY_DSN`, `SENTRY_TRACES_SAMPLE_RATE`: optional für Fehler-Monitoring
-
-Das Backend verwendet explizite `POSTGRES_*`-Variablen wenn definiert und fällt sonst auf `DATABASE_URL` zurück.
 
 ## Frontend-Umgebungsvariablen
 
-- `VITE_API_URL`: URL zur Backend-API (z. B. `http://localhost:4000` oder `http://backend:4000`)
+- `VITE_API_URL`: URL zur Backend-API (z. B. `http://localhost:4000`)
 - `VITE_SENTRY_DSN`: optional
 - `VITE_BUILD_VERSION`, `VITE_BUILD_SHA`: werden über Build-Args gesetzt (CI/Docker)
 
-## Beispiel: Compose-Snippet für Unraid oder lokale Deployments
+## Logging
+
+**Backend:**
+- Logs werden nach `/app/data/backend.log` geschrieben
+- Bei Unraid: `/mnt/user/appdata/table-manager/backend-data/backend.log`
+- Auch via `docker logs table-manager-backend` verfügbar
+
+**Frontend:**
+- Nur stdout/stderr (stateless)
+- Via `docker logs table-manager-frontend` verfügbar
+
+**PostgreSQL:**
+- Via `docker logs tablemanager-db` verfügbar
+
+## Beispiel: 2-Container-Setup für Unraid
 
 ```yaml
 version: '3.8'
@@ -53,56 +74,67 @@ services:
       - /mnt/user/appdata/table-manager/postgres:/var/lib/postgresql/data
     restart: unless-stopped
 
-  table-manager:
-    image: ghcr.io/cayn183/table-manager:latest
-    container_name: table-manager
-    ports:
-      - "5173:5173"
+  backend:
+    image: ghcr.io/cayn183/backend-table-manager:latest
+    container_name: table-manager-backend
     environment:
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
-      - POSTGRES_USER=${POSTGRES_USER:-tm_user}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-verysecurepassword}
-      - POSTGRES_DB=${POSTGRES_DB:-tablemanager}
-      - POSTGRES_SSL=${POSTGRES_SSL:-false}
-      - DATABASE_URL=postgres://${POSTGRES_USER:-tm_user}:${POSTGRES_PASSWORD:-verysecurepassword}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-tablemanager}
+      - POSTGRES_USER=tm_user
+      - POSTGRES_PASSWORD=verysecurepassword
+      - POSTGRES_DB=tablemanager
       - JWT_SECRET=replace_with_a_strong_secret
       - NODE_ENV=production
-      - VITE_API_URL=http://localhost:4000
+      - MIGRATE_ON_START=true
+      - LOG_FILE=/app/data/backend.log
     depends_on:
       - postgres
+    ports:
+      - "4000:4000"
     volumes:
-      - /mnt/user/appdata/table-manager:/app/data
+      - /mnt/user/appdata/table-manager/backend-data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/cayn183/table-manager:latest
+    container_name: table-manager-frontend
+    environment:
+      - VITE_API_URL=http://YOUR_SERVER_IP:4000
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
     restart: unless-stopped
 ```
 
 ## Datenbank & Migration
 
-- Die Schema-Definition lebt in `backend/db/schema.sql`.
-- Alternativ bietet `backend/src/routes/migration.ts` einen Endpunkt zum Import in geschützten Umgebungen.
-- Für schnelle Tests lohnt sich das Backend-Skript `smoke-test.ps1`.
-
-```bash
-psql "postgres://tm_user:verysecurepassword@localhost:5432/tablemanager" -f backend/db/schema.sql
-```
+- Die Schema-Definition liegt im Backend-Repository unter `db/schema.sql`
+- Migrationen werden automatisch ausgeführt wenn `MIGRATE_ON_START=true`
+- Migrations-Dateien befinden sich in `migrations/`
 
 ## Sicherheits-Hinweise
 
-- `JWT_SECRET` muss lang und zufällig sein (`openssl rand -hex 32`).
-- Secure Passwörter für Postgres und restriktive Netzwerkregeln (z. B. in Unraid) verwenden.
-- Sentry-Daten nur in sicheren Umgebungen konfigurieren.
+- `JWT_SECRET` muss lang und zufällig sein (`openssl rand -hex 32`)
+- Sichere Passwörter für Postgres verwenden
+- In Unraid: restriktive Netzwerkregeln konfigurieren
 
-## Build-Argumente
+## Build-Argumente (für lokale Builds)
 
+**Frontend:**
 ```bash
-docker build --build-arg BUILD_SHA=$(git rev-parse --short HEAD) --build-arg BUILD_VERSION=$(jq -r .version package.json) -t table-manager:dev .
+docker build --build-arg BUILD_SHA=$(git rev-parse --short HEAD) --build-arg BUILD_VERSION=dev -t table-manager:dev .
 ```
 
-Diese Argumente ermöglichen es, Versionsinformationen im UI anzuzeigen.
+**Backend:**
+```bash
+cd backend-table-manager
+docker build --build-arg BUILD_SHA=$(git rev-parse --short HEAD) --build-arg BUILD_VERSION=dev -t backend-table-manager:dev .
+```
 
 ## Wartung & Support
 
-- Backend schreibt strukturierte Logs (`docker logs table-manager`).
-- Datenbank-Backups: z. B. Backup des Postgres-Volumes `/mnt/user/appdata/table-manager/postgres`.
-- API-Spezifikation: `backend/openapi.yaml`
+- Backend-Logs: `/mnt/user/appdata/table-manager/backend-data/backend.log` (Unraid)
+- Datenbank-Backups: Backup des Postgres-Volumes `/mnt/user/appdata/table-manager/postgres`
+- API-Spezifikation: siehe Backend-Repository `openapi.yaml`
 - Release-Infos: `CHANGELOG.md`
