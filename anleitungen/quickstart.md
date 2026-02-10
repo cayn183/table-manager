@@ -58,6 +58,7 @@ Oder als Environment-Variable in `.env.local`:
 
 ```
 VITE_API_URL=http://localhost:4000
+VITE_LOG_LEVEL=info
 ```
 
 ## Docker Compose (Full Stack)

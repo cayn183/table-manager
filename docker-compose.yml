@@ -51,6 +51,8 @@ services:
     environment:
       # API URL must be accessible from browser (use external hostname in production)
       - VITE_API_URL=${VITE_API_URL:-http://localhost:4000}
+      # Frontend preview server log level: info|warn|error|silent|debug
+      - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-info}
     depends_on:
       - backend
     ports:

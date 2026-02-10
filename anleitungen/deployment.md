@@ -43,6 +43,7 @@ Für Unraid-spezifische Konfiguration verwende `docker-compose.unraid.yml`.
 - `VITE_API_URL`: URL zur Backend-API (z. B. `http://localhost:4000`)
 - `VITE_SENTRY_DSN`: optional
 - `VITE_BUILD_VERSION`, `VITE_BUILD_SHA`: werden über Build-Args gesetzt (CI/Docker)
+- `VITE_LOG_LEVEL`: Log-Level für den Preview-Server (`info|warn|error|silent|debug`)
 
 ## Logging
 
@@ -54,6 +55,7 @@ Für Unraid-spezifische Konfiguration verwende `docker-compose.unraid.yml`.
 **Frontend:**
 - Nur stdout/stderr (stateless)
 - Via `docker logs table-manager-frontend` verfügbar
+- Optional: `VITE_LOG_LEVEL=debug` für mehr Preview-Server-Logs
 
 **PostgreSQL:**
 - Via `docker logs tablemanager-db` verfügbar
