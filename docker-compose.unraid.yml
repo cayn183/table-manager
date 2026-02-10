@@ -13,15 +13,10 @@ services:
     restart: unless-stopped
 
   backend:
-    # Preferred: build backend from local source so the image contains built JS and entrypoint
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    image: ghcr.io/cayn183/table-manager-backend:latest
+    # Backend is now in separate repository: Cayn183/backend-table-manager
+    image: ghcr.io/cayn183/backend-table-manager:latest
     container_name: table-manager-backend
     environment:
-      # Mark this service explicitly as backend for orchestrators/monitoring
-      - SERVICE=backend
       # Prefer separate POSTGRES_* variables (fallback to DATABASE_URL supported)
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
@@ -48,10 +43,7 @@ services:
 
   # Optional one-shot migrate service: runs migrations once and exits (commented example)
   # migrate:
-  #   build:
-  #     context: ./backend
-  #     dockerfile: Dockerfile
-  #   image: ghcr.io/cayn183/table-manager-backend:latest
+  #   image: ghcr.io/cayn183/backend-table-manager:latest
   #   command: ["/usr/local/bin/entrypoint.sh"]
   #   environment:
   #     - POSTGRES_HOST=${POSTGRES_HOST:-postgres}

@@ -1,50 +1,69 @@
 ## Purpose
 
-This file gives concise, actionable guidance for AI coding agents working in this repository.
+This file provides guidance for AI coding agents working in the Table-Manager frontend repository.
 
-**Repo State:** The repository currently contains only [README.md](README.md#L1) and [LICENSE](LICENSE). No source files, package manifests, or CI configs were found.
+**Repository:** [Cayn183/table-manager](https://github.com/Cayn183/table-manager)
 
-**Primary Objective:** If asked to modify or add code, first confirm desired language, intended entrypoint, and whether to scaffold a new project layout (e.g., Node/Python/Go). Do not assume language or tests.
+**Stack:**
+- React + TypeScript
+- Vite
+- CSS Modules
 
-## Quick discovery steps (run before editing)
+## Project Structure
 
-- **Check Git history / branches:** run the following to find previous commits or branches with code:
-
-```powershell
-git fetch --all
-git branch -a
-git log --name-only -n 50
+```
+├── src/           # React source files
+│   ├── App.tsx    # Main application component
+│   ├── main.tsx   # Application entry point
+│   ├── api/       # API client
+│   ├── auth/      # Authentication context
+│   ├── components/# React components
+│   ├── styles/    # CSS styles
+│   ├── types/     # TypeScript type definitions
+│   └── utils/     # Utility functions
+├── index.html     # HTML entry point
+├── vite.config.ts # Vite configuration
+├── Dockerfile     # Docker build configuration
+└── docker-compose.yml
 ```
 
-- **Look for hidden files or manifests:** search for common manifests if user didn't include source yet (e.g., `package.json`, `pyproject.toml`, `go.mod`).
+## Development Commands
 
-## If no code is present
+```bash
+# Install dependencies
+npm install
 
-- **Ask the user**: "Which language/framework, entrypoint, or example app should I scaffold?"
-- **Suggest minimal scaffolding** only after confirmation. Example minimal layout to propose:
+# Start development server
+npm run dev
 
-  - `src/` — source files
-  - `tests/` — unit tests
-  - `README.md` — usage + run commands
-  - language manifest (`package.json` / `pyproject.toml` / `go.mod`)
+# Build for production
+npm run build
 
-## Merge guidance (if this file already exists)
+# Preview production build
+npm run start
+```
 
-- Preserve any hand-written guidance at the top of `.github/copilot-instructions.md`. Add an extra short section below titled "Repository snapshot (automatically generated)" describing discovered state (what files are present) and the quick discovery steps above.
+## Docker Build
 
-## Project-specific notes discovered
+```bash
+docker build -t table-manager:local --build-arg BUILD_SHA=local --build-arg BUILD_VERSION=dev .
+```
 
-- The only explicit file is [README.md](README.md#L1) containing the project title. No build, test, or CI commands are discoverable; do not run or add opinionated CI without user approval.
+## Environment Variables
 
-## Safe-editing rules for AI agents
+- `VITE_API_URL` - Backend API URL (e.g., http://localhost:4000)
+- `VITE_BUILD_SHA` - Build commit SHA
+- `VITE_BUILD_VERSION` - Application version
 
-- **Don't assume** runtime, package manager, or test runner. Ask before creating language-specific files.
-- **If scaffolding**: include a small README and a single smoke test; add instructions in the top-level README and wait for user approval before extending.
-- **When editing existing files**: keep changes minimal and explain intent in a single-line commit message.
+## Related Repositories
 
-## Where to document follow-ups
+- [Cayn183/backend-table-manager](https://github.com/Cayn183/backend-table-manager) - Backend API service
 
-- After any non-trivial change, add a short note in `README.md` summarizing next steps and how to run the app/tests.
+## Safe-editing rules
+
+- Keep changes minimal and focused
+- Run `npm run build` to verify TypeScript compilation
+- Test UI changes in development before committing
 
 ---
 

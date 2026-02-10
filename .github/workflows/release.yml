@@ -75,13 +75,6 @@ jobs:
           npm version $VERSION --no-git-tag-version --allow-same-version || true
           echo "✓ Updated root package.json to $VERSION"
 
-      - name: Update Backend version (package.json)
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          cd backend
-          npm version $VERSION --no-git-tag-version --allow-same-version || true
-          echo "✓ Updated Backend package.json to $VERSION"
-
       - name: Update CHANGELOG.md
         run: |
           VERSION="${{ steps.version.outputs.version }}"
@@ -196,7 +189,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: backend/Dockerfile
+          file: ./Dockerfile
           push: true
           tags: ${{ steps.tags.outputs.tags }}
           build-args: |
