@@ -7,22 +7,25 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+_Noch keine Änderungen eingetragen._
+
+## [1.0.0] - 2026-02-11
+
 ### Added
-- ToGo feature: new standalone ToGo/Takeaway module with full UI for managing menu items, creating and editing orders, and importing orders via CSV.
-- ToGo: CSV import/export support (delimiter detection, encoding heuristics, example & blank CSV generation).
-- ToGo: Compact portrait A4 print export (single-column), with slot-based grouping (15‑minute bins), continuation headers and per-page numbering.
+- Marketing-Landingpage mit Hero, Feature-Grid, Showcase, Einsatzbereichen und Preisübersicht direkt unter `/`.
+- Schnellstart- und Deployment-Anleitungen, die den 2-Container-Stack, GHCR-Images sowie Frontend- und Backend-Umgebungsvariablen dokumentieren.
+- Neues `preview-with-loglevel.js`-Skript, das `VITE_LOG_LEVEL`/`VITE_PREVIEW_ALLOWED_HOSTS` nutzt und das Preview-Log-Level per Environment-Variable steuert.
 
 ### Changed
-- Print: Smarter pagination algorithm — calculates header height, family entries and note heights to avoid premature page breaks and to allow graceful "Fortsetzung" segments.
-- ToGo: Reduced print font sizes for name/price/items/notes and inline item formatting (pipe-separated) to increase density on A4 pages.
-- Print pipeline: unified render path for Room and ToGo print outputs; improved color and contrast for printed badges and notes.
+- Backend-Ordner wurde aus dem Repository entfernt; Frontend und Backend leben jetzt in getrennten Containern, die Compose-/README-Dokumentation verweist auf die jeweiligen GHCR-Images und das separate Backend-Repo.
+- `AuthContext` lädt beim Start `/auth/me`, speichert keine Tokens mehr im LocalStorage, synchronisiert nutzerspezifische Storage-Daten beim Login/unload und spricht `/auth/logout` an, um Cookie-Sessions zu härten.
+- App-Routing zeigt die neue Landingpage auf `/` und behält `/app` als geschützte Planungsoberfläche für eingeloggte Nutzer.
 
 ### Fixed
-- Print: Fixed issues where long item lists or notes caused early page breaks; single large orders now correctly span pages without dropping headers.
-- CSV: Improved menu-matching and fuzzy suggestion logic when importing names that don't exactly match menu entries.
+- Preview-/Start-Skript respektiert `VITE_LOG_LEVEL` (inkl. `debug`) und meldet den effektiven Log-Level sowie erlaubte Hosts, damit Container-Logs im Unraid-Setup kontrollierbar bleiben.
 
 ### Release note
-- Prepared for release `0.9.0` — includes ToGo feature, print improvements, and CSV import/export enhancements.
+- Release 1.0.0 liefert Landingpage, Dokumentationsrefresh, neuen Multi-Container-Stack, gehärtete Authentifizierung und log-levelfähige Vorschau.
 
 
 ## [0.8.3] - 2026-02-06
