@@ -13,6 +13,9 @@ import Room from './components/Room'
 import LoadRoom from './components/LoadRoom'
 import LoadEvent from './components/LoadEvent'
 import Login from './components/Login'
+import ForgotPassword from './components/ForgotPassword'
+import ResetPassword from './components/ResetPassword'
+import VerifyEmail from './components/VerifyEmail'
 import Profile from './components/Profile'
 import AdminPanel from './components/AdminPanel'
 import ToGo from './components/ToGo'
@@ -42,6 +45,9 @@ export default function App() {
       {/* ═══ AUTH ROUTES (No nested layout) ═══ */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Login initialMode="register" />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
       
       {/* ═══ APP ROUTES (Protected, User must be logged in) ═══ */}
       <Route path="/app" element={<RequireAuth><AppLayout /></RequireAuth>}>

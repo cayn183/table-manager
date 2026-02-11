@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import api from '../api/apiClient'
 
@@ -139,6 +139,11 @@ export default function Login({ initialMode }: LoginProps) {
             <button type="submit" style={{ padding: '10px 16px', background: '#2b6cb0', color: 'white', border: 'none', borderRadius: 8 }}>{mode === 'login' ? 'Anmelden' : 'Registrieren'}</button>
             <button type="button" onClick={() => setMode(m => m === 'login' ? 'register' : 'login')} style={{ padding: '10px 16px', borderRadius: 8, background: '#eef2ff', border: '1px solid #e6e6ff' }}>{mode === 'login' ? 'Neu registrieren' : 'Zurück zum Login'}</button>
           </div>
+          {mode === 'login' && (
+            <div style={{ marginTop: 12 }}>
+              <Link to="/forgot-password" style={{ fontSize: 14, color: '#2b6cb0', textDecoration: 'none' }}>Passwort vergessen?</Link>
+            </div>
+          )}
         </form>
       </div>
     </div>
