@@ -1843,7 +1843,7 @@ export default function ToGo() {
                     fontWeight: 700,
                     minWidth: '160px'
                   }}
-                >In Liste uebernehmen</button>
+                >In Liste übernehmen</button>
               </div>
             </div>
           </div>

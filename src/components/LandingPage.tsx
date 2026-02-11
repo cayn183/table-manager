@@ -131,7 +131,7 @@ function IllustrationTimeline() {
       ))}
       {/* Bottom info bar */}
       <rect x="16" y="228" width="368" height="20" rx="4" fill="#f1f5f9" />
-      <text x="200" y="242" textAnchor="middle" fontSize="10" fill="#64748b">Timeline-Ansicht : Alle Gaeste nach Ankunftszeit sortiert</text>
+      <text x="200" y="242" textAnchor="middle" fontSize="10" fill="#64748b">Timeline-Ansicht : Alle Gäste nach Ankunftszeit sortiert</text>
     </svg>
   )
 }
@@ -142,17 +142,17 @@ const features = [
   {
     icon: '🏠',
     title: 'Raumplanung per Drag & Drop',
-    text: 'Erstelle Raumlayouts mit beliebig vielen Tischen. Platziere Gaeste per Drag & Drop und passe Tischgroessen flexibel an.',
+    text: 'Erstelle Raumlayouts mitbeliebig vielen Tischen. Platziere Gäste per Drag & Drop und passe Tischgrößen flexibel an.',
   },
   {
     icon: '👥',
-    title: 'Gaesteverwaltung',
-    text: 'Importiere Gaestelisten per CSV oder erfasse Gruppen manuell. Anreden, Gruppengroesse, Zeitfenster und Notizen werden unterstuetzt.',
+    title: 'Gästeverwaltung',
+    text: 'Importiere Gästelisten per CSV oder erfasse Gruppen manuell. Anreden, Gruppengröße, Zeitfenster und Notizen werden unterstützt.',
   },
   {
     icon: '🍽️',
     title: 'ToGo-Bestellungen',
-    text: 'Verwalte Abholbestellungen fuer Vereinsfeste oder Caterings. Speisekarte anlegen, Bestellungen erfassen und Statusverfolgung inklusive.',
+    text: 'Verwalte Abholbestellungen für Vereinsfeste oder Caterings. Speisekarte anlegen, Bestellungen erfassen und Statusverfolgung inklusive.',
   },
   {
     icon: '📅',
@@ -162,17 +162,17 @@ const features = [
   {
     icon: '🕐',
     title: 'Timeline-Ansicht',
-    text: 'Sieh auf einen Blick, welche Gaeste wann kommen. Die Timeline sortiert alle Gruppen nach Ankunftszeit in uebersichtlichen Spalten.',
+    text: 'Sieh auf einen Blick, welche Gäste wann kommen. Die Timeline sortiert alle Gruppen nach Ankunftszeit in übersichtlichen Spalten.',
   },
   {
     icon: '📄',
     title: 'CSV-Import & PDF-Export',
-    text: 'Importiere bestehende Gaestelisten aus Excel/CSV. Exportiere fertige Sitzplaene als druckfertiges PDF oder als CSV-Datei.',
+    text: 'Importiere bestehende Gästelisten aus Excel/CSV. Exportiere fertige Sitzpläne als druckfertiges PDF oder als CSV-Datei.',
   },
   {
     icon: '♿',
     title: 'Barrierefreiheit beachten',
-    text: 'Markiere Gaeste mit Barrierefreiheitsbeduerfnissen und beruecksichtige dies bei der Tischzuweisung.',
+    text: 'Markiere Gäste mit Barrierefreiheitsbedürfnissen und berücksichtige dies bei der Tischzuweisung.',
   },
   {
     icon: '🤖',
@@ -182,7 +182,7 @@ const features = [
   {
     icon: '💬',
     title: 'Feedback & Support',
-    text: 'Integriertes Feedback-Formular direkt in der App. Melde Fehler oder Wuensche mit einem Klick.',
+    text: 'Integriertes Feedback-Formular direkt in der App. Melde Fehler oder Wünsche mit einem Klick.',
   },
 ]
 
@@ -191,12 +191,12 @@ const features = [
 const useCases = [
   {
     title: 'Vereinsfeste & Jahresfeiern',
-    text: 'Plane Sitzordnungen fuer Mitgliederversammlungen, Weihnachtsfeiern oder Sommerfeste. Importiere die Mitgliederliste und verteile die Plaetze.',
+    text: 'Plane Sitzordnungen für Mitgliederversammlungen, Weihnachtsfeiern oder Sommerfeste. Importiere die Mitgliederliste und verteile die Plätze.',
     icon: '🎪',
   },
   {
     title: 'Hochzeiten & private Feiern',
-    text: 'Erstelle den perfekten Sitzplan fuer deine Hochzeit oder Familienfeier. Bestimme, welche Gaeste zusammen sitzen.',
+    text: 'Erstelle den perfekten Sitzplan für deine Hochzeit oder Familienfeier. Bestimme, welche Gäste zusammen sitzen.',
     icon: '💒',
   },
   {
@@ -206,7 +206,7 @@ const useCases = [
   },
   {
     title: 'Galas & Firmenevents',
-    text: 'Auch fuer groessere Veranstaltungen geeignet. Mehrere Raeume, grosse Gaestelisten und Zeitmanagement inklusive.',
+    text: 'Auch für größere Veranstaltungen geeignet. Mehrere Räume, große Gästelisten und Zeitmanagement inklusive.',
     icon: '🎩',
   },
 ]
@@ -245,27 +245,27 @@ export default function LandingPage() {
 
         {/* ── Hero ── */}
         <div className="landing-hero-copy">
-          <p className="landing-kicker">Kostenlose Eventplanung fuer Vereine & mehr</p>
-          <h1>Sitzplaene, Gaestelisten &amp; ToGo-Bestellungen — alles in einer App.</h1>
+          <p className="landing-kicker">Kostenlose Eventplanung für Vereine & mehr</p>
+          <h1>Sitzpläne, Gästelisten &amp; ToGo-Bestellungen — alles in einer App.</h1>
           <p className="landing-sub">
-            PlatzPilot ist das kostenlose Tool fuer Vereine, Feierteams und alle,
+            PlatzPilot ist das kostenlose Tool für Vereine, Feierteams und alle,
             die Raum- und Tischplanung einfach und schnell erledigen wollen.
             Schluss mit Excel-Chaos — plane per Drag&nbsp;&amp;&nbsp;Drop, importiere
-            Gaestelisten und exportiere druckfertige Sitzplaene.
+            Gästelisten und exportiere druckfertige Sitzpläne.
           </p>
           <div className="landing-hero-actions">
             <Link to="/register" className="landing-btn landing-btn-primary landing-btn-lg">Kostenlos registrieren</Link>
             <a href="#features" className="landing-btn landing-btn-secondary">Features entdecken</a>
           </div>
-          <p className="landing-hero-note">Keine Kreditkarte noetig · Alle Features inklusive · Unbegrenzte Events</p>
+          <p className="landing-hero-note">Keine Kreditkarte nötig · Alle Features inklusive · Unbegrenzte Events</p>
         </div>
       </div>
 
       {/* ── Features Grid ── */}
       <section id="features" className="landing-section">
         <div className="landing-section-head">
-          <h2>Alles, was du fuer dein Event brauchst</h2>
-          <p>PlatzPilot bietet dir alle Werkzeuge fuer eine stressfreie Veranstaltungsplanung — von der Gaesteliste bis zum fertigen Sitzplan.</p>
+          <h2>Alles, was du für dein Event brauchst</h2>
+          <p>PlatzPilot bietet dir alle Werkzeuge für eine stressfreie Veranstaltungsplanung — von der Gästeliste bis zum fertigen Sitzplan.</p>
         </div>
         <div className="landing-feature-grid">
           {features.map((item) => (
@@ -282,28 +282,28 @@ export default function LandingPage() {
       <section id="examples" className="landing-section landing-section-alt">
         <div className="landing-section-head">
           <h2>So sieht PlatzPilot in Aktion aus</h2>
-          <p>Von der Raumplanung ueber die Gaesteverwaltung bis hin zu ToGo-Bestellungen — hier ein Eindruck der wichtigsten Ansichten.</p>
+          <p>Von der Raumplanung über die Gästeverwaltung bis hin zu ToGo-Bestellungen — hier ein Eindruck der wichtigsten Ansichten.</p>
         </div>
         <div className="landing-showcase-grid">
           <div className="landing-showcase-item">
             <IllustrationRoomPlan />
             <h3>Raumplanung</h3>
-            <p>Erstelle Raumlayouts mit Tischen unterschiedlicher Groesse. Platziere Gaeste per Drag&nbsp;&amp;&nbsp;Drop auf dem Rasterplan.</p>
+            <p>Erstelle Raumlayouts mit Tischen unterschiedlicher Größe. Platziere Gäste per Drag&nbsp;&amp;&nbsp;Drop auf dem Rasterplan.</p>
           </div>
           <div className="landing-showcase-item">
             <IllustrationToGo />
             <h3>ToGo-Bestellungen</h3>
-            <p>Verwalte Abholbestellungen mit Statusverfolgung. Ideal fuer Vereinsfeste mit Essensausgabe oder Catering.</p>
+            <p>Verwalte Abholbestellungen mit Statusverfolgung. Ideal für Vereinsfeste mit Essensausgabe oder Catering.</p>
           </div>
           <div className="landing-showcase-item">
             <IllustrationCSV />
             <h3>Import &amp; Export</h3>
-            <p>Importiere Gaestelisten aus CSV/Excel und exportiere fertige Sitzplaene als PDF oder CSV.</p>
+            <p>Importiere Gästelisten aus CSV/Excel und exportiere fertige Sitzpläne als PDF oder CSV.</p>
           </div>
           <div className="landing-showcase-item">
             <IllustrationTimeline />
             <h3>Timeline-Ansicht</h3>
-            <p>Behalte den Ueberblick, welche Gaeste wann eintreffen und wo sie sitzen. Perfekt fuer zeitversetzte Ankuenfte.</p>
+            <p>Behalte den Überblick, welche Gäste wann eintreffen und wo sie sitzen. Perfekt für zeitversetzte Ankünfte.</p>
           </div>
         </div>
       </section>
@@ -311,7 +311,7 @@ export default function LandingPage() {
       {/* ── Einsatzbereiche ── */}
       <section id="usecases" className="landing-section">
         <div className="landing-section-head">
-          <h2>Fuer wen ist PlatzPilot?</h2>
+          <h2>Für wen ist PlatzPilot?</h2>
           <p>Ob Vereinsfest, Hochzeit oder Firmenveranstaltung — PlatzPilot passt sich deinem Bedarf an.</p>
         </div>
         <div className="landing-usecase-grid">
@@ -336,7 +336,7 @@ export default function LandingPage() {
             <div className="landing-price-badge">Aktuell kostenlos</div>
             <div className="landing-price-head">
               <h3>Alle Features</h3>
-              <span className="landing-price-note">Fuer Vereine, Teams & Privatpersonen</span>
+              <span className="landing-price-note">Für Vereine, Teams & Privatpersonen</span>
             </div>
             <div className="landing-price-value">
               <span className="landing-price-old">19 EUR/Monat</span>
@@ -348,7 +348,7 @@ export default function LandingPage() {
               <li>ToGo-Bestellverwaltung</li>
               <li>Timeline-Ansicht</li>
               <li>Auto-Platzierung</li>
-              <li>Gaeste- &amp; Gruppenverwaltung</li>
+              <li>Gäste- &amp; Gruppenverwaltung</li>
               <li>Feedback &amp; Support</li>
             </ul>
             <Link to="/register" className="landing-btn landing-btn-primary landing-btn-lg">Jetzt kostenlos starten</Link>
@@ -371,14 +371,14 @@ export default function LandingPage() {
           <div className="landing-step-arrow">→</div>
           <div className="landing-step">
             <div className="landing-step-number">2</div>
-            <h3>Raum & Gaeste anlegen</h3>
-            <p>Erstelle einen Raum mit Tischen, importiere deine Gaesteliste per CSV oder lege Gruppen manuell an.</p>
+            <h3>Raum & Gäste anlegen</h3>
+            <p>Erstelle einen Raum mit Tischen, importiere deine Gästeliste per CSV oder lege Gruppen manuell an.</p>
           </div>
           <div className="landing-step-arrow">→</div>
           <div className="landing-step">
             <div className="landing-step-number">3</div>
             <h3>Planen & Exportieren</h3>
-            <p>Platziere Gaeste per Drag&nbsp;&amp;&nbsp;Drop oder automatisch. Exportiere den fertigen Sitzplan als PDF.</p>
+            <p>Platziere Gäste per Drag&nbsp;&amp;&nbsp;Drop oder automatisch. Exportiere den fertigen Sitzplan als PDF.</p>
           </div>
         </div>
       </section>
@@ -386,7 +386,7 @@ export default function LandingPage() {
       {/* ── CTA ── */}
       <section className="landing-cta">
         <div>
-          <h2>Bereit fuer stressfreie Eventplanung?</h2>
+          <h2>Bereit für stressfreie Eventplanung?</h2>
           <p>Registriere dich jetzt kostenlos und starte mit deinem ersten Event — ganz ohne Verpflichtung.</p>
         </div>
         <div className="landing-cta-actions">
@@ -399,7 +399,7 @@ export default function LandingPage() {
       <footer className="landing-footer">
         <div>
           <strong>PlatzPilot</strong>
-          <p>Kostenlose Raum- &amp; Tischplanung fuer Vereine und mehr.</p>
+          <p>Kostenlose Raum- &amp; Tischplanung für Vereine und mehr.</p>
         </div>
         <div className="landing-footer-links">
           <a href="#features">Features</a>
