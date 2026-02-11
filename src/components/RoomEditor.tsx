@@ -39,6 +39,7 @@ export default function RoomEditor() {
   // Keyboard: rotate selected table with 'R', delete with 'Delete'
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (showSaveModal) return
       if (!selectedTableId) return
       if (e.key === 'r' || e.key === 'R') {
         e.preventDefault()
@@ -56,7 +57,7 @@ export default function RoomEditor() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [selectedTableId])
+  }, [selectedTableId, showSaveModal])
 
   useEffect(() => {
     // Prefer user-scoped storage, fall back to legacy global keys if needed.
@@ -166,6 +167,7 @@ export default function RoomEditor() {
   useEffect(() => {
     if (!draggingTable) return
     const onKeyDown = (e: KeyboardEvent) => {
+      if (showSaveModal) return
       if (e.key === 'r' || e.key === 'R') {
         e.preventDefault()
         setTables(prev => prev.map(t => t.id === draggingTable.id ? { ...t, width: t.height, height: t.width } : t))
@@ -174,7 +176,7 @@ export default function RoomEditor() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [draggingTable])
+  }, [draggingTable, showSaveModal])
 
   function updateDragPreview(e: React.DragEvent | React.MouseEvent) {
     if (!draggingTable || !gridRef.current) return
