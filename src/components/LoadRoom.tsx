@@ -32,7 +32,7 @@ export default function LoadRoom() {
 
   function loadRoom(room: SavedRoom) {
     userStorage.setItem(STORAGE_KEY, JSON.stringify(room.data), userId)
-    navigate('/room')
+    navigate('/app')
   }
 
   function deleteRoom(id: string) {

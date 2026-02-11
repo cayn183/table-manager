@@ -51,7 +51,7 @@ export default function UserMenu() {
             <div style={{ fontWeight: 700 }}>{user.name || user.email}</div>
           </div>
           <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <Link to="/profile" style={{ textDecoration: 'none' }}>
+            <Link to="/app/profile" style={{ textDecoration: 'none' }}>
               <button style={{ width: '100%', padding: '6px 8px' }}>Profile</button>
             </Link>
             {(user as any).is_admin && (

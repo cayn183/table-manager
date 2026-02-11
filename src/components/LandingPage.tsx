@@ -1,5 +1,6 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import { Helmet } from 'react-helmet-async'
 import { useAuth } from '../auth/AuthContext'
 
 /* ── Inline SVG illustrations for feature showcase ── */
@@ -213,11 +214,17 @@ const useCases = [
 export default function LandingPage() {
   const auth = useAuth()
   return (
-    <div className="landing">
+    <>
+      <Helmet>
+        <title>PlatzPilot - Sitzpläne und Event-Management leicht gemacht</title>
+        <meta name="description" content="PlatzPilot hilft bei der Planung von Events, Hochzeiten und Vereinsveranstaltungen. Erstellen Sie Sitzpläne, verwalten Sie Gästelisten und koordinieren Sie ToGo-Bestellungen." />
+        <meta name="keywords" content="Sitzplan, Tischplan, Event-Management, Hochzeitsplanung, Vereinsveranstaltung" />
+      </Helmet>
+      <div className="landing">
       {/* ── Navigation ── */}
       <div className="landing-hero">
         <div className="landing-nav">
-          <div className="landing-brand">Eventplaner</div>
+          <div className="landing-brand">PlatzPilot</div>
           <div className="landing-nav-links">
             <a href="#features">Features</a>
             <a href="#examples">Beispiele</a>
@@ -241,7 +248,7 @@ export default function LandingPage() {
           <p className="landing-kicker">Kostenlose Eventplanung fuer Vereine & mehr</p>
           <h1>Sitzplaene, Gaestelisten &amp; ToGo-Bestellungen — alles in einer App.</h1>
           <p className="landing-sub">
-            Eventplaner ist das kostenlose Tool fuer Vereine, Feierteams und alle,
+            PlatzPilot ist das kostenlose Tool fuer Vereine, Feierteams und alle,
             die Raum- und Tischplanung einfach und schnell erledigen wollen.
             Schluss mit Excel-Chaos — plane per Drag&nbsp;&amp;&nbsp;Drop, importiere
             Gaestelisten und exportiere druckfertige Sitzplaene.
@@ -258,7 +265,7 @@ export default function LandingPage() {
       <section id="features" className="landing-section">
         <div className="landing-section-head">
           <h2>Alles, was du fuer dein Event brauchst</h2>
-          <p>Eventplaner bietet dir alle Werkzeuge fuer eine stressfreie Veranstaltungsplanung — von der Gaesteliste bis zum fertigen Sitzplan.</p>
+          <p>PlatzPilot bietet dir alle Werkzeuge fuer eine stressfreie Veranstaltungsplanung — von der Gaesteliste bis zum fertigen Sitzplan.</p>
         </div>
         <div className="landing-feature-grid">
           {features.map((item) => (
@@ -274,7 +281,7 @@ export default function LandingPage() {
       {/* ── Beispiele mit Illustrationen ── */}
       <section id="examples" className="landing-section landing-section-alt">
         <div className="landing-section-head">
-          <h2>So sieht Eventplaner in Aktion aus</h2>
+          <h2>So sieht PlatzPilot in Aktion aus</h2>
           <p>Von der Raumplanung ueber die Gaesteverwaltung bis hin zu ToGo-Bestellungen — hier ein Eindruck der wichtigsten Ansichten.</p>
         </div>
         <div className="landing-showcase-grid">
@@ -304,8 +311,8 @@ export default function LandingPage() {
       {/* ── Einsatzbereiche ── */}
       <section id="usecases" className="landing-section">
         <div className="landing-section-head">
-          <h2>Fuer wen ist Eventplaner?</h2>
-          <p>Ob Vereinsfest, Hochzeit oder Firmenveranstaltung — Eventplaner passt sich deinem Bedarf an.</p>
+          <h2>Fuer wen ist PlatzPilot?</h2>
+          <p>Ob Vereinsfest, Hochzeit oder Firmenveranstaltung — PlatzPilot passt sich deinem Bedarf an.</p>
         </div>
         <div className="landing-usecase-grid">
           {useCases.map((uc) => (
@@ -322,7 +329,7 @@ export default function LandingPage() {
       <section id="pricing" className="landing-section landing-section-alt">
         <div className="landing-section-head">
           <h2>Komplett kostenlos</h2>
-          <p>Eventplaner ist aktuell vollstaendig kostenlos nutzbar — ohne versteckte Kosten, ohne Einschraenkungen.</p>
+          <p>PlatzPilot ist aktuell vollstaendig kostenlos nutzbar — ohne versteckte Kosten, ohne Einschraenkungen.</p>
         </div>
         <div className="landing-pricing-grid">
           <div className="landing-price landing-price-highlight">
@@ -353,7 +360,7 @@ export default function LandingPage() {
       <section className="landing-section">
         <div className="landing-section-head">
           <h2>In 3 Schritten zum fertigen Event</h2>
-          <p>So einfach funktioniert Eventplaner:</p>
+          <p>So einfach funktioniert PlatzPilot:</p>
         </div>
         <div className="landing-steps">
           <div className="landing-step">
@@ -391,7 +398,7 @@ export default function LandingPage() {
       {/* ── Footer ── */}
       <footer className="landing-footer">
         <div>
-          <strong>Eventplaner</strong>
+          <strong>PlatzPilot</strong>
           <p>Kostenlose Raum- &amp; Tischplanung fuer Vereine und mehr.</p>
         </div>
         <div className="landing-footer-links">
@@ -403,5 +410,6 @@ export default function LandingPage() {
         </div>
       </footer>
     </div>
+    </>
   )
 }

@@ -52,7 +52,7 @@ export default function LoadEvent() {
     
     // ToGo events go to /togo route
     if (event.isToGo) {
-      navigate('/togo')
+      navigate('/app/togo')
       return
     }
     
@@ -64,7 +64,7 @@ export default function LoadEvent() {
         userStorage.setItem(STORAGE_KEY, JSON.stringify(room.data), userId)
       }
     }
-    navigate('/room')
+    navigate('/app')
   }
 
   function deleteEvent(id: string) {

@@ -73,7 +73,7 @@ export default function Home() {
           void syncUserData(auth.token, userId)
         }
       } catch (e) {}
-      navigate('/togo')
+      navigate('/app/togo')
       return
     }
     
@@ -90,7 +90,7 @@ export default function Home() {
           void syncUserData(auth.token, userId)
         }
       } catch (e) {}
-      navigate('/room')
+      navigate('/app')
     } else {
       userStorage.setItem(CURRENT_EVENT_KEY, JSON.stringify(ev), userId)
       userStorage.setItem(EVENTS_KEY, JSON.stringify([...all, ev]), userId)
@@ -99,7 +99,7 @@ export default function Home() {
           void syncUserData(auth.token, userId)
         }
       } catch (e) {}
-      navigate('/new-room')
+      navigate('/app/rooms')
     }
   }
 
@@ -143,7 +143,7 @@ export default function Home() {
             <span>Neues Event anlegen</span>
             <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '400' }}>Starte ein neues Event mit Raum und Familien</span>
           </button>
-          <Link to="/load-event" style={{ textDecoration: 'none' }}>
+          <Link to="/app/events" style={{ textDecoration: 'none' }}>
             <button style={{
               width: '100%',
               padding: '32px 24px',
@@ -168,7 +168,7 @@ export default function Home() {
               <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '400' }}>Bestehende Events öffnen und bearbeiten</span>
             </button>
           </Link>
-          <Link to="/load-room" style={{ textDecoration: 'none' }}>
+          <Link to="/app/rooms" style={{ textDecoration: 'none' }}>
             <button style={{
               width: '100%',
               padding: '32px 24px',
@@ -193,7 +193,7 @@ export default function Home() {
               <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '400' }}>Gespeicherte Raum-Layouts verwenden</span>
             </button>
           </Link>
-          <Link to="/new-room" style={{ textDecoration: 'none' }}>
+          <Link to="/app/rooms" style={{ textDecoration: 'none' }}>
             <button style={{
               width: '100%',
               padding: '32px 24px',

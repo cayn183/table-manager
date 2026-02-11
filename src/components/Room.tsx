@@ -1176,7 +1176,7 @@ export default function Room() {
       <div className="container">
         <h1>Tischplaner</h1>
         <p>{loadError ?? 'Lade Raum...'}</p>
-        <Link to="/new-room">
+        <Link to="/app/rooms">
           <button>Zum Editor</button>
         </Link>
       </div>
@@ -1374,7 +1374,7 @@ export default function Room() {
           </div>
 
           <button 
-            onClick={() => navigate('/new-room')}
+            onClick={() => navigate('/app/rooms')}
             style={{
               padding: '8px 16px',
               background: 'rgba(255,255,255,0.2)',

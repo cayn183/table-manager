@@ -1,37 +1,24 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter, useLocation } from 'react-router-dom'
+import { BrowserRouter } from 'react-router-dom'
+import { HelmetProvider } from 'react-helmet-async'
 import App from './App'
 import { AuthProvider } from './auth/AuthContext'
-import Footer from './components/Footer'
-import UserMenu from './components/UserMenu'
 import ErrorBoundary from './components/ErrorBoundary'
 import './styles.css'
 import './styles/footer.css'
 import sentry from './sentryClient'
 
-function Root() {
-  const location = useLocation()
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-      <UserMenu />
-      <div style={{ flex: 1, overflow: 'auto' }}>
-        <App />
-      </div>
-      {location && location.pathname === '/login' ? <Footer /> : null}
-    </div>
-  )
-}
-  // Debug placement feature removed from UI; keep codebase quiet by default
-
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
+      <HelmetProvider>
         <AuthProvider>
           <ErrorBoundary>
-            <Root />
+            <App />
           </ErrorBoundary>
         </AuthProvider>
+      </HelmetProvider>
     </BrowserRouter>
   </React.StrictMode>
 )

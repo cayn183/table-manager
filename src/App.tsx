@@ -2,7 +2,11 @@ import React from 'react'
 import type { ReactNode } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './auth/AuthContext'
+import PublicLayout from './components/PublicLayout'
+import AppLayout from './components/AppLayout'
 import LandingPage from './components/LandingPage'
+import ClubLandingPage from './components/ClubLandingPage'
+import WeddingLandingPage from './components/WeddingLandingPage'
 import Home from './components/Home'
 import RoomEditor from './components/RoomEditor'
 import Room from './components/Room'
@@ -23,19 +27,48 @@ function RequireAuth({ children }: { children: ReactNode }) {
 export default function App() {
   const auth = useAuth()
   if (auth.loading) return null
+  
   return (
     <Routes>
+      {/* ═══ LANDING PAGE (has its own layout/nav/footer) ═══ */}
       <Route path="/" element={<LandingPage />} />
+      
+      {/* ═══ SEO LANDING PAGES (shared PublicLayout with nav + footer) ═══ */}
+      <Route element={<PublicLayout />}>
+        <Route path="/sitzplan-verein" element={<ClubLandingPage />} />
+        <Route path="/sitzplan-hochzeit" element={<WeddingLandingPage />} />
+      </Route>
+      
+      {/* ═══ AUTH ROUTES (No nested layout) ═══ */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Login initialMode="register" />} />
-      <Route path="/app" element={<RequireAuth><Home /></RequireAuth>} />
-      <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
-      <Route path="/admin" element={auth.user ? ((auth.user as any).is_admin ? <AdminPanel /> : <Navigate to="/app" replace />) : <Navigate to="/login" replace />} />
-      <Route path="/new-room" element={<RequireAuth><RoomEditor /></RequireAuth>} />
-      <Route path="/load-room" element={<RequireAuth><LoadRoom /></RequireAuth>} />
-      <Route path="/load-event" element={<RequireAuth><LoadEvent /></RequireAuth>} />
-      <Route path="/room" element={<RequireAuth><Room /></RequireAuth>} />
-      <Route path="/togo" element={<RequireAuth><ToGo /></RequireAuth>} />
+      
+      {/* ═══ APP ROUTES (Protected, User must be logged in) ═══ */}
+      <Route path="/app" element={<RequireAuth><AppLayout /></RequireAuth>}>
+        <Route index element={<Home />} />
+        <Route path="profile" element={<Profile />} />
+        <Route path="events" element={<LoadEvent />} />
+        <Route path="events/:eventId" element={<Room />} />
+        <Route path="rooms" element={<LoadRoom />} />
+        <Route path="rooms/:roomId" element={<RoomEditor />} />
+        <Route path="togo" element={<ToGo />} />
+      </Route>
+      
+      {/* ═══ ADMIN ROUTE (Special handling) ═══ */}
+      <Route path="/admin" element={
+        auth.user 
+          ? ((auth.user as any).is_admin ? <AdminPanel /> : <Navigate to="/app" replace />) 
+          : <Navigate to="/login" replace />
+      } />
+      
+      {/* ═══ LEGACY ROUTES (Redirect to new structure) ═══ */}
+      <Route path="/new-room" element={<Navigate to="/app/rooms" replace />} />
+      <Route path="/load-room" element={<Navigate to="/app/rooms" replace />} />
+      <Route path="/load-event" element={<Navigate to="/app/events" replace />} />
+      <Route path="/room" element={<Navigate to="/app" replace />} />
+      <Route path="/togo" element={<Navigate to="/app/togo" replace />} />
+      
+      {/* ═══ FALLBACK ═══ */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

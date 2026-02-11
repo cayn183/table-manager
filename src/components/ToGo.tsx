@@ -100,7 +100,7 @@ export default function ToGo() {
           setOrders(ev.toGoConfig?.orders || [])
         } else {
           // Not a ToGo event, redirect
-          navigate('/room')
+          navigate('/app')
         }
       } catch (e) {
         console.error('Failed to load ToGo event:', e)

@@ -211,7 +211,7 @@ export default function RoomEditor() {
     }
     setIsSavingRoom(false)
     setShowSaveModal(false)
-    navigate('/room')
+    navigate('/app')
   }
 
   function eventToCell(e: MouseEvent | React.MouseEvent): { x: number; y: number } | null {
