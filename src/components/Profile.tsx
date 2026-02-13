@@ -12,6 +12,16 @@ export default function Profile() {
   const [oldPwd, setOldPwd] = useState('')
   const [newPwd, setNewPwd] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
+  
+  // Email change states
+  const [changingEmail, setChangingEmail] = useState(false)
+  const [newEmail, setNewEmail] = useState('')
+  const [emailPassword, setEmailPassword] = useState('')
+  const [emailMsg, setEmailMsg] = useState<string | null>(null)
+  
+  // Password confirmation
+  const [confirmNewPwd, setConfirmNewPwd] = useState('')
+  
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -31,16 +41,38 @@ export default function Profile() {
 
   async function handleChange() {
     setMsg(null)
-    if (!oldPwd || !newPwd) { setMsg('Bitte beide Felder ausfüllen'); return }
+    if (!oldPwd || !newPwd || !confirmNewPwd) { setMsg('Bitte alle Felder ausfüllen'); return }
+    if (newPwd !== confirmNewPwd) { setMsg('Neue Passwörter stimmen nicht überein'); return }
     setChanging(true)
     try {
       await api.post('/auth/change-password', { oldPassword: oldPwd, newPassword: newPwd })
       setMsg('Passwort geändert')
       setOldPwd('')
       setNewPwd('')
+      setConfirmNewPwd('')
     } catch (err: any) {
       setMsg(err?.message || 'Fehler beim Ändern des Passworts')
     } finally { setChanging(false) }
+  }
+
+  async function handleEmailChange() {
+    setEmailMsg(null)
+    if (!newEmail || !emailPassword) { setEmailMsg('Bitte alle Felder ausfüllen'); return }
+    setChangingEmail(true)
+    try {
+      const result = await api.post('/auth/change-email', { newEmail, password: emailPassword })
+      if (result.requiresVerification) {
+        setEmailMsg('Bestätigungs-Email wurde an die neue Adresse gesendet')
+      } else {
+        setEmailMsg('Email-Adresse wurde geändert')
+        // Refresh page to update user context
+        setTimeout(() => window.location.reload(), 1500)
+      }
+      setNewEmail('')
+      setEmailPassword('')
+    } catch (err: any) {
+      setEmailMsg(err?.message || 'Fehler beim Ändern der Email')
+    } finally { setChangingEmail(false) }
   }
 
   async function handleDeleteAccount() {
@@ -73,18 +105,51 @@ export default function Profile() {
 
           <hr style={{ margin: '16px 0' }} />
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
             <div>
-              <h3>Passwort ändern</h3>
-              {msg && <div style={{ color: '#b91c1c', marginBottom: 8 }}>{msg}</div>}
+              <h3>Email ändern</h3>
+              {emailMsg && <div style={{ color: emailMsg.includes('geändert') || emailMsg.includes('gesendet') ? '#047857' : '#b91c1c', marginBottom: 8 }}>{emailMsg}</div>}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <input type="password" placeholder="Altes Passwort" value={oldPwd} onChange={e => setOldPwd(e.target.value)} style={{ padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
-                <input type="password" placeholder="Neues Passwort" value={newPwd} onChange={e => setNewPwd(e.target.value)} style={{ padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={handleChange} disabled={changing} style={{ padding: '10px 14px', background: '#2b6cb0', color: 'white', borderRadius: 8 }}>{changing ? '...' : 'Ändern'}</button>
-                </div>
+                <input 
+                  type="email" 
+                  placeholder="Neue Email-Adresse" 
+                  value={newEmail} 
+                  onChange={e => setNewEmail(e.target.value)} 
+                  style={{ padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} 
+                />
+                <input 
+                  type="password" 
+                  placeholder="Aktuelles Passwort" 
+                  value={emailPassword} 
+                  onChange={e => setEmailPassword(e.target.value)} 
+                  style={{ padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} 
+                />
+                <button 
+                  onClick={handleEmailChange} 
+                  disabled={changingEmail} 
+                  style={{ padding: '10px 14px', background: '#2b6cb0', color: 'white', borderRadius: 8, border: 'none', cursor: changingEmail ? 'not-allowed' : 'pointer' }}
+                >
+                  {changingEmail ? '...' : 'Email ändern'}
+                </button>
               </div>
             </div>
+
+            <div>
+              <h3>Passwort ändern</h3>
+              {msg && <div style={{ color: msg.includes('geändert') ? '#047857' : '#b91c1c', marginBottom: 8 }}>{msg}</div>}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <input type="password" placeholder="Neues Passwort bestätigen" value={confirmNewPwd} onChange={e => setConfirmNewPwd(e.target.value)} style={{ padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
+                <input type="password" placeholder="Altes Passwort" value={oldPwd} onChange={e => setOldPwd(e.target.value)} style={{ padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
+                <input type="password" placeholder="Neues Passwort" value={newPwd} onChange={e => setNewPwd(e.target.value)} style={{ padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
+                <button onClick={handleChange} disabled={changing} style={{ padding: '10px 14px', background: '#2b6cb0', color: 'white', borderRadius: 8, border: 'none', cursor: changing ? 'not-allowed' : 'pointer' }}>{changing ? '...' : 'Passwort ändern'}</button>
+              </div>
+            </div>
+          </div>
+
+          <hr style={{ margin: '16px 0' }} />
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 24 }}>
+            <div></div>
 
             <div>
               <h3>Account Aktionen</h3>
