@@ -51,7 +51,11 @@ export default function Profile() {
       setNewPwd('')
       setConfirmNewPwd('')
     } catch (err: any) {
-      setMsg(err?.message || 'Fehler beim Ändern des Passworts')
+      if (err?.message === 'Missing token') {
+        setMsg('Ungültige Antwort vom Reset-Endpoint erhalten. Bitte Seite neu laden und erneut versuchen.')
+      } else {
+        setMsg(err?.message || 'Fehler beim Ändern des Passworts')
+      }
     } finally { setChanging(false) }
   }
 
@@ -138,9 +142,9 @@ export default function Profile() {
               <h3>Passwort ändern</h3>
               {msg && <div style={{ color: msg.includes('geändert') ? '#047857' : '#b91c1c', marginBottom: 8 }}>{msg}</div>}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <input type="password" placeholder="Neues Passwort bestätigen" value={confirmNewPwd} onChange={e => setConfirmNewPwd(e.target.value)} style={{ padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
                 <input type="password" placeholder="Altes Passwort" value={oldPwd} onChange={e => setOldPwd(e.target.value)} style={{ padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
                 <input type="password" placeholder="Neues Passwort" value={newPwd} onChange={e => setNewPwd(e.target.value)} style={{ padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
+                <input type="password" placeholder="Neues Passwort bestätigen" value={confirmNewPwd} onChange={e => setConfirmNewPwd(e.target.value)} style={{ padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
                 <button onClick={handleChange} disabled={changing} style={{ padding: '10px 14px', background: '#2b6cb0', color: 'white', borderRadius: 8, border: 'none', cursor: changing ? 'not-allowed' : 'pointer' }}>{changing ? '...' : 'Passwort ändern'}</button>
               </div>
             </div>
