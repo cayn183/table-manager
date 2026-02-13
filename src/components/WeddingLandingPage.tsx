@@ -12,6 +12,7 @@ export default function WeddingLandingPage() {
         <title>Sitzplan für Hochzeiten & Events erstellen - PlatzPilot</title>
         <meta name="description" content="Erstellen Sie den perfekten Sitzplan für Ihre Hochzeit oder Ihr Event. PlatzPilot hilft Ihnen, Gäste optimal zu platzieren und Tischordnungen stressfrei zu organisieren." />
         <meta name="keywords" content="Sitzplan Hochzeit, Tischplan Hochzeit, Sitzordnung erstellen, Hochzeitsplanung Sitzplan, Gästeplanung Hochzeit" />
+        <link rel="canonical" href="https://platzpilot.de/sitzplan-hochzeit" />
       </Helmet>
       
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '3rem 2rem' }}>

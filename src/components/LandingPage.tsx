@@ -12,6 +12,7 @@ export default function LandingPage() {
         <title>PlatzPilot - Sitzpläne und Event-Management leicht gemacht</title>
         <meta name="description" content="PlatzPilot hilft bei der Planung von Events, Hochzeiten und Vereinsveranstaltungen. Erstellen Sie Sitzpläne, verwalten Sie Gästelisten und koordinieren Sie ToGo-Bestellungen." />
         <meta name="keywords" content="Sitzplan, Tischplan, Event-Management, Hochzeitsplanung, Vereinsveranstaltung" />
+        <link rel="canonical" href="https://platzpilot.de/" />
       </Helmet>
       
       <div style={{ minHeight: '100vh', backgroundColor: '#f8f9fa' }}>

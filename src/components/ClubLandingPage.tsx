@@ -12,6 +12,7 @@ export default function ClubLandingPage() {
         <title>Sitzplan & ToGo-Bestellungen für Vereine - PlatzPilot</title>
         <meta name="description" content="PlatzPilot hilft Vereinen bei der Organisation von Veranstaltungen: Erstellen Sie Sitzpläne, verwalten Sie Tischreservierungen und koordinieren Sie ToGo-Bestellungen - alles in einer App." />
         <meta name="keywords" content="Sitzplan Verein, Tischplan Verein, ToGo Bestellungen, Vereinsveranstaltung planen, Sitzordnung Verein" />
+        <link rel="canonical" href="https://platzpilot.de/sitzplan-verein" />
       </Helmet>
       
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '3rem 2rem' }}>
