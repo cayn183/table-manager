@@ -75,28 +75,28 @@ export default function VerifyEmail() {
                   ? 'Deine Email-Adresse wurde erfolgreich geändert. Bitte melde dich mit der neuen Email-Adresse an.' 
                   : 'Deine E-Mail-Adresse wurde erfolgreich verifiziert.'}
               </p>
-              <verificationType !== 'change' && auth.user && (
-                <div style={{ marginTop: 16 }}>
-                  <button onClick={resendVerification} disabled={resending} style={{ padding: '10px 16px', background: '#2b6cb0', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
-                    {resending ? 'Sende…' : 'Neue Bestaetigungs-E-Mail senden'}
-                  </button>
-                  {resendMsg && <p style={{ marginTop: 8, fontSize: 14, color: '#64748b' }}>{resendMsg}</p>}
-                </div>
-              )}
-              <button onClick={() => nav('/login')} style={{ marginTop: 12, padding: '10px 16px', borderRadius: 8, background: '#eef2ff', border: '1px solid #e6e6ff', cursor: 'pointer' }}>Zurueck zum Login</button>
+              <button 
+                onClick={() => {
+                  if (verificationType === 'change') {
+                    // For email change, log out and redirect to login
+                    auth.logout()
+                    nav('/login')
+                  } else {
+                    nav(auth.user ? '/app' : '/login')
+                  }
+                }} 
+                style={{ marginTop: 16, padding: '10px 16px', background: '#2b6cb0', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer' }}
+              >
+                {verificationType === 'change' ? 'Zum Login' : (auth.user ? 'Zur App' : 'Zum Login')}
+              </button>
             </>
           )}
 
-          {status === 'no-token' && (
-            <>
-              <p style={{ color: '#f59e0b', fontWeight: 600, fontSize: 18, marginBottom: 8 }}>Kein Token vorhanden</p>
-              <p style={{ color: '#64748b' }}>Bitte verwende den Link aus deiner Bestaetigungs-E-Mail.</p>
-              {verificationType !== 'change' && 
           {status === 'error' && (
             <>
               <p style={{ color: 'crimson', fontWeight: 600, fontSize: 18, marginBottom: 8 }}>Verifizierung fehlgeschlagen</p>
               <p style={{ color: '#64748b' }}>{error || 'Der Link ist ungueltig oder abgelaufen.'}</p>
-              {auth.user && (
+              {verificationType !== 'change' && auth.user && (
                 <div style={{ marginTop: 16 }}>
                   <button onClick={resendVerification} disabled={resending} style={{ padding: '10px 16px', background: '#2b6cb0', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
                     {resending ? 'Sende…' : 'Neue Bestaetigungs-E-Mail senden'}
@@ -112,7 +112,7 @@ export default function VerifyEmail() {
             <>
               <p style={{ color: '#f59e0b', fontWeight: 600, fontSize: 18, marginBottom: 8 }}>Kein Token vorhanden</p>
               <p style={{ color: '#64748b' }}>Bitte verwende den Link aus deiner Bestaetigungs-E-Mail.</p>
-              {auth.user && (
+              {verificationType !== 'change' && auth.user && (
                 <div style={{ marginTop: 16 }}>
                   <button onClick={resendVerification} disabled={resending} style={{ padding: '10px 16px', background: '#2b6cb0', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
                     {resending ? 'Sende…' : 'Neue Bestaetigungs-E-Mail senden'}
