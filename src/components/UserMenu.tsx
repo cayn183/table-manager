@@ -28,7 +28,7 @@ export default function UserMenu() {
   
 
   return (
-    <div ref={ref} style={{ position: 'fixed', top: 12, right: 12, zIndex: 1000 }}>
+    <div ref={ref} style={{ position: 'relative', zIndex: 1000 }}>
       <button
         onClick={() => setOpen(v => !v)}
         aria-label="User menu"
@@ -46,7 +46,7 @@ export default function UserMenu() {
         {initial}
       </button>
       {open && (
-        <div style={{ marginTop: 8, minWidth: 160, background: 'white', boxShadow: '0 6px 18px rgba(0,0,0,0.12)', borderRadius: 6 }}>
+        <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 8, minWidth: 160, background: 'white', boxShadow: '0 6px 18px rgba(0,0,0,0.12)', borderRadius: 6 }}>
           <div style={{ padding: 8, borderBottom: '1px solid #eee' }}>
             <div style={{ fontWeight: 700 }}>{user.name || user.email}</div>
           </div>
