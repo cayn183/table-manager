@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import api from '../api/apiClient'
 
 export default function Profile() {
-  const { user, logout } = useAuth()
+  const { user, token, logout } = useAuth()
   const [stats, setStats] = useState<{ events: number; rooms: number } | null>(null)
   const [createdAt, setCreatedAt] = useState<string | null>(null)
   const [changing, setChanging] = useState(false)
@@ -45,14 +45,15 @@ export default function Profile() {
     if (newPwd !== confirmNewPwd) { setMsg('Neue Passwörter stimmen nicht überein'); return }
     setChanging(true)
     try {
-      await api.post('/auth/change-password', { oldPassword: oldPwd, newPassword: newPwd })
+      await api.post('/auth/change-password', { oldPassword: oldPwd, newPassword: newPwd }, token || undefined)
       setMsg('Passwort geändert')
       setOldPwd('')
       setNewPwd('')
       setConfirmNewPwd('')
     } catch (err: any) {
-      if (err?.message === 'Missing token') {
-        setMsg('Ungültige Antwort vom Reset-Endpoint erhalten. Bitte Seite neu laden und erneut versuchen.')
+      if (err?.message === 'Missing token' || err?.message === 'Invalid token') {
+        setMsg('Sitzung abgelaufen. Bitte erneut einloggen.')
+        setTimeout(() => logout(), 1200)
       } else {
         setMsg(err?.message || 'Fehler beim Ändern des Passworts')
       }
@@ -64,7 +65,7 @@ export default function Profile() {
     if (!newEmail || !emailPassword) { setEmailMsg('Bitte alle Felder ausfüllen'); return }
     setChangingEmail(true)
     try {
-      const result = await api.post('/auth/change-email', { newEmail, password: emailPassword })
+      const result = await api.post('/auth/change-email', { newEmail, password: emailPassword }, token || undefined)
       if (result.requiresVerification) {
         setEmailMsg('Bestätigungs-Email wurde an die neue Adresse gesendet')
       } else {
@@ -75,7 +76,12 @@ export default function Profile() {
       setNewEmail('')
       setEmailPassword('')
     } catch (err: any) {
-      setEmailMsg(err?.message || 'Fehler beim Ändern der Email')
+      if (err?.message === 'Missing token' || err?.message === 'Invalid token') {
+        setEmailMsg('Sitzung abgelaufen. Bitte erneut einloggen.')
+        setTimeout(() => logout(), 1200)
+      } else {
+        setEmailMsg(err?.message || 'Fehler beim Ändern der Email')
+      }
     } finally { setChangingEmail(false) }
   }
 
