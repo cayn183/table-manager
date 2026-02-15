@@ -6,7 +6,7 @@ import logger from '../utils/logger'
 import sentry from '../sentryClient'
 import { syncUserData, hydrateUserData, syncUserDataOnUnload } from '../utils/sync'
 
-type User = { id: string; name?: string; email?: string } | null
+type User = { id: string; name?: string; email?: string; email_verified?: boolean; is_admin?: boolean } | null
 
 type AuthResult = { ok: true; token: string; user: User } | { ok: false; error: string }
 
@@ -14,6 +14,7 @@ type AuthCtx = {
   user: User
   token: string | null
   loading: boolean
+  refreshUser: () => Promise<void>
   login: (email: string, password: string) => Promise<AuthResult>
   register: (name: string, email: string, password: string) => Promise<AuthResult>
   logout: () => void
@@ -43,6 +44,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     bootstrap()
     return () => { mounted = false }
   }, [])
+
+  async function refreshUser(): Promise<void> {
+    try {
+      const res = await api.get('/auth/me', token || undefined)
+      if (res && res.id) setUser(res)
+    } catch (e) {
+      setUser(null)
+    }
+  }
 
   // NOTE: Automatic migration has been removed. If you want to migrate localStorage
   // data for a single user, call POST /migration/import from a manual UI action.
@@ -113,7 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [token, user])
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, refreshUser, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   )

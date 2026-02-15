@@ -2,6 +2,7 @@ import React from 'react'
 import { Outlet, Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import UserMenu from './UserMenu'
+import EmailVerificationBanner from './EmailVerificationBanner'
 
 export default function AppLayout() {
   const auth = useAuth()
@@ -31,6 +32,7 @@ export default function AppLayout() {
       
       {/* Main app content area */}
       <main style={{ flex: 1, padding: '2rem' }}>
+        <EmailVerificationBanner />
         <Outlet />
       </main>
     </div>
