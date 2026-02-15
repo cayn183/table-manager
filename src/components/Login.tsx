@@ -35,9 +35,6 @@ export default function Login({ initialMode }: LoginProps) {
   const passwordStrength = mode === 'register' && password ? getPasswordStrength(password) : null
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 
-  // Already logged in → redirect to app
-  if (auth.user) return <Navigate to="/app" replace />
-
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
@@ -92,6 +89,9 @@ export default function Login({ initialMode }: LoginProps) {
       setEmailExists(null)
     }
   }, [email, mode, emailValid])
+
+  // Already logged in → redirect to app (must be after all hooks)
+  if (auth.user) return <Navigate to="/app" replace />
 
   return (
     <div style={{ padding: '32px', display: 'flex', justifyContent: 'center' }}>
