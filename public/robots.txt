@@ -1,0 +1,16 @@
+# robots.txt for PlatzPilot
+
+# Allow all crawlers on public marketing pages
+User-agent: *
+Allow: /
+Allow: /sitzplan-verein
+Allow: /sitzplan-hochzeit
+
+# Block app and admin areas from being indexed
+Disallow: /app/
+Disallow: /admin
+Disallow: /login
+Disallow: /register
+
+# Sitemap
+Sitemap: https://platzpilot.de/sitemap.xml

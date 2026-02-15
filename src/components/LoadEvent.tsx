@@ -35,7 +35,7 @@ export default function LoadEvent() {
   useEffect(() => {
     let mounted = true
     ;(async () => {
-      if (auth.token && userId) {
+      if (userId) {
         await hydrateUserData(auth.token, userId)
       }
       if (!mounted) return
@@ -52,19 +52,29 @@ export default function LoadEvent() {
     
     // ToGo events go to /togo route
     if (event.isToGo) {
-      navigate('/togo')
+      navigate('/app/togo')
       return
     }
     
+    let hasUsableRoom = false
     if (event.roomId) {
       const raw = userStorage.getItem(ROOMS_KEY, userId) || localStorage.getItem(ROOMS_KEY) || '[]'
       const rooms = JSON.parse(raw as string)
       const room = rooms.find((r: any) => r.id === event.roomId)
       if (room) {
         userStorage.setItem(STORAGE_KEY, JSON.stringify(room.data), userId)
+        hasUsableRoom = true
       }
     }
-    navigate('/room')
+
+    if (!event.roomId || !hasUsableRoom) {
+      userStorage.removeItem(STORAGE_KEY, userId)
+      localStorage.removeItem(STORAGE_KEY)
+      navigate('/app/rooms/new', { state: { pendingEventId: event.id } })
+      return
+    }
+
+    navigate(`/app/events/${event.id}`)
   }
 
   function deleteEvent(id: string) {
@@ -73,12 +83,10 @@ export default function LoadEvent() {
     setEvents(updated)
     ;(async () => {
       try {
-        if (auth.token) {
-          // Try delete on server (ignore errors)
-          try { await api.del(`/events/${id}`, auth.token) } catch (e) {}
-          // After deletion, sync remaining local data to server
-          await syncUserData(auth.token, userId)
-        }
+        // Try delete on server (ignore errors)
+        try { await api.del(`/events/${id}`, auth.token ?? undefined) } catch (e) {}
+        // After deletion, sync remaining local data to server
+        if (userId) await syncUserData(auth.token, userId)
       } catch (err) {
         // ignore
       }
@@ -97,7 +105,7 @@ export default function LoadEvent() {
         gap: '12px'
       }}>
         <button 
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/app')}
           style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '16px', transition: 'all 0.2s' }}
           onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
           onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}

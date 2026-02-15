@@ -115,6 +115,7 @@ export default function Room() {
   const [editSize, setEditSize] = useState('')
   const [editTime, setEditTime] = useState('')
   const [editToGo, setEditToGo] = useState(false)
+  const [editAccessible, setEditAccessible] = useState(false)
   const [hasAutoAssigned, setHasAutoAssigned] = useState(false)
   const [assignedPage, setAssignedPage] = useState(0)
   const [availablePage, setAvailablePage] = useState(0)
@@ -892,7 +893,7 @@ export default function Room() {
     setLastSaveType('auto')
     setIsDirty(false)
     try {
-      if (auth.token && auth.user && auth.user.id) {
+      if (auth.user && auth.user.id) {
         void syncUserData(auth.token, auth.user.id)
       }
     } catch (e) {}
@@ -1067,12 +1068,12 @@ export default function Room() {
     // show saving status and wait for server sync before closing modal
     setIsSavingEvent(true)
     try {
-      if (auth.token && auth.user && auth.user.id) {
+      if (auth.user && auth.user.id) {
         await syncUserData(auth.token, auth.user.id)
       }
       setSaveToast({ type: 'success', message: 'Event gespeichert!' })
-    } catch (err) {
-      setSaveToast({ type: 'error', message: 'Speichern fehlgeschlagen' })
+    } catch (err: any) {
+      setSaveToast({ type: 'error', message: err?.message || 'Speichern fehlgeschlagen' })
     } finally {
       setIsSavingEvent(false)
       setShowEventSaveModal(false)
@@ -1175,7 +1176,7 @@ export default function Room() {
       <div className="container">
         <h1>Tischplaner</h1>
         <p>{loadError ?? 'Lade Raum...'}</p>
-        <Link to="/new-room">
+        <Link to="/app/rooms">
           <button>Zum Editor</button>
         </Link>
       </div>
@@ -1239,7 +1240,7 @@ export default function Room() {
           alignItems: 'center', 
           gap: '12px' 
         }}>
-          <Link to="/" style={{ textDecoration: 'none', color: 'white', display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}>
+          <Link to="/app" style={{ textDecoration: 'none', color: 'white', display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}>
             <span 
               style={{ 
                 fontSize: '24px', 
@@ -1373,7 +1374,7 @@ export default function Room() {
           </div>
 
           <button 
-            onClick={() => navigate('/new-room')}
+            onClick={() => navigate('/app/rooms')}
             style={{
               padding: '8px 16px',
               background: 'rgba(255,255,255,0.2)',
@@ -2724,6 +2725,7 @@ export default function Room() {
                       setEditSize(group.size.toString())
                       setEditTime(group.time || '')
                       setEditToGo(Boolean(group.toGo))
+                      setEditAccessible(Boolean(group.accessible))
                       setContextMenu(null)
                     }}
                     style={{
@@ -2918,6 +2920,7 @@ export default function Room() {
                       setEditSize(ag.group.size.toString())
                       setEditTime(ag.group.time || '')
                       setEditToGo(Boolean(ag.group.toGo))
+                      setEditAccessible(Boolean(ag.group.accessible))
                       setContextMenu(null)
                     }}
                     style={{
@@ -3059,6 +3062,7 @@ export default function Room() {
                   setEditSize(ag.group.size.toString())
                   setEditTime(ag.group.time || '')
                   setEditToGo(Boolean(ag.group.toGo))
+                  setEditAccessible(Boolean(ag.group.accessible))
                   setContextMenu(null)
                 }}
                 style={{
@@ -3766,26 +3770,163 @@ export default function Room() {
                   }}
                 />
               </div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: '#f1f5f9', borderRadius: '6px', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={editToGo}
-                  onChange={e => setEditToGo(e.target.checked)}
-                  style={{ cursor: 'pointer' }}
-                />
-                <span style={{ fontSize: '14px', fontWeight: '500', color: '#475569' }}>ToGo (kein Tisch)</span>
-              </label>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: '#f1f5f9', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s' }}>
+                  <input
+                    type="checkbox"
+                    checked={editToGo}
+                    onChange={e => {
+                      const v = e.target.checked
+                      setEditToGo(v)
+                      if (v) setEditAccessible(false)
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: '14px', fontWeight: '500', color: '#475569' }}>ToGo (kein Tisch)</span>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: '#f1f5f9', borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s' }}>
+                  <input
+                    type="checkbox"
+                    checked={editAccessible}
+                    onChange={e => {
+                      const v = e.target.checked
+                      setEditAccessible(v)
+                      if (v) setEditToGo(false)
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: '14px', fontWeight: '500', color: '#475569' }}>Rollstuhl / Kinderwagen</span>
+                </label>
+              </div>
+              <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#475569', lineHeight: 1.4 }}>
+                ToGo oder größere Familien können den Tisch überlasten – in diesem Fall wandert die Gruppe nach dem Speichern automatisch zurück in "Unzugewiesen" oder in den ToGo-Bereich.
+              </p>
               <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
                 <button
                   onClick={() => {
-                    const size = parseInt(editSize) || 1
+                    const size = Math.max(1, parseInt(editSize) || 1)
+                    const nextToGo = Boolean(editToGo)
+                    const nextAccessible = Boolean(editAccessible) && !nextToGo
+                    const nextTime = editTime || undefined
+                    const nextSalutation = editSalutation || 'Fam'
+                    const nextName = editName.trim()
+
                     if (editModal.isList) {
-                      setGroups(groups.map((g, i) => i === editModal.listIdx ? { ...g, name: editName || `Familie ${i + 1}`, size, time: editTime || undefined, toGo: editToGo, salutation: editSalutation || 'Fam' } : g))
+                      const current = groups[editModal.listIdx ?? -1]
+                      if (!current) {
+                        setEditModal(null)
+                        return
+                      }
+                      const updatedGroup = {
+                        ...current,
+                        name: nextName || current.name || `Familie ${(editModal.listIdx ?? 0) + 1}`,
+                        size,
+                        time: nextTime,
+                        toGo: nextToGo,
+                        accessible: nextAccessible,
+                        salutation: nextSalutation
+                      }
+                      if (nextToGo) {
+                        const updatedAssigned = ensureToGoBucket({ ...assignedGroups })
+                        updatedAssigned['TOGO'] = [
+                          ...(updatedAssigned['TOGO'] || []),
+                          { group: updatedGroup, rotation: 0, locked: false, x: 0, y: 0, color: TOGO_COLOR }
+                        ]
+                        setAssignedGroups(updatedAssigned)
+                        setGroups(groups.filter((_, i) => i !== editModal.listIdx))
+                      } else {
+                        setGroups(groups.map((g, i) => i === editModal.listIdx ? updatedGroup : g))
+                      }
+                      setEditModal(null)
+                      return
+                    }
+
+                    const tableId = editModal.tableId
+                    const currentList = assignedGroups[tableId] || []
+                    const currentAg = currentList[editModal.agIdx]
+                    if (!currentAg) {
+                      setEditModal(null)
+                      return
+                    }
+
+                    const updatedGroup = {
+                      ...currentAg.group,
+                      name: nextName || currentAg.group.name,
+                      size,
+                      time: nextTime,
+                      toGo: nextToGo,
+                      accessible: nextAccessible,
+                      salutation: nextSalutation
+                    }
+
+                    if (nextToGo) {
+                      const updatedAssigned = ensureToGoBucket({ ...assignedGroups })
+                      if (tableId === 'TOGO') {
+                        updatedAssigned['TOGO'] = currentList.map((ag, i) => i === editModal.agIdx ? { ...ag, group: updatedGroup } : ag)
+                      } else {
+                        updatedAssigned[tableId] = currentList.filter((_, i) => i !== editModal.agIdx)
+                        updatedAssigned['TOGO'] = [
+                          ...(updatedAssigned['TOGO'] || []),
+                          { ...currentAg, group: updatedGroup, rotation: 0, x: 0, y: 0, color: TOGO_COLOR }
+                        ]
+                      }
+                      setAssignedGroups(updatedAssigned)
+                      setEditModal(null)
+                      return
+                    }
+
+                    if (tableId === 'TOGO') {
+                      setAssignedGroups({
+                        ...assignedGroups,
+                        [tableId]: currentList.filter((_, i) => i !== editModal.agIdx)
+                      })
+                      setGroups([...groups, { ...updatedGroup, toGo: false }])
+                      setEditModal(null)
+                      return
+                    }
+
+                    const sizeChanged = size !== currentAg.group.size
+                    if (!sizeChanged) {
+                      setAssignedGroups({
+                        ...assignedGroups,
+                        [tableId]: currentList.map((ag, i) => i === editModal.agIdx ? { ...ag, group: updatedGroup } : ag)
+                      })
+                      setEditModal(null)
+                      return
+                    }
+
+                    const table = room?.tables.find(t => t.id === tableId)
+                    if (!table) {
+                      setEditModal(null)
+                      return
+                    }
+
+                    const remaining = currentList.filter((_, i) => i !== editModal.agIdx)
+                    const occupiedSeats = remaining.reduce((sum, ag) => sum + ag.group.size, 0) + size
+                    if (occupiedSeats > table.capacity) {
+                      setAssignedGroups({
+                        ...assignedGroups,
+                        [tableId]: remaining
+                      })
+                      setGroups([...groups, updatedGroup])
+                      setEditModal(null)
+                      return
+                    }
+
+                    const occupied = buildOccupied(table, remaining)
+                    const placement = tryPlaceOnTable(table, updatedGroup, occupied, remaining)
+                    if (placement) {
+                      const nextAg = { ...currentAg, group: updatedGroup, rotation: placement.rotation, x: placement.x, y: placement.y }
+                      setAssignedGroups({
+                        ...assignedGroups,
+                        [tableId]: currentList.map((ag, i) => i === editModal.agIdx ? nextAg : ag)
+                      })
                     } else {
                       setAssignedGroups({
                         ...assignedGroups,
-                        [editModal.tableId]: assignedGroups[editModal.tableId].map((ag, i) => i === editModal.agIdx ? { ...ag, group: { ...ag.group, name: editName || ag.group.name, size, time: editTime || undefined, toGo: editToGo, salutation: editSalutation || 'Fam' } } : ag)
+                        [tableId]: remaining
                       })
+                      setGroups([...groups, updatedGroup])
                     }
                     setEditModal(null)
                   }}

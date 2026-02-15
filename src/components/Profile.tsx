@@ -5,50 +5,89 @@ import { useNavigate } from 'react-router-dom'
 import api from '../api/apiClient'
 
 export default function Profile() {
-  const { token, user, logout } = useAuth()
+  const { user, token, logout } = useAuth()
   const [stats, setStats] = useState<{ events: number; rooms: number } | null>(null)
   const [createdAt, setCreatedAt] = useState<string | null>(null)
   const [changing, setChanging] = useState(false)
   const [oldPwd, setOldPwd] = useState('')
   const [newPwd, setNewPwd] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
+  
+  // Email change states
+  const [changingEmail, setChangingEmail] = useState(false)
+  const [newEmail, setNewEmail] = useState('')
+  const [emailPassword, setEmailPassword] = useState('')
+  const [emailMsg, setEmailMsg] = useState<string | null>(null)
+  
+  // Password confirmation
+  const [confirmNewPwd, setConfirmNewPwd] = useState('')
+  
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (!token) return
     let mounted = true
     ;(async () => {
       try {
-        const me = await api.get('/auth/me', token)
+        const me = await api.get('/auth/me')
         if (mounted) setCreatedAt(me.created_at || null)
       } catch (e) {}
       try {
-        const s = await api.get('/auth/stats', token)
+        const s = await api.get('/auth/stats')
         if (mounted) setStats(s)
       } catch (e) {}
     })()
     return () => { mounted = false }
-  }, [token])
+  }, [])
 
   async function handleChange() {
     setMsg(null)
-    if (!oldPwd || !newPwd) { setMsg('Bitte beide Felder ausfüllen'); return }
+    if (!oldPwd || !newPwd || !confirmNewPwd) { setMsg('Bitte alle Felder ausfüllen'); return }
+    if (newPwd !== confirmNewPwd) { setMsg('Neue Passwörter stimmen nicht überein'); return }
     setChanging(true)
     try {
-      await api.post('/auth/change-password', { oldPassword: oldPwd, newPassword: newPwd }, token ?? undefined)
+      await api.post('/auth/change-password', { oldPassword: oldPwd, newPassword: newPwd }, token || undefined)
       setMsg('Passwort geändert')
       setOldPwd('')
       setNewPwd('')
+      setConfirmNewPwd('')
     } catch (err: any) {
-      setMsg(err?.message || 'Fehler beim Ändern des Passworts')
+      if (err?.message === 'Missing token' || err?.message === 'Invalid token') {
+        setMsg('Sitzung abgelaufen. Bitte erneut einloggen.')
+        setTimeout(() => logout(), 1200)
+      } else {
+        setMsg(err?.message || 'Fehler beim Ändern des Passworts')
+      }
     } finally { setChanging(false) }
   }
 
-  async function handleDeleteAccount() {
-    if (!token) return
+  async function handleEmailChange() {
+    setEmailMsg(null)
+    if (!newEmail || !emailPassword) { setEmailMsg('Bitte alle Felder ausfüllen'); return }
+    setChangingEmail(true)
     try {
-      await api.del('/auth/me', token)
-      try { localStorage.removeItem('tm_token'); localStorage.removeItem('tm_user') } catch (e) {}
+      const result = await api.post('/auth/change-email', { newEmail, password: emailPassword }, token || undefined)
+      if (result.requiresVerification) {
+        setEmailMsg('Bestätigungs-Email wurde an die neue Adresse gesendet')
+      } else {
+        setEmailMsg('Email-Adresse wurde geändert')
+        // Refresh page to update user context
+        setTimeout(() => window.location.reload(), 1500)
+      }
+      setNewEmail('')
+      setEmailPassword('')
+    } catch (err: any) {
+      if (err?.message === 'Missing token' || err?.message === 'Invalid token') {
+        setEmailMsg('Sitzung abgelaufen. Bitte erneut einloggen.')
+        setTimeout(() => logout(), 1200)
+      } else {
+        setEmailMsg(err?.message || 'Fehler beim Ändern der Email')
+      }
+    } finally { setChangingEmail(false) }
+  }
+
+  async function handleDeleteAccount() {
+    try {
+      await api.del('/auth/me')
       logout()
     } catch (e) {
       setMsg('Account-Löschen fehlgeschlagen')
@@ -76,18 +115,51 @@ export default function Profile() {
 
           <hr style={{ margin: '16px 0' }} />
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
+            <div>
+              <h3>Email ändern</h3>
+              {emailMsg && <div style={{ color: emailMsg.includes('geändert') || emailMsg.includes('gesendet') ? '#047857' : '#b91c1c', marginBottom: 8 }}>{emailMsg}</div>}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <input 
+                  type="email" 
+                  placeholder="Neue Email-Adresse" 
+                  value={newEmail} 
+                  onChange={e => setNewEmail(e.target.value)} 
+                  style={{ padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} 
+                />
+                <input 
+                  type="password" 
+                  placeholder="Aktuelles Passwort" 
+                  value={emailPassword} 
+                  onChange={e => setEmailPassword(e.target.value)} 
+                  style={{ padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} 
+                />
+                <button 
+                  onClick={handleEmailChange} 
+                  disabled={changingEmail} 
+                  style={{ padding: '10px 14px', background: '#2b6cb0', color: 'white', borderRadius: 8, border: 'none', cursor: changingEmail ? 'not-allowed' : 'pointer' }}
+                >
+                  {changingEmail ? '...' : 'Email ändern'}
+                </button>
+              </div>
+            </div>
+
             <div>
               <h3>Passwort ändern</h3>
-              {msg && <div style={{ color: '#b91c1c', marginBottom: 8 }}>{msg}</div>}
+              {msg && <div style={{ color: msg.includes('geändert') ? '#047857' : '#b91c1c', marginBottom: 8 }}>{msg}</div>}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <input type="password" placeholder="Altes Passwort" value={oldPwd} onChange={e => setOldPwd(e.target.value)} style={{ padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
                 <input type="password" placeholder="Neues Passwort" value={newPwd} onChange={e => setNewPwd(e.target.value)} style={{ padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={handleChange} disabled={changing} style={{ padding: '10px 14px', background: '#2b6cb0', color: 'white', borderRadius: 8 }}>{changing ? '...' : 'Ändern'}</button>
-                </div>
+                <input type="password" placeholder="Neues Passwort bestätigen" value={confirmNewPwd} onChange={e => setConfirmNewPwd(e.target.value)} style={{ padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
+                <button onClick={handleChange} disabled={changing} style={{ padding: '10px 14px', background: '#2b6cb0', color: 'white', borderRadius: 8, border: 'none', cursor: changing ? 'not-allowed' : 'pointer' }}>{changing ? '...' : 'Passwort ändern'}</button>
               </div>
             </div>
+          </div>
+
+          <hr style={{ margin: '16px 0' }} />
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 24 }}>
+            <div></div>
 
             <div>
               <h3>Account Aktionen</h3>

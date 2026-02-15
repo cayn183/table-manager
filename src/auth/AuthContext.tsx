@@ -6,40 +6,53 @@ import logger from '../utils/logger'
 import sentry from '../sentryClient'
 import { syncUserData, hydrateUserData, syncUserDataOnUnload } from '../utils/sync'
 
-type User = { id: string; name?: string; email?: string } | null
+type User = { id: string; name?: string; email?: string; email_verified?: boolean; is_admin?: boolean } | null
 
 type AuthResult = { ok: true; token: string; user: User } | { ok: false; error: string }
 
 type AuthCtx = {
   user: User
   token: string | null
+  loading: boolean
+  refreshUser: () => Promise<void>
   login: (email: string, password: string) => Promise<AuthResult>
   register: (name: string, email: string, password: string) => Promise<AuthResult>
   logout: () => void
 }
-
-const KEY_TOKEN = 'tm_token'
-const KEY_USER = 'tm_user'
 // Migration is disabled by default. Manual import endpoint remains on the server.
 
 const AuthContext = createContext<AuthCtx | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem(KEY_TOKEN))
-  const [user, setUser] = useState<User>(() => {
-    try { return JSON.parse(localStorage.getItem(KEY_USER) || 'null') as User } catch { return null }
-  })
+  const [token, setToken] = useState<string | null>(null)
+  const [user, setUser] = useState<User>(null)
+  const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (token) localStorage.setItem(KEY_TOKEN, token)
-    else localStorage.removeItem(KEY_TOKEN)
-  }, [token])
+    let mounted = true
+    async function bootstrap() {
+      try {
+        const res = await api.get('/auth/me')
+        if (mounted && res && res.id) setUser(res)
+      } catch (e) {
+        if (mounted) setUser(null)
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+    bootstrap()
+    return () => { mounted = false }
+  }, [])
 
-  useEffect(() => {
-    if (user) localStorage.setItem(KEY_USER, JSON.stringify(user))
-    else localStorage.removeItem(KEY_USER)
-  }, [user])
+  async function refreshUser(): Promise<void> {
+    try {
+      const res = await api.get('/auth/me', token || undefined)
+      if (res && res.id) setUser(res)
+    } catch (e) {
+      setUser(null)
+    }
+  }
 
   // NOTE: Automatic migration has been removed. If you want to migrate localStorage
   // data for a single user, call POST /migration/import from a manual UI action.
@@ -47,13 +60,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function login(email: string, password: string): Promise<AuthResult> {
     try {
       const res = await api.post('/auth/login', { email, password })
-      setToken(res.token)
+      setToken(res.token || null)
       setUser(res.user)
       try { sentry.setUser({ id: res.user.id }) } catch (e) {}
       // Try to load server-side events into user-scoped localStorage so
       // the UI shows existing events when logging in from another browser.
       try {
-        await hydrateUserData(res.token, res.user.id)
+        await hydrateUserData(res.token || null, res.user.id)
       } catch (e) {
         // ignore fetch errors
       }
@@ -69,7 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function register(name: string, email: string, password: string): Promise<AuthResult> {
     try {
       const res = await api.post('/auth/register', { name, email, password })
-      setToken(res.token)
+      setToken(res.token || null)
       setUser(res.user)
       try { sentry.setUser({ id: res.user.id }) } catch (e) {}
       // Automatic migration disabled — start with a clean state for new users
@@ -83,10 +96,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   function logout() {
     try {
-      if (token && user && user.id) {
+      if (user && user.id) {
         void syncUserData(token, user.id)
       }
     } catch (e) {}
+    try { void api.post('/auth/logout') } catch (e) {}
     setToken(null)
     setUser(null)
     try { sentry.clearUser() } catch (e) {}
@@ -99,7 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     function handleUnload() {
       try {
-        if (token && user && user.id) {
+        if (user && user.id) {
           syncUserDataOnUnload(token, user.id)
         }
       } catch (e) {}
@@ -109,7 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [token, user])
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, refreshUser, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   )

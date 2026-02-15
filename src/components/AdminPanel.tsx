@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import api from '../api/apiClient'
 import '../styles/admin-panel.css'
 
-type UserRow = { id: string; name: string; email: string; created_at: string; is_admin: boolean; deleted_at?: string }
+type UserRow = { id: string; name: string; email: string; created_at: string; is_admin: boolean; email_verified?: boolean; deleted_at?: string }
 type AuditRow = { id: string; actor_id: string; action: string; target_type: string; target_id: string; details: any; created_at: string }
 
 export default function AdminPanel() {
@@ -44,9 +44,9 @@ export default function AdminPanel() {
   const [selectedFeedback, setSelectedFeedback] = useState<any | null>(null)
   const [feedbackDetailLoading, setFeedbackDetailLoading] = useState(false)
 
-  useEffect(() => { fetchUsers(page, perPage, q) }, [auth.token, page, perPage, q])
-  useEffect(() => { if (menu === 'audit') fetchAudit(auditPage, auditPerPage) }, [auth.token, menu, auditPage, auditPerPage])
-  useEffect(() => { if (menu === 'feedback') fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ) }, [auth.token, menu, feedbackPage, feedbackPerPage, feedbackQ, showNew, showOpen, showResolved])
+  useEffect(() => { fetchUsers(page, perPage, q) }, [auth.user, page, perPage, q])
+  useEffect(() => { if (menu === 'audit') fetchAudit(auditPage, auditPerPage) }, [auth.user, menu, auditPage, auditPerPage])
+  useEffect(() => { if (menu === 'feedback') fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ) }, [auth.user, menu, feedbackPage, feedbackPerPage, feedbackQ, showNew, showOpen, showResolved])
 
   // System info state
   const [backendInfo, setBackendInfo] = useState<any | null>(null)
@@ -57,10 +57,10 @@ export default function AdminPanel() {
     let id: any = null
     const refresh = async () => {
       if (menu !== 'system') return
-      if (!auth.token) return
+      if (!auth.user) return
       setSystemLoading(true)
       try {
-        const res = await api.get('/admin/system', auth.token)
+        const res = await api.get('/admin/system', auth.token ?? undefined)
         setBackendInfo(res || null)
         setLastCheck(Date.now())
       } catch (e) {
@@ -75,13 +75,13 @@ export default function AdminPanel() {
       id = setInterval(refresh, 30000)
     }
     return () => { if (id) clearInterval(id) }
-  }, [menu, auth.token])
+  }, [menu, auth.user])
 
   if (!auth.user) return <div style={{ padding: 24 }}>Nicht angemeldet</div>
   if (!(auth.user as any).is_admin) return <div style={{ padding: 24 }}>Zugriff verweigert</div>
 
   async function fetchUsers(p = 1, pp = 25, query = '') {
-    if (!auth.token) return
+    if (!auth.user) return
     setLoading(true)
     try {
       const res = await api.get(`/admin/users?page=${p}&perPage=${pp}&q=${encodeURIComponent(query)}`, auth.token ?? undefined)
@@ -105,7 +105,7 @@ export default function AdminPanel() {
   }
 
   async function fetchAudit(p = 1, pp = 25) {
-    if (!auth.token) return
+    if (!auth.user) return
     try {
       const res = await api.get(`/admin/audit?page=${p}&perPage=${pp}`, auth.token ?? undefined)
       setAuditEntries(res.entries || [])
@@ -116,7 +116,7 @@ export default function AdminPanel() {
   }
 
   async function fetchFeedback(p = 1, pp = 25, query = '') {
-    if (!auth.token) return
+    if (!auth.user) return
     try {
       const statuses: string[] = []
       if (showNew) statuses.push('new')
@@ -132,7 +132,7 @@ export default function AdminPanel() {
   }
 
   async function fetchFeedbackDetail(id: string) {
-    if (!auth.token) return
+    if (!auth.user) return
     setFeedbackDetailLoading(true)
     try {
       const res = await api.get(`/admin/feedback/${id}`, auth.token ?? undefined)
@@ -143,7 +143,7 @@ export default function AdminPanel() {
   }
 
   async function addFeedbackComment(id: string, message: string) {
-    if (!auth.token) return
+    if (!auth.user) return
     try {
       await api.post(`/admin/feedback/${id}/comment`, { message }, auth.token ?? undefined)
       fetchFeedbackDetail(id)
@@ -152,7 +152,7 @@ export default function AdminPanel() {
   }
 
   async function resolveFeedback(id: string, resolved = true) {
-    if (!auth.token) return false
+    if (!auth.user) return false
     try {
       await api.post(`/admin/feedback/${id}/resolve`, { resolved }, auth.token ?? undefined)
       // refresh
@@ -163,7 +163,7 @@ export default function AdminPanel() {
   }
 
   async function deleteFeedback(id: string) {
-    if (!auth.token) return false
+    if (!auth.user) return false
     if (!confirm('Feedback wirklich endgültig löschen? Diese Aktion ist unwiderruflich.')) return false
     try {
       await api.del(`/admin/feedback/${id}`, auth.token ?? undefined)
@@ -212,6 +212,7 @@ export default function AdminPanel() {
                   <th style={{ textAlign: 'left', padding: 8 }}>Email</th>
                   <th style={{ textAlign: 'left', padding: 8 }}>Name</th>
                   <th style={{ textAlign: 'left', padding: 8 }}>Admin</th>
+                  <th style={{ textAlign: 'left', padding: 8 }}>Verifiziert</th>
                   <th style={{ textAlign: 'left', padding: 8 }}>Created</th>
                   <th style={{ textAlign: 'left', padding: 8 }}>Aktionen</th>
                 </tr>
@@ -223,26 +224,36 @@ export default function AdminPanel() {
                     <td style={{ padding: 8 }}>{u.email}</td>
                     <td style={{ padding: 8 }}>{u.name}</td>
                     <td style={{ padding: 8 }}>{u.is_admin ? '✅' : ''}</td>
+                    <td style={{ padding: 8 }}>{u.email_verified ? '✅' : ''}</td>
                     <td style={{ padding: 8 }}>{new Date(u.created_at).toLocaleString()}</td>
                     <td style={{ padding: 8 }}>
                       <button onClick={async () => fetchUserDetail(u.id)}>View</button>
                       <button style={{ marginLeft: 8 }} onClick={async () => {
                         try {
-                          await api.post(`/admin/users/${u.id}/role`, { is_admin: !u.is_admin }, auth.token!)
+                          await api.post(`/admin/users/${u.id}/role`, { is_admin: !u.is_admin }, auth.token ?? undefined)
                           fetchUsers(page, perPage, q)
                         } catch (e: any) { alert(e?.message || 'Error') }
                       }}>{u.is_admin ? 'Revoke admin' : 'Make admin'}</button>
                       <button style={{ marginLeft: 8 }} onClick={async () => {
+                        try {
+                          await api.post(`/admin/users/${u.id}/email-verification`, { email_verified: !u.email_verified }, auth.token ?? undefined)
+                          fetchUsers(page, perPage, q)
+                          if (selectedUser && selectedUser.id === u.id) {
+                            fetchUserDetail(u.id)
+                          }
+                        } catch (e: any) { alert(e?.message || 'Error') }
+                      }}>{u.email_verified ? 'Unverify' : 'Verify'}</button>
+                      <button style={{ marginLeft: 8 }} onClick={async () => {
                         if (!confirm('Benutzer wirklich löschen (soft delete)?')) return
                         try {
-                          await api.del(`/admin/users/${u.id}`, auth.token!)
+                          await api.del(`/admin/users/${u.id}`, auth.token ?? undefined)
                           fetchUsers(page, perPage, q)
                         } catch (e: any) { alert(e?.message || 'Error') }
                       }}>Delete</button>
                       <button style={{ marginLeft: 8 }} onClick={async () => {
                         if (!confirm('Benutzer endgültig entfernen? Diese Aktion ist unwiderruflich.')) return
                         try {
-                          await api.post(`/admin/users/${u.id}/purge`, {}, auth.token!)
+                          await api.post(`/admin/users/${u.id}/purge`, {}, auth.token ?? undefined)
                           fetchUsers(page, perPage, q)
                         } catch (e: any) { alert(e?.message || 'Error') }
                       }}>Purge</button>
@@ -455,6 +466,7 @@ export default function AdminPanel() {
               <p><strong>Email:</strong> {selectedUser.email}</p>
               <p><strong>Created:</strong> {new Date(selectedUser.created_at).toLocaleString()}</p>
               <p><strong>Admin:</strong> {(selectedUser as any).is_admin ? 'Yes' : 'No'}</p>
+              <p><strong>Email verifiziert:</strong> {(selectedUser as any).email_verified ? 'Yes' : 'No'}</p>
               <p><strong>Deleted:</strong> {selectedUser.deleted_at || '—'}</p>
             </div>
           )}

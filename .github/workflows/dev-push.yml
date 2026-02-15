@@ -49,13 +49,6 @@ jobs:
           sed -i "s/releaseDate: '[^']*'/releaseDate: '$RELEASE_DATE'/" src/components/Footer.tsx
           echo "✓ Updated Frontend Footer.tsx: version='dev', releaseDate='$RELEASE_DATE'"
 
-      - name: Update Backend version (package.json)
-        run: |
-          # Set backend version to 'dev' indicator
-          cd backend
-          npm version 0.0.0-dev --no-git-tag-version --allow-same-version || true
-          echo "✓ Updated Backend package.json version to dev"
-
       - name: Commit version changes
         run: |
           git config user.name "github-actions[bot]"
@@ -63,7 +56,7 @@ jobs:
           
           # Check if there are changes to commit
           if ! git diff --quiet; then
-            git add package.json package-lock.json src/components/Footer.tsx backend/package.json backend/package-lock.json
+            git add package.json package-lock.json src/components/Footer.tsx
             git commit -m "chore: set dev version [skip ci]"
             git push
             echo "✓ Version changes committed"
@@ -100,7 +93,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: backend/Dockerfile
+          file: ./Dockerfile
           push: true
           tags: ${{ steps.tags.outputs.tags }}
           build-args: |

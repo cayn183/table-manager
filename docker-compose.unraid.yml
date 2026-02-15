@@ -1,5 +1,8 @@
 version: '3.8'
 
+# Unraid-optimized 2-Container setup for Table-Manager
+# See README or anleitungen/deployment.md for setup instructions.
+
 services:
   postgres:
     image: postgres:15
@@ -11,75 +14,99 @@ services:
     volumes:
       - /mnt/user/appdata/table-manager/postgres:/var/lib/postgresql/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tm_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   backend:
-    # Preferred: build backend from local source so the image contains built JS and entrypoint
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    image: ghcr.io/cayn183/table-manager-backend:latest
+    image: ghcr.io/cayn183/backend-table-manager:latest
     container_name: table-manager-backend
     environment:
-      # Mark this service explicitly as backend for orchestrators/monitoring
-      - SERVICE=backend
-      # Prefer separate POSTGRES_* variables (fallback to DATABASE_URL supported)
       - POSTGRES_HOST=postgres
       - POSTGRES_PORT=5432
       - POSTGRES_USER=${POSTGRES_USER:-tm_user}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-verysecurepassword}
       - POSTGRES_DB=${POSTGRES_DB:-tablemanager}
-      - POSTGRES_SSL=${POSTGRES_SSL:-false}
-      # Optional full DATABASE_URL (kept for backward compatibility)
-      - DATABASE_URL=postgres://${POSTGRES_USER:-tm_user}:${POSTGRES_PASSWORD:-verysecurepassword}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-tablemanager}
       - JWT_SECRET=${JWT_SECRET:-replace_with_a_strong_secret}
       - NODE_ENV=production
       - MIGRATE_ON_START=true
+      # CORS: Set to your external frontend URL!
+      # Examples: https://app.example.com  or  http://192.168.178.2:5173
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:5173}
+      # Logging: visible in Unraid Docker Logs AND written to file
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_FILE=/app/data/backend.log
+      # Reverse proxy support
+      - TRUST_PROXY=${TRUST_PROXY:-1}
       # Optional Sentry
-      - SENTRY_DSN=${SENTRY_DSN}
-      - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE}
+      - SENTRY_DSN=${SENTRY_DSN:-}
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     ports:
       - "4000:4000"
-    # Mount only app data directory; avoid mounting over /app or /app/dist which would hide built files
     volumes:
       - /mnt/user/appdata/table-manager/backend-data:/app/data
     restart: unless-stopped
-
-  # Optional one-shot migrate service: runs migrations once and exits (commented example)
-  # migrate:
-  #   build:
-  #     context: ./backend
-  #     dockerfile: Dockerfile
-  #   image: ghcr.io/cayn183/table-manager-backend:latest
-  #   command: ["/usr/local/bin/entrypoint.sh"]
-  #   environment:
-  #     - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
-  #     - POSTGRES_PORT=${POSTGRES_PORT:-5432}
-  #     - POSTGRES_USER=${POSTGRES_USER}
-  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-  #     - POSTGRES_DB=${POSTGRES_DB}
-  #     - MIGRATE_ON_START=true
-  #   depends_on:
-  #     - postgres
-  #   restart: "no"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   frontend:
     image: ghcr.io/cayn183/table-manager:latest
     container_name: table-manager-frontend
+    environment:
+      # API URL as seen by the BROWSER (not Docker-internal!)
+      # Use your Unraid IP or external domain, e.g.:
+      #   http://192.168.178.2:4000
+      #   https://api.example.com
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:4000}
+      # Log level for Vite preview server
+      - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-info}
+      # Reverse proxy: set to '*' to accept all host headers
+      - VITE_PREVIEW_ALLOWED_HOSTS=${VITE_PREVIEW_ALLOWED_HOSTS:-*}
+    depends_on:
+      backend:
+        condition: service_healthy
     ports:
       - "5173:5173"
-    environment:
-      - VITE_API_URL=http://backend:4000
-      - VITE_SENTRY_DSN=${VITE_SENTRY_DSN}
-    depends_on:
-      - backend
-    volumes:
-      # Keep frontend data isolated from backend and postgres
-      - /mnt/user/appdata/table-manager/frontend-data:/app/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5173/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
-# Notes:
-# - Replace image names with build context / local images if you prefer to build from source on Unraid.
-# - Ensure `JWT_SECRET` and `POSTGRES_PASSWORD` are set to secure values via the Unraid Docker UI or an env file.
-# - You can also add an Adminer or pgAdmin service for DB management if desired.
+# ============================================================================
+# QUICK SETUP FOR UNRAID
+# ============================================================================
+#
+# 1. Set secure passwords:
+#    - POSTGRES_PASSWORD  (strong, random)
+#    - JWT_SECRET          (strong, random — e.g. openssl rand -hex 32)
+#
+# 2. Set CORS_ORIGIN to your frontend's external URL:
+#    - Direct access:   http://192.168.178.2:5173
+#    - Reverse proxy:   https://app.example.com
+#
+# 3. Set VITE_API_URL to your backend's external URL:
+#    - Direct access:   http://192.168.178.2:4000
+#    - Reverse proxy:   https://api.example.com
+#
+# LOGGING:
+#   - Unraid Docker Logs GUI:  All logs appear in stdout (no extra config)
+#   - Persistent log file:     /mnt/user/appdata/table-manager/backend-data/backend.log
+#
+# REVERSE PROXY EXAMPLE (Nginx Proxy Manager):
+#   - Frontend: app.example.com → http://192.168.178.2:5173
+#   - Backend:  api.example.com → http://192.168.178.2:4000
+#   Then set:
+#     CORS_ORIGIN=https://app.example.com
+#     VITE_API_URL=https://api.example.com
+# ============================================================================

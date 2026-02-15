@@ -1,4 +1,4 @@
-/* Print page setup - MUST be at the top for proper page detection */
+﻿/* Print page setup - MUST be at the top for proper page detection */
 @page {
   size: A4 landscape;
   margin: 10mm;

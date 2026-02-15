@@ -100,7 +100,7 @@ export default function ToGo() {
           setOrders(ev.toGoConfig?.orders || [])
         } else {
           // Not a ToGo event, redirect
-          navigate('/room')
+          navigate('/app')
         }
       } catch (e) {
         console.error('Failed to load ToGo event:', e)
@@ -146,11 +146,14 @@ export default function ToGo() {
     
     // Sync to server
     try {
-      if (auth.token && userId) {
+      if (userId) {
         await syncUserData(auth.token, userId)
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Sync failed:', e)
+      setSaveToast({ type: 'error', message: e?.message || 'Speichern fehlgeschlagen' })
+      setTimeout(() => setSaveToast(null), 2000)
+      return
     }
     
     setEvent(updatedEvent)
@@ -1249,7 +1252,7 @@ export default function ToGo() {
         gap: '12px'
       }}>
         <button 
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/app')}
           style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '16px' }}
         >←</button>
         <div style={{ flex: 1 }}>
@@ -1843,7 +1846,7 @@ export default function ToGo() {
                     fontWeight: 700,
                     minWidth: '160px'
                   }}
-                >In Liste uebernehmen</button>
+                >In Liste übernehmen</button>
               </div>
             </div>
           </div>

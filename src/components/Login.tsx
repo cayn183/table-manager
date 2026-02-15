@@ -1,25 +1,57 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation, Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import api from '../api/apiClient'
 
-export default function Login() {
+type LoginProps = {
+  initialMode?: 'login' | 'register'
+}
+
+function getPasswordStrength(pw: string): { score: number; label: string; color: string } {
+  let score = 0
+  if (pw.length >= 6) score++
+  if (pw.length >= 10) score++
+  if (/[A-Z]/.test(pw)) score++
+  if (/[0-9]/.test(pw)) score++
+  if (/[^A-Za-z0-9]/.test(pw)) score++
+  if (score <= 1) return { score, label: 'Schwach', color: '#ef4444' }
+  if (score <= 2) return { score, label: 'Mittel', color: '#f59e0b' }
+  if (score <= 3) return { score, label: 'Gut', color: '#3b82f6' }
+  return { score, label: 'Stark', color: '#22c55e' }
+}
+
+export default function Login({ initialMode }: LoginProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
-  const [mode, setMode] = useState<'login'|'register'>('login')
+  const [mode, setMode] = useState<'login'|'register'>(initialMode || 'login')
   const auth = useAuth()
   const nav = useNavigate()
+  const location = useLocation()
   const [error, setError] = useState<string | null>(null)
   const [emailExists, setEmailExists] = useState<boolean | null>(null)
   const [checkingEmail, setCheckingEmail] = useState(false)
 
+  const passwordStrength = mode === 'register' && password ? getPasswordStrength(password) : null
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+
+    if (!emailValid && email) {
+      setError('Bitte gib eine gueltige E-Mail-Adresse ein.')
+      return
+    }
+
+    if (mode === 'register') {
+      if (!name.trim()) { setError('Bitte gib deinen Namen ein.'); return }
+      if (password.length < 6) { setError('Das Passwort muss mindestens 6 Zeichen lang sein.'); return }
+    }
+
     try {
       const result = mode === 'login' ? await auth.login(email, password) : await auth.register(name, email, password)
-      if (result.ok) nav('/')
+      if (result.ok) nav('/app')
       else setError(result.error)
     } catch (err: any) {
       setError(err?.message || 'Fehler')
@@ -27,8 +59,18 @@ export default function Login() {
   }
 
   useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const requested = params.get('mode')
+    if (requested === 'login' || requested === 'register') {
+      setMode(requested)
+    } else if (initialMode) {
+      setMode(initialMode)
+    }
+  }, [location.search, initialMode])
+
+  useEffect(() => {
     let mounted = true
-    if (mode === 'register' && email) {
+    if (mode === 'register' && email && emailValid) {
       setCheckingEmail(true)
       const t = setTimeout(async () => {
         try {
@@ -46,7 +88,10 @@ export default function Login() {
     } else {
       setEmailExists(null)
     }
-  }, [email, mode])
+  }, [email, mode, emailValid])
+
+  // Already logged in → redirect to app (must be after all hooks)
+  if (auth.user) return <Navigate to="/app" replace />
 
   return (
     <div style={{ padding: '32px', display: 'flex', justifyContent: 'center' }}>
@@ -65,22 +110,43 @@ export default function Login() {
           )}
 
           <div style={{ marginBottom: 12 }}>
-            <input value={email} onChange={e => setEmail(e.target.value)} placeholder="E-Mail" style={{ width: '100%', padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
-            {mode === 'register' && (
-              <div style={{ fontSize: 12, marginTop: 8 }}>
-                {checkingEmail ? <span>Prüfe E‑Mail…</span> : emailExists === true ? <span style={{ color: 'crimson' }}>E‑Mail bereits vergeben</span> : emailExists === false ? <span style={{ color: 'green' }}>E‑Mail verfügbar</span> : null}
+            <input value={email} onChange={e => setEmail(e.target.value)} placeholder="E-Mail" type="email" style={{ width: '100%', padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
+            {mode === 'register' && email && !emailValid && (
+              <div style={{ fontSize: 12, marginTop: 6, color: '#f59e0b' }}>Bitte gib eine gueltige E-Mail-Adresse ein.</div>
+            )}
+            {mode === 'register' && emailValid && (
+              <div style={{ fontSize: 12, marginTop: 6 }}>
+                {checkingEmail ? <span>Pruefe E&#8209;Mail…</span> : emailExists === true ? <span style={{ color: 'crimson' }}>E&#8209;Mail bereits vergeben</span> : emailExists === false ? <span style={{ color: 'green' }}>E&#8209;Mail verfuegbar</span> : null}
               </div>
             )}
           </div>
 
           <div style={{ marginBottom: 16 }}>
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Passwort" style={{ width: '100%', padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
+            {mode === 'register' && passwordStrength && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i <= passwordStrength.score ? passwordStrength.color : '#e2e8f0' }} />
+                  ))}
+                </div>
+                <div style={{ fontSize: 12, marginTop: 4, color: passwordStrength.color, fontWeight: 600 }}>{passwordStrength.label}</div>
+                {password.length > 0 && password.length < 6 && (
+                  <div style={{ fontSize: 12, color: '#f59e0b' }}>Mindestens 6 Zeichen erforderlich</div>
+                )}
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-start', alignItems: 'center' }}>
             <button type="submit" style={{ padding: '10px 16px', background: '#2b6cb0', color: 'white', border: 'none', borderRadius: 8 }}>{mode === 'login' ? 'Anmelden' : 'Registrieren'}</button>
             <button type="button" onClick={() => setMode(m => m === 'login' ? 'register' : 'login')} style={{ padding: '10px 16px', borderRadius: 8, background: '#eef2ff', border: '1px solid #e6e6ff' }}>{mode === 'login' ? 'Neu registrieren' : 'Zurück zum Login'}</button>
           </div>
+          {mode === 'login' && (
+            <div style={{ marginTop: 12 }}>
+              <Link to="/forgot-password" style={{ fontSize: 14, color: '#2b6cb0', textDecoration: 'none' }}>Passwort vergessen?</Link>
+            </div>
+          )}
         </form>
       </div>
     </div>

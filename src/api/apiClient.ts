@@ -1,11 +1,11 @@
 import logger from '../utils/logger'
 
-// Prefer build-time VITE_API_URL, but fall back at runtime to the current host
-// (useful when the frontend is served from a container but the backend lives
-// on the same host network). This avoids calling `localhost` from the browser
-// which would point to the user's machine instead of the backend container.
+// 1. Runtime config injected by Docker entrypoint (highest priority)
+// 2. Build-time VITE_API_URL baked in by Vite (if set during build)
+// 3. Fallback: derive from browser hostname + port 4000
+const RUNTIME_BASE = typeof window !== 'undefined' && (window as any).__RUNTIME_CONFIG__?.VITE_API_URL
 const BUILD_BASE = (import.meta as any).env?.VITE_API_URL
-let BASE = BUILD_BASE
+let BASE = RUNTIME_BASE || BUILD_BASE
 if (!BASE) {
   try {
     if (typeof window !== 'undefined' && window.location) {
@@ -32,7 +32,8 @@ async function request(method: string, path: string, body?: any, opts: Opts = {}
     res = await fetch(`${BASE}${path}`, {
       method,
       headers,
-      body: body ? JSON.stringify(body) : undefined
+      body: body ? JSON.stringify(body) : undefined,
+      credentials: 'include'
     })
   } catch (e: any) {
     logger.error('api', { requestId, method, path, error: e && e.message ? e.message : String(e) })
@@ -46,7 +47,9 @@ async function request(method: string, path: string, body?: any, opts: Opts = {}
     data = { text }
   }
   if (!res.ok) {
-    const err = data && (data.error || data.message) ? (data.error || data.message) : `Request failed (${res.status})`
+    const err = (data && data.code === 'EMAIL_NOT_VERIFIED')
+      ? 'Bitte verifiziere zuerst deine E-Mail-Adresse, um neue Events anzulegen oder zu ändern.'
+      : (data && (data.error || data.message) ? (data.error || data.message) : `Request failed (${res.status})`)
     logger.error('api', { requestId, method, path, status: res.status, body: data })
     const e = new Error(err) as any
     e.status = res.status

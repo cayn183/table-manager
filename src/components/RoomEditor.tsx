@@ -3,7 +3,7 @@ import { useAuth } from '../auth/AuthContext'
 import userStorage from '../utils/userStorage'
 import logger from '../utils/logger'
 import { syncUserData } from '../utils/sync'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import type { Table } from '../types/room'
 
 type ViewFrame = { x: number; y: number; width: number; height: number }
@@ -28,9 +28,12 @@ export default function RoomEditor() {
   const [renameModal, setRenameModal] = useState<{ tableId: string; newId: string; error?: string; warning?: string } | null>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
+  const location = useLocation()
   const { user, token } = useAuth()
   const [isSavingRoom, setIsSavingRoom] = useState(false)
+  const [saveRoomError, setSaveRoomError] = useState<string | null>(null)
   const userId = user ? user.id : null
+  const pendingEventId: string | null = (location.state as any)?.pendingEventId || null
 
   const gridWidth = 28
   const gridHeight = 20
@@ -39,6 +42,7 @@ export default function RoomEditor() {
   // Keyboard: rotate selected table with 'R', delete with 'Delete'
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (showSaveModal) return
       if (!selectedTableId) return
       if (e.key === 'r' || e.key === 'R') {
         e.preventDefault()
@@ -56,7 +60,7 @@ export default function RoomEditor() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [selectedTableId])
+  }, [selectedTableId, showSaveModal])
 
   useEffect(() => {
     // Prefer user-scoped storage, fall back to legacy global keys if needed.
@@ -166,6 +170,7 @@ export default function RoomEditor() {
   useEffect(() => {
     if (!draggingTable) return
     const onKeyDown = (e: KeyboardEvent) => {
+      if (showSaveModal) return
       if (e.key === 'r' || e.key === 'R') {
         e.preventDefault()
         setTables(prev => prev.map(t => t.id === draggingTable.id ? { ...t, width: t.height, height: t.width } : t))
@@ -174,7 +179,7 @@ export default function RoomEditor() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [draggingTable])
+  }, [draggingTable, showSaveModal])
 
   function updateDragPreview(e: React.DragEvent | React.MouseEvent) {
     if (!draggingTable || !gridRef.current) return
@@ -192,24 +197,53 @@ export default function RoomEditor() {
   }
 
   async function confirmSaveRoom(name: string) {
+    setSaveRoomError(null)
     const room = { tables, viewFrame: viewFrame || undefined }
     userStorage.setItem('currentRoom', JSON.stringify(room), userId)
     const raw = userStorage.getItem('rooms', userId) || localStorage.getItem('rooms') || '[]'
     const list = JSON.parse(raw as string)
     const entry = { id: `r-${Date.now()}`, name: name || `Raum ${list.length + 1}`, createdAt: new Date().toLocaleDateString(), data: room }
     userStorage.setItem('rooms', JSON.stringify([...list, entry]), userId)
-    // show saving indicator and wait for sync to complete before navigating
+
+    // If this room was created as part of event creation, link it to the event
+    if (pendingEventId) {
+      try {
+        const rawEvent = userStorage.getItem('currentEvent', userId) || localStorage.getItem('currentEvent')
+        if (rawEvent) {
+          const event = JSON.parse(rawEvent as string)
+          if (event && event.id === pendingEventId) {
+            event.roomId = entry.id
+            userStorage.setItem('currentEvent', JSON.stringify(event), userId)
+            // Also update the event in the events list
+            const rawEvents = userStorage.getItem('events', userId) || localStorage.getItem('events') || '[]'
+            const events = JSON.parse(rawEvents as string)
+            const updated = events.map((e: any) => e.id === pendingEventId ? { ...e, roomId: entry.id } : e)
+            userStorage.setItem('events', JSON.stringify(updated), userId)
+          }
+        }
+      } catch (e) {
+        logger.error('RoomEditor', { action: 'linkEventToRoom', err: e })
+      }
+    }
+
+    // show saving indicator during background sync
     setIsSavingRoom(true)
+    setShowSaveModal(false)
+
+    if (pendingEventId) {
+      navigate(`/app/events/${pendingEventId}`)
+    } else {
+      navigate('/app/rooms')
+    }
+
     try {
-      if (token && userId) {
+      if (userId) {
         await syncUserData(token, userId)
       }
-    } catch (e) {
-      // ignore errors for now
+    } catch (e: any) {
+      logger.error('RoomEditor', { action: 'syncAfterSave', err: e })
     }
     setIsSavingRoom(false)
-    setShowSaveModal(false)
-    navigate('/room')
   }
 
   function eventToCell(e: MouseEvent | React.MouseEvent): { x: number; y: number } | null {
@@ -282,7 +316,7 @@ export default function RoomEditor() {
         gap: '12px'
       }}>
         <button 
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/app')}
           style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '16px', transition: 'all 0.2s' }}
           onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
           onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
@@ -342,7 +376,7 @@ export default function RoomEditor() {
             >Zurücksetzen</button>
           </div>
           <button
-            onClick={() => { setSaveRoomName(roomName); setShowSaveModal(true); }}
+            onClick={() => { setSaveRoomError(null); setSaveRoomName(roomName); setShowSaveModal(true); }}
             disabled={tables.length === 0}
             style={{ padding: '12px 16px', background: tables.length === 0 ? '#e2e8f0' : '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: tables.length === 0 ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: 700, opacity: tables.length === 0 ? 0.6 : 1 }}
           >💾 Speichern</button>
@@ -672,6 +706,11 @@ export default function RoomEditor() {
         <div className="modal" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'white', borderRadius: '16px', padding: '32px', minWidth: '420px', maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
             <h3 style={{ margin: '0 0 24px', fontSize: '24px', fontWeight: '600', color: '#1e293b' }}>💾 Raum speichern</h3>
+            {saveRoomError && (
+              <div style={{ marginBottom: 16, padding: '10px 12px', borderRadius: 8, background: '#fee2e2', color: '#991b1b', fontSize: 13, fontWeight: 500 }}>
+                {saveRoomError}
+              </div>
+            )}
             <input
               type="text"
               value={saveRoomName}
@@ -690,7 +729,7 @@ export default function RoomEditor() {
                 onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
               >{isSavingRoom ? 'Speichert…' : 'Speichern'}</button>
               <button 
-                onClick={() => setShowSaveModal(false)}
+                onClick={() => { setSaveRoomError(null); setShowSaveModal(false) }}
                 style={{ padding: '12px 24px', background: 'white', color: '#64748b', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', transition: 'all 0.2s' }}
                 onMouseOver={e => { e.currentTarget.style.background = '#f1f5f9'; }}
                 onMouseOut={e => { e.currentTarget.style.background = 'white'; }}
