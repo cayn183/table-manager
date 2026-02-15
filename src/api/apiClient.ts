@@ -47,7 +47,9 @@ async function request(method: string, path: string, body?: any, opts: Opts = {}
     data = { text }
   }
   if (!res.ok) {
-    const err = data && (data.error || data.message) ? (data.error || data.message) : `Request failed (${res.status})`
+    const err = (data && data.code === 'EMAIL_NOT_VERIFIED')
+      ? 'Bitte verifiziere zuerst deine E-Mail-Adresse, um neue Events anzulegen oder zu ändern.'
+      : (data && (data.error || data.message) ? (data.error || data.message) : `Request failed (${res.status})`)
     logger.error('api', { requestId, method, path, status: res.status, body: data })
     const e = new Error(err) as any
     e.status = res.status
