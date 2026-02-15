@@ -30,6 +30,7 @@ export default function RoomEditor() {
   const navigate = useNavigate()
   const { user, token } = useAuth()
   const [isSavingRoom, setIsSavingRoom] = useState(false)
+  const [saveRoomError, setSaveRoomError] = useState<string | null>(null)
   const userId = user ? user.id : null
 
   const gridWidth = 28
@@ -194,6 +195,7 @@ export default function RoomEditor() {
   }
 
   async function confirmSaveRoom(name: string) {
+    setSaveRoomError(null)
     const room = { tables, viewFrame: viewFrame || undefined }
     userStorage.setItem('currentRoom', JSON.stringify(room), userId)
     const raw = userStorage.getItem('rooms', userId) || localStorage.getItem('rooms') || '[]'
@@ -206,8 +208,10 @@ export default function RoomEditor() {
       if (userId) {
         await syncUserData(token, userId)
       }
-    } catch (e) {
-      // ignore errors for now
+    } catch (e: any) {
+      setSaveRoomError(e?.message || 'Speichern fehlgeschlagen')
+      setIsSavingRoom(false)
+      return
     }
     setIsSavingRoom(false)
     setShowSaveModal(false)
@@ -344,7 +348,7 @@ export default function RoomEditor() {
             >Zurücksetzen</button>
           </div>
           <button
-            onClick={() => { setSaveRoomName(roomName); setShowSaveModal(true); }}
+            onClick={() => { setSaveRoomError(null); setSaveRoomName(roomName); setShowSaveModal(true); }}
             disabled={tables.length === 0}
             style={{ padding: '12px 16px', background: tables.length === 0 ? '#e2e8f0' : '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: tables.length === 0 ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: 700, opacity: tables.length === 0 ? 0.6 : 1 }}
           >💾 Speichern</button>
@@ -674,6 +678,11 @@ export default function RoomEditor() {
         <div className="modal" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'white', borderRadius: '16px', padding: '32px', minWidth: '420px', maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
             <h3 style={{ margin: '0 0 24px', fontSize: '24px', fontWeight: '600', color: '#1e293b' }}>💾 Raum speichern</h3>
+            {saveRoomError && (
+              <div style={{ marginBottom: 16, padding: '10px 12px', borderRadius: 8, background: '#fee2e2', color: '#991b1b', fontSize: 13, fontWeight: 500 }}>
+                {saveRoomError}
+              </div>
+            )}
             <input
               type="text"
               value={saveRoomName}
@@ -692,7 +701,7 @@ export default function RoomEditor() {
                 onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
               >{isSavingRoom ? 'Speichert…' : 'Speichern'}</button>
               <button 
-                onClick={() => setShowSaveModal(false)}
+                onClick={() => { setSaveRoomError(null); setShowSaveModal(false) }}
                 style={{ padding: '12px 24px', background: 'white', color: '#64748b', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', transition: 'all 0.2s' }}
                 onMouseOver={e => { e.currentTarget.style.background = '#f1f5f9'; }}
                 onMouseOut={e => { e.currentTarget.style.background = 'white'; }}

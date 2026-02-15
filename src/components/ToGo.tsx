@@ -149,8 +149,11 @@ export default function ToGo() {
       if (userId) {
         await syncUserData(auth.token, userId)
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Sync failed:', e)
+      setSaveToast({ type: 'error', message: e?.message || 'Speichern fehlgeschlagen' })
+      setTimeout(() => setSaveToast(null), 2000)
+      return
     }
     
     setEvent(updatedEvent)

@@ -1072,8 +1072,8 @@ export default function Room() {
         await syncUserData(auth.token, auth.user.id)
       }
       setSaveToast({ type: 'success', message: 'Event gespeichert!' })
-    } catch (err) {
-      setSaveToast({ type: 'error', message: 'Speichern fehlgeschlagen' })
+    } catch (err: any) {
+      setSaveToast({ type: 'error', message: err?.message || 'Speichern fehlgeschlagen' })
     } finally {
       setIsSavingEvent(false)
       setShowEventSaveModal(false)

@@ -35,6 +35,7 @@ export default function Home() {
   const [useExistingRoom, setUseExistingRoom] = useState<'existing' | 'new'>('existing')
   const [rooms, setRooms] = useState<SavedRoom[]>([])
   const [selectedRoomId, setSelectedRoomId] = useState<string>('')
+  const [createError, setCreateError] = useState<string | null>(null)
 
   useEffect(() => {
     // Prefer user-scoped storage, fall back to legacy global keys if needed.
@@ -50,7 +51,8 @@ export default function Home() {
     if (merged.length) setSelectedRoomId(merged[0].id)
   }, [userId])
 
-  function createEvent() {
+  async function createEvent() {
+    setCreateError(null)
     const id = `e-${Date.now()}`
     const ev: EventItem = { 
       id, 
@@ -70,9 +72,12 @@ export default function Home() {
       userStorage.setItem(EVENTS_KEY, JSON.stringify([...all, ev]), userId)
       try {
         if (userId) {
-          void syncUserData(auth.token, userId)
+          await syncUserData(auth.token, userId)
         }
-      } catch (e) {}
+      } catch (e: any) {
+        setCreateError(e?.message || 'Speichern fehlgeschlagen.')
+        return
+      }
       navigate('/app/togo')
       return
     }
@@ -87,19 +92,27 @@ export default function Home() {
       userStorage.setItem(EVENTS_KEY, JSON.stringify([...all, ev]), userId)
       try {
         if (userId) {
-          void syncUserData(auth.token, userId)
+          await syncUserData(auth.token, userId)
         }
-      } catch (e) {}
+      } catch (e: any) {
+        setCreateError(e?.message || 'Speichern fehlgeschlagen.')
+        return
+      }
       navigate('/app')
     } else {
+      userStorage.removeItem(STORAGE_KEY, userId)
+      localStorage.removeItem(STORAGE_KEY)
       userStorage.setItem(CURRENT_EVENT_KEY, JSON.stringify(ev), userId)
       userStorage.setItem(EVENTS_KEY, JSON.stringify([...all, ev]), userId)
       try {
         if (userId) {
-          void syncUserData(auth.token, userId)
+          await syncUserData(auth.token, userId)
         }
-      } catch (e) {}
-      navigate('/app/rooms')
+      } catch (e: any) {
+        setCreateError(e?.message || 'Speichern fehlgeschlagen.')
+        return
+      }
+      navigate('/app/rooms/new')
     }
   }
 
@@ -193,7 +206,7 @@ export default function Home() {
               <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '400' }}>Gespeicherte Raum-Layouts verwenden</span>
             </button>
           </Link>
-          <Link to="/app/rooms" style={{ textDecoration: 'none' }}>
+          <Link to="/app/rooms/new" onClick={() => { userStorage.removeItem(STORAGE_KEY, userId); localStorage.removeItem(STORAGE_KEY) }} style={{ textDecoration: 'none' }}>
             <button style={{
               width: '100%',
               padding: '32px 24px',
@@ -225,6 +238,11 @@ export default function Home() {
         <div className="modal" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: 'white', borderRadius: '16px', padding: '32px', minWidth: '420px', maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
             <h3 style={{ margin: '0 0 24px', fontSize: '24px', fontWeight: '600', color: '#1e293b' }}>✨ Neues Event anlegen</h3>
+            {createError && (
+              <div style={{ marginBottom: 16, padding: '10px 12px', borderRadius: 8, background: '#fee2e2', color: '#991b1b', fontSize: 13, fontWeight: 500 }}>
+                {createError}
+              </div>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <input 
                 type="text" 
@@ -355,7 +373,7 @@ export default function Home() {
                 onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
               >Weiter →</button>
               <button 
-                onClick={() => setShowEventModal(false)}
+                onClick={() => { setCreateError(null); setShowEventModal(false) }}
                 style={{ padding: '12px 24px', background: 'white', color: '#64748b', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', transition: 'all 0.2s' }}
                 onMouseOver={e => { e.currentTarget.style.background = '#f1f5f9'; }}
                 onMouseOut={e => { e.currentTarget.style.background = 'white'; }}
