@@ -98,7 +98,7 @@ export default function Home() {
         setCreateError(e?.message || 'Speichern fehlgeschlagen.')
         return
       }
-      navigate('/app')
+      navigate(`/app/events/${id}`)
     } else {
       userStorage.removeItem(STORAGE_KEY, userId)
       localStorage.removeItem(STORAGE_KEY)

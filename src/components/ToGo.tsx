@@ -1252,7 +1252,7 @@ export default function ToGo() {
         gap: '12px'
       }}>
         <button 
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/app')}
           style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '16px' }}
         >←</button>
         <div style={{ flex: 1 }}>

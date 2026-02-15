@@ -78,9 +78,8 @@ export default function VerifyEmail() {
               <button 
                 onClick={() => {
                   if (verificationType === 'change') {
-                    // For email change, log out and redirect to login
+                    // For email change, log out (logout already navigates to /login)
                     auth.logout()
-                    nav('/login')
                   } else {
                     nav(auth.user ? '/app' : '/login')
                   }

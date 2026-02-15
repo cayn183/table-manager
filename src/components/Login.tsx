@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate, useLocation, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import api from '../api/apiClient'
 
@@ -34,6 +34,9 @@ export default function Login({ initialMode }: LoginProps) {
 
   const passwordStrength = mode === 'register' && password ? getPasswordStrength(password) : null
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+
+  // Already logged in → redirect to app
+  if (auth.user) return <Navigate to="/app" replace />
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
