@@ -3,7 +3,7 @@ import { useAuth } from '../auth/AuthContext'
 import userStorage from '../utils/userStorage'
 import logger from '../utils/logger'
 import { syncUserData } from '../utils/sync'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import type { Table } from '../types/room'
 
 type ViewFrame = { x: number; y: number; width: number; height: number }
@@ -28,10 +28,12 @@ export default function RoomEditor() {
   const [renameModal, setRenameModal] = useState<{ tableId: string; newId: string; error?: string; warning?: string } | null>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
+  const location = useLocation()
   const { user, token } = useAuth()
   const [isSavingRoom, setIsSavingRoom] = useState(false)
   const [saveRoomError, setSaveRoomError] = useState<string | null>(null)
   const userId = user ? user.id : null
+  const pendingEventId: string | null = (location.state as any)?.pendingEventId || null
 
   const gridWidth = 28
   const gridHeight = 20
@@ -202,10 +204,38 @@ export default function RoomEditor() {
     const list = JSON.parse(raw as string)
     const entry = { id: `r-${Date.now()}`, name: name || `Raum ${list.length + 1}`, createdAt: new Date().toLocaleDateString(), data: room }
     userStorage.setItem('rooms', JSON.stringify([...list, entry]), userId)
+
+    // If this room was created as part of event creation, link it to the event
+    if (pendingEventId) {
+      try {
+        const rawEvent = userStorage.getItem('currentEvent', userId) || localStorage.getItem('currentEvent')
+        if (rawEvent) {
+          const event = JSON.parse(rawEvent as string)
+          if (event && event.id === pendingEventId) {
+            event.roomId = entry.id
+            userStorage.setItem('currentEvent', JSON.stringify(event), userId)
+            // Also update the event in the events list
+            const rawEvents = userStorage.getItem('events', userId) || localStorage.getItem('events') || '[]'
+            const events = JSON.parse(rawEvents as string)
+            const updated = events.map((e: any) => e.id === pendingEventId ? { ...e, roomId: entry.id } : e)
+            userStorage.setItem('events', JSON.stringify(updated), userId)
+          }
+        }
+      } catch (e) {
+        logger.error('RoomEditor', { action: 'linkEventToRoom', err: e })
+      }
+    }
+
     // show saving indicator during background sync
     setIsSavingRoom(true)
     setShowSaveModal(false)
-    navigate('/app/rooms')
+
+    if (pendingEventId) {
+      navigate(`/app/events/${pendingEventId}`)
+    } else {
+      navigate('/app/rooms')
+    }
+
     try {
       if (userId) {
         await syncUserData(token, userId)

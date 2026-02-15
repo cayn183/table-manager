@@ -112,7 +112,7 @@ export default function Home() {
         setCreateError(e?.message || 'Speichern fehlgeschlagen.')
         return
       }
-      navigate('/app/rooms/new')
+      navigate('/app/rooms/new', { state: { pendingEventId: id } })
     }
   }
 

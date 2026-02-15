@@ -70,7 +70,7 @@ export default function LoadEvent() {
     if (!event.roomId || !hasUsableRoom) {
       userStorage.removeItem(STORAGE_KEY, userId)
       localStorage.removeItem(STORAGE_KEY)
-      navigate('/app/rooms/new')
+      navigate('/app/rooms/new', { state: { pendingEventId: event.id } })
       return
     }
 
