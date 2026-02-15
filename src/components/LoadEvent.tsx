@@ -56,14 +56,24 @@ export default function LoadEvent() {
       return
     }
     
+    let hasUsableRoom = false
     if (event.roomId) {
       const raw = userStorage.getItem(ROOMS_KEY, userId) || localStorage.getItem(ROOMS_KEY) || '[]'
       const rooms = JSON.parse(raw as string)
       const room = rooms.find((r: any) => r.id === event.roomId)
       if (room) {
         userStorage.setItem(STORAGE_KEY, JSON.stringify(room.data), userId)
+        hasUsableRoom = true
       }
     }
+
+    if (!event.roomId || !hasUsableRoom) {
+      userStorage.removeItem(STORAGE_KEY, userId)
+      localStorage.removeItem(STORAGE_KEY)
+      navigate('/app/rooms/new')
+      return
+    }
+
     navigate(`/app/events/${event.id}`)
   }
 

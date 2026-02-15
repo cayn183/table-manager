@@ -68,7 +68,7 @@ export default function App() {
       } />
       
       {/* ═══ LEGACY ROUTES (Redirect to new structure) ═══ */}
-      <Route path="/new-room" element={<Navigate to="/app/rooms" replace />} />
+      <Route path="/new-room" element={<Navigate to="/app/rooms/new" replace />} />
       <Route path="/load-room" element={<Navigate to="/app/rooms" replace />} />
       <Route path="/load-event" element={<Navigate to="/app/events" replace />} />
       <Route path="/room" element={<Navigate to="/app" replace />} />
