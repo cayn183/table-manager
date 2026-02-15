@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import api from '../api/apiClient'
 import '../styles/admin-panel.css'
 
-type UserRow = { id: string; name: string; email: string; created_at: string; is_admin: boolean; deleted_at?: string }
+type UserRow = { id: string; name: string; email: string; created_at: string; is_admin: boolean; email_verified?: boolean; deleted_at?: string }
 type AuditRow = { id: string; actor_id: string; action: string; target_type: string; target_id: string; details: any; created_at: string }
 
 export default function AdminPanel() {
@@ -212,6 +212,7 @@ export default function AdminPanel() {
                   <th style={{ textAlign: 'left', padding: 8 }}>Email</th>
                   <th style={{ textAlign: 'left', padding: 8 }}>Name</th>
                   <th style={{ textAlign: 'left', padding: 8 }}>Admin</th>
+                  <th style={{ textAlign: 'left', padding: 8 }}>Verifiziert</th>
                   <th style={{ textAlign: 'left', padding: 8 }}>Created</th>
                   <th style={{ textAlign: 'left', padding: 8 }}>Aktionen</th>
                 </tr>
@@ -223,6 +224,7 @@ export default function AdminPanel() {
                     <td style={{ padding: 8 }}>{u.email}</td>
                     <td style={{ padding: 8 }}>{u.name}</td>
                     <td style={{ padding: 8 }}>{u.is_admin ? '✅' : ''}</td>
+                    <td style={{ padding: 8 }}>{u.email_verified ? '✅' : ''}</td>
                     <td style={{ padding: 8 }}>{new Date(u.created_at).toLocaleString()}</td>
                     <td style={{ padding: 8 }}>
                       <button onClick={async () => fetchUserDetail(u.id)}>View</button>
@@ -232,6 +234,15 @@ export default function AdminPanel() {
                           fetchUsers(page, perPage, q)
                         } catch (e: any) { alert(e?.message || 'Error') }
                       }}>{u.is_admin ? 'Revoke admin' : 'Make admin'}</button>
+                      <button style={{ marginLeft: 8 }} onClick={async () => {
+                        try {
+                          await api.post(`/admin/users/${u.id}/email-verification`, { email_verified: !u.email_verified }, auth.token ?? undefined)
+                          fetchUsers(page, perPage, q)
+                          if (selectedUser && selectedUser.id === u.id) {
+                            fetchUserDetail(u.id)
+                          }
+                        } catch (e: any) { alert(e?.message || 'Error') }
+                      }}>{u.email_verified ? 'Unverify' : 'Verify'}</button>
                       <button style={{ marginLeft: 8 }} onClick={async () => {
                         if (!confirm('Benutzer wirklich löschen (soft delete)?')) return
                         try {
@@ -455,6 +466,7 @@ export default function AdminPanel() {
               <p><strong>Email:</strong> {selectedUser.email}</p>
               <p><strong>Created:</strong> {new Date(selectedUser.created_at).toLocaleString()}</p>
               <p><strong>Admin:</strong> {(selectedUser as any).is_admin ? 'Yes' : 'No'}</p>
+              <p><strong>Email verifiziert:</strong> {(selectedUser as any).email_verified ? 'Yes' : 'No'}</p>
               <p><strong>Deleted:</strong> {selectedUser.deleted_at || '—'}</p>
             </div>
           )}
