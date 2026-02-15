@@ -202,20 +202,18 @@ export default function RoomEditor() {
     const list = JSON.parse(raw as string)
     const entry = { id: `r-${Date.now()}`, name: name || `Raum ${list.length + 1}`, createdAt: new Date().toLocaleDateString(), data: room }
     userStorage.setItem('rooms', JSON.stringify([...list, entry]), userId)
-    // show saving indicator and wait for sync to complete before navigating
+    // show saving indicator during background sync
     setIsSavingRoom(true)
+    setShowSaveModal(false)
+    navigate('/app/rooms')
     try {
       if (userId) {
         await syncUserData(token, userId)
       }
     } catch (e: any) {
-      setSaveRoomError(e?.message || 'Speichern fehlgeschlagen')
-      setIsSavingRoom(false)
-      return
+      logger.error('RoomEditor', { action: 'syncAfterSave', err: e })
     }
     setIsSavingRoom(false)
-    setShowSaveModal(false)
-    navigate('/app')
   }
 
   function eventToCell(e: MouseEvent | React.MouseEvent): { x: number; y: number } | null {

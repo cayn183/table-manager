@@ -64,7 +64,7 @@ export default function LoadEvent() {
         userStorage.setItem(STORAGE_KEY, JSON.stringify(room.data), userId)
       }
     }
-    navigate('/app')
+    navigate(`/app/events/${event.id}`)
   }
 
   function deleteEvent(id: string) {
