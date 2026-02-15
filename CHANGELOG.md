@@ -6,11 +6,11 @@ Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
-
 _Noch keine Änderungen eingetragen._
 
-## [1.0.0] - 2026-02-11
+## [1.0.1] - 2026-02-15
 
+## [1.0.0] - 2026-02-11
 ### Added
 - Marketing-Landingpage mit Hero, Feature-Grid, Showcase, Einsatzbereichen und Preisübersicht direkt unter `/`.
 - Schnellstart- und Deployment-Anleitungen, die den 2-Container-Stack, GHCR-Images sowie Frontend- und Backend-Umgebungsvariablen dokumentieren.
