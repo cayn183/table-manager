@@ -21,7 +21,7 @@ export default function LoadRoom() {
   const [rooms, setRooms] = useState<SavedRoom[]>([])
   const [deleteConfirm, setDeleteConfirm] = useState<{ room: SavedRoom; linkedEvents: EventItem[] } | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
-  useSetPageHeader('Raum laden', '🏠')
+  useSetPageHeader('Erstellten Raum laden', '🏠')
 
   useEffect(() => {
     let mounted = true

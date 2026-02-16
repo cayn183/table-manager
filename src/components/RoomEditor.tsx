@@ -303,7 +303,7 @@ export default function RoomEditor() {
 
   // Set page header title (dynamic based on editing mode)
   useEffect(() => {
-    setPageTitle(isEditingExisting ? 'Raum bearbeiten' : 'Raum anlegen', '🏗️')
+    setPageTitle(isEditingExisting ? 'Raum bearbeiten' : 'Neuen Raum erstellen', '🏗️')
     return () => { setPageTitle(null); setHeaderContent(null) }
   }, [isEditingExisting, setPageTitle, setHeaderContent])
 

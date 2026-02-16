@@ -1,13 +1,10 @@
 import React from 'react'
-import { Outlet, Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../auth/AuthContext'
+import { Outlet, Link } from 'react-router-dom'
 import UserMenu from './UserMenu'
 import EmailVerificationBanner from './EmailVerificationBanner'
 import { PageHeaderProvider, usePageHeader } from './PageHeaderContext'
 
 function AppLayoutInner() {
-  const auth = useAuth()
-  const navigate = useNavigate()
   const { pageTitle, pageIcon, headerContent } = usePageHeader()
   
   return (
@@ -25,44 +22,25 @@ function AppLayoutInner() {
         flexShrink: 0,
         zIndex: 100
       }}>
-        {/* Left: Brand + Nav links */}
-        <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexShrink: 0 }}>
-          <Link to="/app" style={{ textDecoration: 'none', fontSize: '1.35rem', fontWeight: 'bold', color: '#fff', letterSpacing: '-0.02em' }}>
-            PlatzPilot
-          </Link>
-          <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.25)' }} />
-          <Link to="/app" style={{ textDecoration: 'none', color: 'rgba(255,255,255,0.9)', fontSize: '14px', fontWeight: 500, padding: '4px 8px', borderRadius: '6px', transition: 'all 0.2s' }}
-            onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
-            onMouseOut={e => e.currentTarget.style.background = 'transparent'}
-          >Dashboard</Link>
-          <Link to="/app/events" style={{ textDecoration: 'none', color: 'rgba(255,255,255,0.9)', fontSize: '14px', fontWeight: 500, padding: '4px 8px', borderRadius: '6px', transition: 'all 0.2s' }}
-            onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
-            onMouseOut={e => e.currentTarget.style.background = 'transparent'}
-          >Events</Link>
-        </div>
+        <Link to="/app" style={{ textDecoration: 'none', fontSize: '1.35rem', fontWeight: 'bold', color: '#fff', letterSpacing: '-0.02em' }}>
+          PlatzPilot
+        </Link>
 
-        {/* Center: Page title (optional) */}
-        {pageTitle && (
-          <>
-            <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.25)', flexShrink: 0 }} />
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+          {pageTitle && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
               {pageIcon && <span style={{ fontSize: '18px' }}>{pageIcon}</span>}
               <span style={{ fontSize: '16px', fontWeight: 700, color: 'white', whiteSpace: 'nowrap' }}>{pageTitle}</span>
             </div>
-          </>
-        )}
-        
-        {/* Center/Right: Page-specific header content */}
-        {headerContent && (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, overflow: 'hidden' }}>
-            {headerContent}
-          </div>
-        )}
+          )}
 
-        {/* Spacer when no header content */}
-        {!headerContent && <div style={{ flex: 1 }} />}
-        
-        {/* Right: User menu */}
+          {headerContent && (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px', minWidth: 0 }}>
+              {headerContent}
+            </div>
+          )}
+        </div>
+
         <UserMenu />
       </nav>
       

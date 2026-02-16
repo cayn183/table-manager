@@ -4,7 +4,6 @@ import { useAuth } from '../auth/AuthContext'
 import userStorage from '../utils/userStorage'
 import { syncUserData } from '../utils/sync'
 import type { ToGoEventConfig } from '../types/togo'
-import { useSetPageHeader } from './PageHeaderContext'
 
 const EVENTS_KEY = 'events'
 const CURRENT_EVENT_KEY = 'currentEvent'
@@ -27,7 +26,6 @@ export default function Home() {
   const navigate = useNavigate()
   const auth = useAuth()
   const userId = auth.user ? auth.user.id : null
-  useSetPageHeader('Event-Manager', '🎉')
   const [showEventModal, setShowEventModal] = useState(false)
   const [eventName, setEventName] = useState('')
   const [eventDate, setEventDate] = useState('')

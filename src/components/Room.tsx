@@ -577,7 +577,7 @@ export default function Room() {
   const { setPageTitle, setHeaderContent } = usePageHeader()
 
   useEffect(() => {
-    setPageTitle('Tischplaner')
+    setPageTitle('Raum bearbeiten > Gäste platzieren')
     return () => { setPageTitle(null); setHeaderContent(null) }
   }, [setPageTitle, setHeaderContent])
 

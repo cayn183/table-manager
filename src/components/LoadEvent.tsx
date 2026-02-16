@@ -32,7 +32,7 @@ export default function LoadEvent() {
   const auth = useAuth()
   const userId = auth.user ? auth.user.id : null
   const [events, setEvents] = useState<EventItem[]>([])
-  useSetPageHeader('Event laden', '📂')
+  useSetPageHeader('Erstelltes Event laden', '📂')
 
   useEffect(() => {
     let mounted = true
