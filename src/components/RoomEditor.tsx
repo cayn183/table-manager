@@ -5,6 +5,7 @@ import logger from '../utils/logger'
 import { syncUserData } from '../utils/sync'
 import { useNavigate, useLocation } from 'react-router-dom'
 import type { Table } from '../types/room'
+import { usePageHeader } from './PageHeaderContext'
 
 type ViewFrame = { x: number; y: number; width: number; height: number }
 
@@ -16,6 +17,7 @@ export default function RoomEditor() {
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [saveRoomName, setSaveRoomName] = useState('Neuer Raum')
   const [isEditingExisting, setIsEditingExisting] = useState(false)
+  const { setPageTitle, setHeaderContent } = usePageHeader()
   const [viewFrame, setViewFrame] = useState<ViewFrame | null>(null)
   const [frameDragStart, setFrameDragStart] = useState<{ x: number; y: number } | null>(null)
   const [defineViewMode, setDefineViewMode] = useState(false)
@@ -299,6 +301,12 @@ export default function RoomEditor() {
     }
   }, [frameDragStart])
 
+  // Set page header title (dynamic based on editing mode)
+  useEffect(() => {
+    setPageTitle(isEditingExisting ? 'Raum bearbeiten' : 'Raum anlegen', '🏗️')
+    return () => { setPageTitle(null); setHeaderContent(null) }
+  }, [isEditingExisting, setPageTitle, setHeaderContent])
+
   return (
     <div style={{ 
       height: '100%', 
@@ -306,24 +314,6 @@ export default function RoomEditor() {
       display: 'flex', 
       flexDirection: 'column'
     }}>
-      {/* Header */}
-      <div style={{ 
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
-        padding: '16px 24px', 
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px'
-      }}>
-        <button 
-          onClick={() => navigate('/app')}
-          style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '16px', transition: 'all 0.2s' }}
-          onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
-          onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-        >←</button>
-        <h1 style={{ margin: '0', fontSize: '24px', fontWeight: '600', color: 'white' }}>🏗️ {isEditingExisting ? 'Raum bearbeiten' : 'Raum anlegen'}</h1>
-      </div>
-      
       {/* Main Content: Sidebar + Grid */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Sidebar */}

@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext'
 import userStorage from '../utils/userStorage'
 import { syncUserData } from '../utils/sync'
 import type { ToGoEventConfig } from '../types/togo'
+import { useSetPageHeader } from './PageHeaderContext'
 
 const EVENTS_KEY = 'events'
 const CURRENT_EVENT_KEY = 'currentEvent'
@@ -26,6 +27,7 @@ export default function Home() {
   const navigate = useNavigate()
   const auth = useAuth()
   const userId = auth.user ? auth.user.id : null
+  useSetPageHeader('Event-Manager', '🎉')
   const [showEventModal, setShowEventModal] = useState(false)
   const [eventName, setEventName] = useState('')
   const [eventDate, setEventDate] = useState('')
@@ -118,16 +120,6 @@ export default function Home() {
 
   return (
     <div style={{ background: '#f8fafc', display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Header */}
-      <div style={{ 
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
-        padding: '24px', 
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-      }}>
-        <h1 style={{ margin: '0', fontSize: '32px', fontWeight: '600', color: 'white', textAlign: 'center' }}>🎉 Event-Manager</h1>
-        <p style={{ margin: '8px 0 0', fontSize: '16px', color: 'rgba(255,255,255,0.9)', textAlign: 'center' }}>Planung leicht gemacht</p>
-      </div>
-      
       {/* Main Content */}
       <div style={{ flex: 1, padding: '40px 24px', maxWidth: '1200px', width: '100%', margin: '0 auto' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px', marginTop: '20px', maxWidth: '800px', margin: '20px auto 0' }}>

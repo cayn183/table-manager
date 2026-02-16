@@ -33,6 +33,7 @@ import {
 } from '../utils/roomUtils'
 import { openPrintDocument } from '../utils/printUtils'
 import logger from '../utils/logger'
+import { usePageHeader } from './PageHeaderContext'
 
 // ============================================================================
 // MAIN COMPONENT: Room
@@ -571,6 +572,102 @@ export default function Room() {
 
     return { tableCount, totalSeats, occupied, freeSeats, familyCount, toGoPersons }
   }, [room, assignedGroups, groups])
+
+  // ----- Inject page-specific controls into the unified AppLayout header -----
+  const { setPageTitle, setHeaderContent } = usePageHeader()
+
+  useEffect(() => {
+    setPageTitle('Tischplaner')
+    return () => { setPageTitle(null); setHeaderContent(null) }
+  }, [setPageTitle, setHeaderContent])
+
+  useEffect(() => {
+    setHeaderContent(
+      <>
+        {/* View Toggle */}
+        <div style={{ display: 'inline-flex', gap: '3px', background: 'rgba(255,255,255,0.15)', padding: '4px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', flexShrink: 0 }}>
+          <button
+            onClick={() => setViewMode('map')}
+            style={{
+              padding: '6px 12px',
+              background: viewMode === 'map' ? 'rgba(255,255,255,0.3)' : 'transparent',
+              color: 'white',
+              border: viewMode === 'map' ? '1px solid rgba(255,255,255,0.4)' : 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: '600',
+              fontSize: '12px',
+              transition: 'all 0.2s ease',
+              boxShadow: viewMode === 'map' ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
+              whiteSpace: 'nowrap'
+            }}
+          >📍 Kartenansicht</button>
+          <button
+            onClick={() => setViewMode('timeline')}
+            style={{
+              padding: '6px 12px',
+              background: viewMode === 'timeline' ? 'rgba(255,255,255,0.3)' : 'transparent',
+              color: 'white',
+              border: viewMode === 'timeline' ? '1px solid rgba(255,255,255,0.4)' : 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: '600',
+              fontSize: '12px',
+              transition: 'all 0.2s ease',
+              boxShadow: viewMode === 'timeline' ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
+              whiteSpace: 'nowrap'
+            }}
+          >📋 Zeitplanansicht</button>
+        </div>
+
+        {/* Zeitintervall - nur in Zeitplan-Ansicht */}
+        {viewMode === 'timeline' && (
+          <select
+            value={timeInterval}
+            onChange={e => setTimeInterval(parseInt(e.target.value))}
+            style={{ padding: '5px 8px', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', outline: 'none', flexShrink: 0 }}
+          >
+            <option value={5} style={{ background: '#667eea' }}>⏱️ 5 Min</option>
+            <option value={10} style={{ background: '#667eea' }}>⏱️ 10 Min</option>
+            <option value={15} style={{ background: '#667eea' }}>⏱️ 15 Min</option>
+          </select>
+        )}
+
+        {/* Stats Badge */}
+        <div style={{
+          display: 'inline-flex', gap: '12px', alignItems: 'center',
+          padding: '6px 12px', background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.18)',
+          borderRadius: '8px', color: 'white', fontSize: '12px', flexShrink: 0
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <span style={{ fontWeight: 700 }}>🪑 {headerStats.tableCount} Tische</span>
+              <span style={{ color: 'rgba(255,255,255,0.9)' }}>{headerStats.freeSeats} von {headerStats.totalSeats} Plätzen frei</span>
+            </div>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <span style={{ fontWeight: 700 }}>👪 {headerStats.familyCount} Familien</span>
+              <span style={{ color: 'rgba(255,255,255,0.9)' }}>🥡 {headerStats.toGoPersons} ToGo</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Spacer */}
+        <div style={{ flex: 1 }} />
+
+        {/* Raum bearbeiten */}
+        <button
+          onClick={() => navigate('/app/rooms')}
+          style={{
+            padding: '6px 14px', background: 'rgba(255,255,255,0.2)', color: 'white',
+            border: '1px solid rgba(255,255,255,0.3)', borderRadius: '6px', cursor: 'pointer',
+            fontSize: '13px', fontWeight: '500', transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0
+          }}
+          onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
+          onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+        >Raum bearbeiten</button>
+      </>
+    )
+  }, [viewMode, timeInterval, headerStats, navigate, setHeaderContent, setViewMode, setTimeInterval])
 
   const computePlacementFromClient = useCallback((coords: { clientX: number; clientY: number }) => {
     if (!draggingGroup || !room) return null
@@ -1222,177 +1319,6 @@ export default function Room() {
           </div>
         </div>
       )}
-      {/* Header */}
-      <div style={{ 
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
-        padding: '16px 24px', 
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0'
-      }}>
-        {/* Left Column - Logo & Title (aligned with sidebar width) */}
-        <div style={{ 
-          flex: '0 0 560px',
-          minWidth: '480px',
-          maxWidth: '640px',
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '12px' 
-        }}>
-          <Link to="/app" style={{ textDecoration: 'none', color: 'white', display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}>
-            <span 
-              style={{ 
-                fontSize: '24px', 
-                cursor: 'pointer',
-                padding: '6px 10px',
-                borderRadius: '8px',
-                transition: 'all 0.2s ease',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'rgba(255,255,255,0.1)',
-                border: '2px solid rgba(255,255,255,0.2)'
-              }} 
-              title="Zur Startseite"
-              onMouseOver={e => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.2)';
-                e.currentTarget.style.border = '2px solid rgba(255,255,255,0.4)';
-                e.currentTarget.style.transform = 'scale(1.1)';
-              }}
-              onMouseOut={e => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-                e.currentTarget.style.border = '2px solid rgba(255,255,255,0.2)';
-                e.currentTarget.style.transform = 'scale(1)';
-              }}
-            >🏠</span>
-          </Link>
-          <h1 style={{ margin: 0, fontSize: '24px', color: 'white', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>Tischplaner</h1>
-        </div>
-
-        {/* Right Column - View Toggle & Controls */}
-        <div style={{ 
-          flex: 1, 
-          display: 'flex', 
-          gap: '12px', 
-          alignItems: 'center',
-          justifyContent: 'flex-start'
-        }}>
-          {/* View Toggle - Kartenansicht / Planansicht */}
-          <div style={{ display: 'inline-flex', gap: '3px', background: 'rgba(255,255,255,0.15)', padding: '5px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)' }}>
-            <button
-              onClick={() => setViewMode('map')}
-              style={{
-                padding: '8px 14px',
-                background: viewMode === 'map' ? 'rgba(255,255,255,0.3)' : 'transparent',
-                color: 'white',
-                border: viewMode === 'map' ? '1px solid rgba(255,255,255,0.4)' : 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontWeight: '600',
-                fontSize: '13px',
-                transition: 'all 0.2s ease',
-                boxShadow: viewMode === 'map' ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
-                textShadow: '0 1px 2px rgba(0,0,0,0.1)'
-              }}
-              title="Kartenansicht"
-            >
-              📍 Kartenansicht
-            </button>
-            <button
-              onClick={() => setViewMode('timeline')}
-              style={{
-                padding: '8px 14px',
-                background: viewMode === 'timeline' ? 'rgba(255,255,255,0.3)' : 'transparent',
-                color: 'white',
-                border: viewMode === 'timeline' ? '1px solid rgba(255,255,255,0.4)' : 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontWeight: '600',
-                fontSize: '13px',
-                transition: 'all 0.2s ease',
-                boxShadow: viewMode === 'timeline' ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
-                textShadow: '0 1px 2px rgba(0,0,0,0.1)'
-              }}
-              title="Zeitplanansicht"
-            >
-              📋 Zeitplanansicht
-            </button>
-          </div>
-
-          {/* Zeitintervall - nur in Zeitplan-Ansicht */}
-          {viewMode === 'timeline' && (
-            <select 
-              value={timeInterval} 
-              onChange={e => setTimeInterval(parseInt(e.target.value))}
-              style={{
-                padding: '6px 10px',
-                background: 'rgba(255,255,255,0.1)',
-                color: 'white',
-                border: '1px solid rgba(255,255,255,0.2)',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '13px',
-                fontWeight: '600',
-                outline: 'none',
-                transition: 'all 0.2s'
-              }}
-            >
-              <option value={5} style={{ background: '#667eea' }}>⏱️ 5 Min</option>
-              <option value={10} style={{ background: '#667eea' }}>⏱️ 10 Min</option>
-              <option value={15} style={{ background: '#667eea' }}>⏱️ 15 Min</option>
-            </select>
-          )}
-
-          {/* Header-Statistik-Box (passt zum Button-Design) */}
-          <div style={{
-            display: 'inline-flex',
-            flexDirection: 'row',
-            gap: '12px',
-            alignItems: 'center',
-            padding: '8px 14px',
-            background: 'rgba(255,255,255,0.12)',
-            border: '1px solid rgba(255,255,255,0.18)',
-            borderRadius: '10px',
-            color: 'white',
-            fontSize: '13px',
-            minWidth: '280px',
-            marginLeft: '120px',
-            flexShrink: 0
-          }}>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
-                <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>🪑 {headerStats.tableCount} Tische</div>
-                <div style={{ color: 'rgba(255,255,255,0.9)' }}>{headerStats.freeSeats} von {headerStats.totalSeats} Plätzen frei</div>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
-                <div style={{ fontWeight: 700 }}>👪 {headerStats.familyCount} Familien</div>
-                <div style={{ color: 'rgba(255,255,255,0.9)' }}>🥡 {headerStats.toGoPersons} ToGo</div>
-              </div>
-            </div>
-          </div>
-
-          <button 
-            onClick={() => navigate('/app/rooms')}
-            style={{
-              padding: '8px 16px',
-              background: 'rgba(255,255,255,0.2)',
-              color: 'white',
-              border: '1px solid rgba(255,255,255,0.3)',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '500',
-              transition: 'all 0.2s',
-              backdropFilter: 'blur(10px)',
-              marginLeft: 'auto'
-            }}
-            onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
-            onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-          >Raum bearbeiten</button>
-        </div>
-      </div>
       
       {/* Main Content */}
       <div className="room-content" style={{ flex: 1, display: 'flex', overflowX: 'hidden', overflowY: 'auto' }}>
