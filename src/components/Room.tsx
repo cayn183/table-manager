@@ -590,93 +590,99 @@ export default function Room() {
 
   useEffect(() => {
     setHeaderContent(
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', width: '100%' }}>
-        <Link
-          to={roomEditPath}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '8px 18px',
-            borderRadius: '999px',
-            background: 'linear-gradient(135deg, rgba(255,255,255,0.24), rgba(255,255,255,0.08))',
-            border: '1px solid rgba(255,255,255,0.6)',
-            color: 'white',
-            fontSize: '13px',
-            fontWeight: 700,
-            textDecoration: 'none',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.25)'
-          }}
-        >Raum bearbeiten</Link>
-
-        <div style={{ display: 'inline-flex', gap: '3px', background: 'rgba(255,255,255,0.15)', padding: '4px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', flexShrink: 0 }}>
-          <button
-            onClick={() => setViewMode('map')}
+      <div style={{ width: '100%', minHeight: '70px', display: 'flex', alignItems: 'center' }}>
+        <div style={{ flex: '0 1 430px', minWidth: 0, display: 'flex', justifyContent: 'flex-end', paddingRight: '16px' }}>
+          <Link
+            to={roomEditPath}
             style={{
-              padding: '6px 12px',
-              background: viewMode === 'map' ? 'rgba(255,255,255,0.3)' : 'transparent',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '8px 18px',
+              borderRadius: '999px',
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.24), rgba(255,255,255,0.08))',
+              border: '1px solid rgba(255,255,255,0.6)',
               color: 'white',
-              border: viewMode === 'map' ? '1px solid rgba(255,255,255,0.4)' : 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontWeight: '600',
-              fontSize: '12px',
-              transition: 'all 0.2s ease',
-              boxShadow: viewMode === 'map' ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
-              whiteSpace: 'nowrap'
+              fontSize: '13px',
+              fontWeight: 700,
+              textDecoration: 'none',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.25)'
             }}
-          >📍 Kartenansicht</button>
-          <button
-            onClick={() => setViewMode('timeline')}
-            style={{
-              padding: '6px 12px',
-              background: viewMode === 'timeline' ? 'rgba(255,255,255,0.3)' : 'transparent',
-              color: 'white',
-              border: viewMode === 'timeline' ? '1px solid rgba(255,255,255,0.4)' : 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontWeight: '600',
-              fontSize: '12px',
-              transition: 'all 0.2s ease',
-              boxShadow: viewMode === 'timeline' ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
-              whiteSpace: 'nowrap'
-            }}
-          >📋 Zeitplanansicht</button>
+          >Raum bearbeiten</Link>
         </div>
 
-        {/* Zeitintervall - nur in Zeitplan-Ansicht */}
-        {viewMode === 'timeline' && (
-          <select
-            value={timeInterval}
-            onChange={e => setTimeInterval(parseInt(e.target.value))}
-            style={{ padding: '5px 8px', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', outline: 'none', flexShrink: 0 }}
-          >
-            <option value={5} style={{ background: '#667eea' }}>⏱️ 5 Min</option>
-            <option value={10} style={{ background: '#667eea' }}>⏱️ 10 Min</option>
-            <option value={15} style={{ background: '#667eea' }}>⏱️ 15 Min</option>
-          </select>
-        )}
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '16px', minHeight: '70px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 8px', borderRadius: '10px', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', boxShadow: '0 12px 20px rgba(0,0,0,0.25)' }}>
+            <button
+              onClick={() => setViewMode('map')}
+              style={{
+                padding: '8px 18px',
+                background: viewMode === 'map' ? 'rgba(255,255,255,0.35)' : 'transparent',
+                color: 'white',
+                border: viewMode === 'map' ? '1px solid rgba(255,255,255,0.4)' : '1px solid transparent',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: '14px',
+                transition: 'all 0.2s ease',
+                boxShadow: viewMode === 'map' ? '0 6px 16px rgba(0,0,0,0.25)' : 'none',
+                whiteSpace: 'nowrap'
+              }}
+            >📍 Kartenansicht</button>
+            <button
+              onClick={() => setViewMode('timeline')}
+              style={{
+                padding: '8px 18px',
+                background: viewMode === 'timeline' ? 'rgba(255,255,255,0.35)' : 'transparent',
+                color: 'white',
+                border: viewMode === 'timeline' ? '1px solid rgba(255,255,255,0.4)' : '1px solid transparent',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: '14px',
+                transition: 'all 0.2s ease',
+                boxShadow: viewMode === 'timeline' ? '0 6px 16px rgba(0,0,0,0.25)' : 'none',
+                whiteSpace: 'nowrap'
+              }}
+            >📋 Zeitplanansicht</button>
+          </div>
 
-        {/* Stats Badge */}
-        <div style={{
-          display: 'inline-flex', gap: '12px', alignItems: 'center',
-          padding: '6px 12px', background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.18)',
-          borderRadius: '8px', color: 'white', fontSize: '12px', flexShrink: 0
-        }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <span style={{ fontWeight: 700 }}>🪑 {headerStats.tableCount} Tische</span>
-              <span style={{ color: 'rgba(255,255,255,0.9)' }}>{headerStats.freeSeats} von {headerStats.totalSeats} Plätzen frei</span>
-            </div>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <span style={{ fontWeight: 700 }}>👪 {headerStats.familyCount} Familien</span>
-              <span style={{ color: 'rgba(255,255,255,0.9)' }}>🥡 {headerStats.toGoPersons} ToGo</span>
+          {viewMode === 'timeline' && (
+            <select
+              value={timeInterval}
+              onChange={e => setTimeInterval(parseInt(e.target.value))}
+              style={{
+                padding: '8px 14px',
+                background: 'rgba(255,255,255,0.1)',
+                color: 'white',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 600,
+                outline: 'none',
+                minWidth: '130px'
+              }}
+            >
+              <option value={5} style={{ background: '#667eea' }}>⏱️ 5 Min</option>
+              <option value={10} style={{ background: '#667eea' }}>⏱️ 10 Min</option>
+              <option value={15} style={{ background: '#667eea' }}>⏱️ 15 Min</option>
+            </select>
+          )}
+
+          <div style={{ display: 'inline-flex', gap: '12px', alignItems: 'center', padding: '8px 16px', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: '10px', fontSize: '13px', color: 'white', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <div style={{ display: 'flex', gap: '14px', fontWeight: 600 }}>
+                <span>🪑 {headerStats.tableCount} Tische</span>
+                <span style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>{headerStats.freeSeats} von {headerStats.totalSeats} Plätzen frei</span>
+              </div>
+              <div style={{ display: 'flex', gap: '14px', fontWeight: 600 }}>
+                <span>👪 {headerStats.familyCount} Familien</span>
+                <span style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>🥡 {headerStats.toGoPersons} ToGo</span>
+              </div>
             </div>
           </div>
         </div>
-
-        {/* Spacer */}
-        <div style={{ flex: 1 }} />
       </div>
     )
   }, [viewMode, timeInterval, headerStats, setHeaderContent, setViewMode, setTimeInterval, roomEditPath])
