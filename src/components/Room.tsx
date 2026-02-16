@@ -50,9 +50,15 @@ function getResponsiveFontSize(text: string): number {
   return 10
 }
 
+type SavedRoom = {
+  id: string
+  data?: { tables?: Table[] }
+}
+
 export default function Room() {
   const navigate = useNavigate()
   const auth = useAuth()
+  const userId = auth.user ? auth.user.id : null
   
   // --------------------------------------------------------------------------
   // STATE: Core Data
@@ -61,6 +67,7 @@ export default function Room() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [groups, setGroups] = useState<Group[]>([])
   const [assignedGroups, setAssignedGroups] = useState<Record<string, AssignedGroup[]>>({})
+  const [roomEditPath, setRoomEditPath] = useState('/app/rooms')
   
   // --------------------------------------------------------------------------
   // STATE: Modals & UI Controls
@@ -583,26 +590,24 @@ export default function Room() {
 
   useEffect(() => {
     setHeaderContent(
-      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'nowrap', width: '100%' }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 12px', borderRadius: '999px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', flexShrink: 0 }}>
-          <Link
-            to="/app/rooms"
-            style={{
-              color: 'rgba(255,255,255,0.9)',
-              fontSize: '13px',
-              fontWeight: 600,
-              textDecoration: 'none'
-            }}
-          >Raum bearbeiten</Link>
-          <span style={{
-            padding: '4px 10px',
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', width: '100%' }}>
+        <Link
+          to={roomEditPath}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '8px 18px',
             borderRadius: '999px',
-            background: 'rgba(255,255,255,0.25)',
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.24), rgba(255,255,255,0.08))',
+            border: '1px solid rgba(255,255,255,0.6)',
+            color: 'white',
             fontSize: '13px',
             fontWeight: 700,
-            color: 'white'
-          }}>Gäste platzieren</span>
-        </div>
+            textDecoration: 'none',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.25)'
+          }}
+        >Raum bearbeiten</Link>
 
         <div style={{ display: 'inline-flex', gap: '3px', background: 'rgba(255,255,255,0.15)', padding: '4px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', flexShrink: 0 }}>
           <button
@@ -674,7 +679,7 @@ export default function Room() {
         <div style={{ flex: 1 }} />
       </div>
     )
-  }, [viewMode, timeInterval, headerStats, setHeaderContent, setViewMode, setTimeInterval])
+  }, [viewMode, timeInterval, headerStats, setHeaderContent, setViewMode, setTimeInterval, roomEditPath])
 
   const computePlacementFromClient = useCallback((coords: { clientX: number; clientY: number }) => {
     if (!draggingGroup || !room) return null
@@ -883,6 +888,51 @@ export default function Room() {
       setLoadError('Kein gespeicherter Raum gefunden. Bitte im Editor speichern und erneut öffnen.')
     }
   }, [])
+
+  useEffect(() => {
+    if (!room) {
+      setRoomEditPath('/app/rooms')
+      return
+    }
+
+    let resolvedPath = '/app/rooms'
+    let matchedId: string | null = null
+
+    const rawCurrentEvent = userStorage.getItem('currentEvent', userId) || localStorage.getItem('currentEvent')
+    if (rawCurrentEvent) {
+      try {
+        const currentEvent = JSON.parse(rawCurrentEvent as string)
+        if (currentEvent?.roomId) {
+          matchedId = currentEvent.roomId
+        }
+      } catch (err) {
+        // ignore parse errors
+      }
+    }
+
+    if (!matchedId) {
+      const tablesJson = JSON.stringify(room.tables || [])
+      const rawRooms = userStorage.getItem('rooms', userId) || localStorage.getItem('rooms') || '[]'
+      try {
+        const savedRooms = JSON.parse(rawRooms as string) as SavedRoom[]
+        for (const entry of savedRooms) {
+          if (!entry?.data?.tables) continue
+          if (JSON.stringify(entry.data.tables) === tablesJson) {
+            matchedId = entry.id
+            break
+          }
+        }
+      } catch (err) {
+        // ignore parse errors
+      }
+    }
+
+    if (matchedId) {
+      resolvedPath = `/app/rooms/${matchedId}`
+    }
+
+    setRoomEditPath(resolvedPath)
+  }, [room, userId])
 
   // Hover tracking for preview; skip collision against the item being moved.
   useEffect(() => {
