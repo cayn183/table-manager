@@ -577,14 +577,33 @@ export default function Room() {
   const { setPageTitle, setHeaderContent } = usePageHeader()
 
   useEffect(() => {
-    setPageTitle('Raum bearbeiten > Gäste platzieren')
+    setPageTitle('Gäste platzieren')
     return () => { setPageTitle(null); setHeaderContent(null) }
   }, [setPageTitle, setHeaderContent])
 
   useEffect(() => {
     setHeaderContent(
-      <>
-        {/* View Toggle */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'nowrap', width: '100%' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 12px', borderRadius: '999px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', flexShrink: 0 }}>
+          <Link
+            to="/app/rooms"
+            style={{
+              color: 'rgba(255,255,255,0.9)',
+              fontSize: '13px',
+              fontWeight: 600,
+              textDecoration: 'none'
+            }}
+          >Raum bearbeiten</Link>
+          <span style={{
+            padding: '4px 10px',
+            borderRadius: '999px',
+            background: 'rgba(255,255,255,0.25)',
+            fontSize: '13px',
+            fontWeight: 700,
+            color: 'white'
+          }}>Gäste platzieren</span>
+        </div>
+
         <div style={{ display: 'inline-flex', gap: '3px', background: 'rgba(255,255,255,0.15)', padding: '4px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', flexShrink: 0 }}>
           <button
             onClick={() => setViewMode('map')}
@@ -653,21 +672,9 @@ export default function Room() {
 
         {/* Spacer */}
         <div style={{ flex: 1 }} />
-
-        {/* Raum bearbeiten */}
-        <button
-          onClick={() => navigate('/app/rooms')}
-          style={{
-            padding: '6px 14px', background: 'rgba(255,255,255,0.2)', color: 'white',
-            border: '1px solid rgba(255,255,255,0.3)', borderRadius: '6px', cursor: 'pointer',
-            fontSize: '13px', fontWeight: '500', transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0
-          }}
-          onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
-          onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-        >Raum bearbeiten</button>
-      </>
+      </div>
     )
-  }, [viewMode, timeInterval, headerStats, navigate, setHeaderContent, setViewMode, setTimeInterval])
+  }, [viewMode, timeInterval, headerStats, setHeaderContent, setViewMode, setTimeInterval])
 
   const computePlacementFromClient = useCallback((coords: { clientX: number; clientY: number }) => {
     if (!draggingGroup || !room) return null
