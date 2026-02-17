@@ -591,7 +591,7 @@ export default function Room() {
   useEffect(() => {
     setHeaderContent(
       <div style={{ width: '100%', minHeight: '70px', display: 'flex', alignItems: 'center' }}>
-        <div style={{ flex: '0 1 430px', minWidth: 0, display: 'flex', justifyContent: 'flex-end', paddingRight: '16px' }}>
+        <div style={{ flex: '0 1 185px', minWidth: 0, display: 'flex', justifyContent: 'flex-end' }}>
           <Link
             to={roomEditPath}
             style={{
@@ -611,7 +611,7 @@ export default function Room() {
           >Raum bearbeiten</Link>
         </div>
 
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '16px', minHeight: '70px', flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '16px', minHeight: '70px', flexWrap: 'wrap', paddingLeft: '80px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 8px', borderRadius: '10px', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', boxShadow: '0 12px 20px rgba(0,0,0,0.25)' }}>
             <button
               onClick={() => setViewMode('map')}
@@ -2157,8 +2157,10 @@ export default function Room() {
               alignItems: 'flex-start',
               padding: '12px 12px 12px',
               width: '100%',
-              overflow: 'hidden',
-              maxHeight: 'calc(100vh - 180px)'
+              flex: 1,
+              minHeight: 0,
+              height: 'calc(100vh - 220px)',
+              overflow: 'hidden'
             }}
           >
             {viewMode === 'map' ? (
