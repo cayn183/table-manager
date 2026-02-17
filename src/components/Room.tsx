@@ -2159,7 +2159,7 @@ export default function Room() {
               width: '100%',
               flex: 1,
               minHeight: 0,
-              height: 'calc(100vh - 220px)',
+              height: 'calc(100vh - 150px)',
               overflow: 'hidden'
             }}
           >
@@ -4517,7 +4517,7 @@ function TimelineView({
     <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
       {/* Unassigned families are rendered inside the timeline-list so they share scrolling and column wrapping */}
 
-      <div ref={scrollRef} className="timeline-scroll-wrapper" style={{ height: 'calc(100vh - 220px)', overflow: 'hidden' }}>
+      <div ref={scrollRef} className="timeline-scroll-wrapper" style={{ height: 'calc(100vh - 150px)', overflow: 'hidden' }}>
         <div className="timeline-list">
           {columns.map((column, columnIndex) => (
             <div className="timeline-column" key={`timeline-column-${columnIndex}`}>
