@@ -68,6 +68,7 @@ export default function Room() {
   const [groups, setGroups] = useState<Group[]>([])
   const [assignedGroups, setAssignedGroups] = useState<Record<string, AssignedGroup[]>>({})
   const [roomEditPath, setRoomEditPath] = useState('/app/rooms')
+  const [currentEventId, setCurrentEventId] = useState<string | null>(null)
   
   // --------------------------------------------------------------------------
   // STATE: Modals & UI Controls
@@ -594,6 +595,7 @@ export default function Room() {
         <div style={{ flex: '0 1 185px', minWidth: 0, display: 'flex', justifyContent: 'flex-end' }}>
           <Link
             to={roomEditPath}
+            state={currentEventId ? { returnToEventId: currentEventId } : undefined}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -685,7 +687,7 @@ export default function Room() {
         </div>
       </div>
     )
-  }, [viewMode, timeInterval, headerStats, setHeaderContent, setViewMode, setTimeInterval, roomEditPath])
+  }, [viewMode, timeInterval, headerStats, setHeaderContent, setViewMode, setTimeInterval, roomEditPath, currentEventId])
 
   const computePlacementFromClient = useCallback((coords: { clientX: number; clientY: number }) => {
     if (!draggingGroup || !room) return null
@@ -885,6 +887,9 @@ export default function Room() {
           }
           if (event.lastModified) {
             setLastSaveTime(event.lastModified)
+          }
+          if (event.id) {
+            setCurrentEventId(event.id)
           }
         }
       } catch (err) {

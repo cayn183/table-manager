@@ -34,8 +34,12 @@ export default function RoomEditor() {
   const { user, token } = useAuth()
   const [isSavingRoom, setIsSavingRoom] = useState(false)
   const [saveRoomError, setSaveRoomError] = useState<string | null>(null)
+  const [duplicateConfirmModal, setDuplicateConfirmModal] = useState<{ name: string; existingId: string; existingCreatedAt: string } | null>(null)
   const userId = user ? user.id : null
   const pendingEventId: string | null = (location.state as any)?.pendingEventId || null
+  const returnToEventId: string | null = (location.state as any)?.returnToEventId || null
+  const [existingRoomId, setExistingRoomId] = useState<string | null>(null)
+  const [existingCreatedAt, setExistingCreatedAt] = useState<string | null>(null)
 
   const gridWidth = 28
   const gridHeight = 20
@@ -78,6 +82,8 @@ export default function RoomEditor() {
           // Try to find a matching saved room entry to determine if we're editing an existing room
           const roomsRaw = userStorage.getItem('rooms', userId) || localStorage.getItem('rooms')
           let matchedName: string | null = null
+          let matchedId: string | null = null
+          let matchedCreatedAt: string | null = null
           if (roomsRaw) {
             try {
               const list = JSON.parse(roomsRaw)
@@ -87,6 +93,8 @@ export default function RoomEditor() {
                     // simple deep-compare of tables arrays
                     if (JSON.stringify(entry.data.tables) === JSON.stringify(room.tables)) {
                       matchedName = entry.name
+                      matchedId = entry.id
+                      matchedCreatedAt = entry.createdAt || null
                       break
                     }
                   }
@@ -103,6 +111,8 @@ export default function RoomEditor() {
             setIsEditingExisting(true)
             setRoomName(matchedName)
             setSaveRoomName(matchedName)
+            setExistingRoomId(matchedId)
+            setExistingCreatedAt(matchedCreatedAt)
           } else {
             // No matching saved room found: treat as new room
             setIsEditingExisting(false)
@@ -198,29 +208,61 @@ export default function RoomEditor() {
     updateDragPreview(e)
   }
 
-  async function confirmSaveRoom(name: string) {
+  async function confirmSaveRoom(name: string, overrideExistingId?: string, overrideCreatedAt?: string) {
     setSaveRoomError(null)
     const room = { tables, viewFrame: viewFrame || undefined }
     userStorage.setItem('currentRoom', JSON.stringify(room), userId)
     const raw = userStorage.getItem('rooms', userId) || localStorage.getItem('rooms') || '[]'
     const list = JSON.parse(raw as string)
-    const entry = { id: `r-${Date.now()}`, name: name || `Raum ${list.length + 1}`, createdAt: new Date().toLocaleDateString(), data: room }
-    userStorage.setItem('rooms', JSON.stringify([...list, entry]), userId)
+
+    // Determine the effective name
+    const effectiveName = name || `Raum ${list.length + 1}`
+
+    // Check for duplicate name (unless we already confirmed overwrite via modal)
+    if (!overrideExistingId) {
+      const duplicate = list.find((e: any) => e.name === effectiveName && e.id !== existingRoomId)
+      if (duplicate) {
+        // Show confirmation modal instead of saving right away
+        setDuplicateConfirmModal({ name: effectiveName, existingId: duplicate.id, existingCreatedAt: duplicate.createdAt || '' })
+        setShowSaveModal(false)
+        return
+      }
+    }
+
+    let entry: any
+    // If editing an existing room (same id) OR overwriting a duplicate by name
+    const targetId = overrideExistingId || existingRoomId
+    if (targetId) {
+      // Overwrite existing entry, preserve createdAt
+      const targetCreatedAt = overrideCreatedAt !== undefined ? overrideCreatedAt : (existingCreatedAt || new Date().toLocaleDateString())
+      entry = { id: targetId, name: effectiveName, createdAt: targetCreatedAt, data: room }
+      const updated = list.map((e: any) => e.id === targetId ? entry : e)
+      // If targetId not in list (shouldn't happen, but safety), append
+      if (!list.find((e: any) => e.id === targetId)) {
+        updated.push(entry)
+      }
+      userStorage.setItem('rooms', JSON.stringify(updated), userId)
+    } else {
+      // New room
+      entry = { id: `r-${Date.now()}`, name: effectiveName, createdAt: new Date().toLocaleDateString(), data: room }
+      userStorage.setItem('rooms', JSON.stringify([...list, entry]), userId)
+    }
 
     // If this room was created as part of event creation, link it to the event
-    if (pendingEventId) {
+    const targetEventId = pendingEventId || returnToEventId
+    if (targetEventId) {
       try {
         const rawEvent = userStorage.getItem('currentEvent', userId) || localStorage.getItem('currentEvent')
         if (rawEvent) {
           const event = JSON.parse(rawEvent as string)
-          if (event && event.id === pendingEventId) {
+          if (event && event.id === targetEventId) {
             event.roomId = entry.id
             userStorage.setItem('currentEvent', JSON.stringify(event), userId)
             // Also update the event in the events list
             const rawEvents = userStorage.getItem('events', userId) || localStorage.getItem('events') || '[]'
             const events = JSON.parse(rawEvents as string)
-            const updated = events.map((e: any) => e.id === pendingEventId ? { ...e, roomId: entry.id } : e)
-            userStorage.setItem('events', JSON.stringify(updated), userId)
+            const updatedEvents = events.map((e: any) => e.id === targetEventId ? { ...e, roomId: entry.id } : e)
+            userStorage.setItem('events', JSON.stringify(updatedEvents), userId)
           }
         }
       } catch (e) {
@@ -231,9 +273,12 @@ export default function RoomEditor() {
     // show saving indicator during background sync
     setIsSavingRoom(true)
     setShowSaveModal(false)
+    setDuplicateConfirmModal(null)
 
     if (pendingEventId) {
       navigate(`/app/events/${pendingEventId}`)
+    } else if (returnToEventId) {
+      navigate(`/app/events/${returnToEventId}`)
     } else {
       navigate('/app/rooms')
     }
@@ -724,6 +769,30 @@ export default function RoomEditor() {
                 onMouseOver={e => { e.currentTarget.style.background = '#f1f5f9'; }}
                 onMouseOut={e => { e.currentTarget.style.background = 'white'; }}
               >Abbrechen</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Duplicate Name Confirmation Modal */}
+      {duplicateConfirmModal && (
+        <div className="modal" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}>
+          <div style={{ background: 'white', borderRadius: '16px', padding: '32px', minWidth: '420px', maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <h3 style={{ margin: '0 0 16px', fontSize: '20px', fontWeight: '700', color: '#1e293b' }}>⚠️ Name bereits vorhanden</h3>
+            <p style={{ margin: '0 0 20px', fontSize: '14px', color: '#475569', lineHeight: 1.6 }}>
+              Ein Raum mit dem Namen <strong>„{duplicateConfirmModal.name}"</strong> existiert bereits.<br />
+              Soll der bestehende Raum überschrieben werden?
+            </p>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button
+                onClick={() => confirmSaveRoom(duplicateConfirmModal.name, duplicateConfirmModal.existingId, duplicateConfirmModal.existingCreatedAt)}
+                disabled={isSavingRoom}
+                style={{ flex: 1, padding: '12px 24px', background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)', color: 'white', border: 'none', borderRadius: '8px', cursor: isSavingRoom ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: '700' }}
+              >{isSavingRoom ? 'Speichert…' : 'Überschreiben'}</button>
+              <button
+                onClick={() => { setDuplicateConfirmModal(null); setSaveRoomName(duplicateConfirmModal.name); setShowSaveModal(true) }}
+                style={{ flex: 1, padding: '12px 24px', background: 'white', color: '#64748b', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}
+              >Namen anpassen</button>
             </div>
           </div>
         </div>
