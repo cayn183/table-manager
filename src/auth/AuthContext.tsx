@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/apiClient'
 import userStorage from '../utils/userStorage'
@@ -17,7 +17,7 @@ type AuthCtx = {
   refreshUser: () => Promise<void>
   login: (email: string, password: string) => Promise<AuthResult>
   register: (name: string, email: string, password: string) => Promise<AuthResult>
-  logout: () => void
+  logout: (options?: { navigateTo?: string }) => void
 }
 // Migration is disabled by default. Manual import endpoint remains on the server.
 
@@ -94,7 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  function logout() {
+  function logout(options?: { navigateTo?: string }) {
     try {
       if (user && user.id) {
         void syncUserData(token, user.id)
@@ -106,8 +106,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try { sentry.clearUser() } catch (e) {}
     // Do not clear local user data here; we use user-scoped storage keys
     // so data of different accounts do not collide on the same browser.
-    try { navigate('/login', { replace: true }) } catch (e) {}
+    try { navigate(options?.navigateTo ?? '/login', { replace: true }) } catch (e) {}
   }
+
+  // ── Idle auto-logout after 30 minutes of inactivity ──────────────────────
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const IDLE_TIMEOUT_MS = 30 * 60 * 1000
+
+  useEffect(() => {
+    if (!user) return // only track when logged in
+
+    function resetTimer() {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+      idleTimerRef.current = setTimeout(() => {
+        // Let active components (e.g. Room) save before logout
+        window.dispatchEvent(new CustomEvent('app:auto-logout'))
+        // Short delay so handlers can run synchronously
+        setTimeout(() => {
+          logout({ navigateTo: '/login' })
+        }, 200)
+      }, IDLE_TIMEOUT_MS)
+    }
+
+    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'] as const
+    events.forEach(ev => window.addEventListener(ev, resetTimer, { passive: true }))
+    resetTimer()
+
+    return () => {
+      events.forEach(ev => window.removeEventListener(ev, resetTimer))
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
+  // ─────────────────────────────────────────────────────────────────────────
 
   // Best-effort sync when the page is reloaded or closed. Uses fetch keepalive.
   useEffect(() => {

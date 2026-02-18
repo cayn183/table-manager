@@ -23,7 +23,10 @@ import ToGo from './components/ToGo'
 function RequireAuth({ children }: { children: ReactNode }) {
   const auth = useAuth()
   if (auth.loading) return null
-  if (!auth.user) return <Navigate to="/login" replace />
+  if (!auth.user) {
+    const redirect = encodeURIComponent(window.location.pathname + window.location.search)
+    return <Navigate to={`/login?redirect=${redirect}`} replace />
+  }
   return <>{children}</>
 }
 

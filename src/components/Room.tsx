@@ -1264,6 +1264,21 @@ export default function Room() {
     return () => { clearInterval(interval); clearTimeout(timeout) }
   }, [isDirty, assignedGroups, groups])
 
+  // Save before auto-logout (triggered by idle timer in AuthContext)
+  const saveEventSilentlyRef = useRef(saveEventSilently)
+  const isDirtyRef = useRef(isDirty)
+  useEffect(() => { saveEventSilentlyRef.current = saveEventSilently }, [saveEventSilently, assignedGroups, groups])
+  useEffect(() => { isDirtyRef.current = isDirty }, [isDirty])
+  useEffect(() => {
+    function handleAutoLogout() {
+      if (isDirtyRef.current) {
+        saveEventSilentlyRef.current()
+      }
+    }
+    window.addEventListener('app:auto-logout', handleAutoLogout)
+    return () => window.removeEventListener('app:auto-logout', handleAutoLogout)
+  }, [])
+
   function autoAssign() {
     if (!room) return
     const tables = room.tables
