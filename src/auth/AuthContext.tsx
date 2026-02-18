@@ -23,20 +23,38 @@ type AuthCtx = {
 
 const AuthContext = createContext<AuthCtx | undefined>(undefined)
 
+const AUTH_TOKEN_KEY = 'auth_token'
+
+function persistToken(t: string | null) {
+  try {
+    if (t) localStorage.setItem(AUTH_TOKEN_KEY, t)
+    else localStorage.removeItem(AUTH_TOKEN_KEY)
+  } catch (e) {}
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string | null>(null)
+  const [token, setTokenState] = useState<string | null>(() => {
+    try { return localStorage.getItem(AUTH_TOKEN_KEY) } catch { return null }
+  })
   const [user, setUser] = useState<User>(null)
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
+  function setToken(t: string | null) {
+    setTokenState(t)
+    persistToken(t)
+  }
+
   useEffect(() => {
     let mounted = true
     async function bootstrap() {
+      const storedToken = (() => { try { return localStorage.getItem(AUTH_TOKEN_KEY) } catch { return null } })()
       try {
-        const res = await api.get('/auth/me')
+        const res = await api.get('/auth/me', storedToken || undefined)
         if (mounted && res && res.id) setUser(res)
+        else if (mounted) { setToken(null); setUser(null) }
       } catch (e) {
-        if (mounted) setUser(null)
+        if (mounted) { setToken(null); setUser(null) }
       } finally {
         if (mounted) setLoading(false)
       }
