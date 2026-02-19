@@ -1,13 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import api from '../api/apiClient'
 import logger from '../utils/logger'
 import FeedbackForm from './FeedbackForm'
 
+const LAST_SEEN_KEY = 'platzpilot_last_seen_replies'
+
+export function markRepliesSeen() {
+  localStorage.setItem(LAST_SEEN_KEY, new Date().toISOString())
+  window.dispatchEvent(new CustomEvent('platzpilot:replies-seen'))
+}
+
 export default function UserMenu() {
-  const { user, logout } = useAuth()
+  const { user, logout, token } = useAuth()
   const [showFeedback, setShowFeedback] = useState(false)
   const [open, setOpen] = useState(false)
+  const [unreadReplies, setUnreadReplies] = useState(0)
   const ref = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -18,6 +27,24 @@ export default function UserMenu() {
     document.addEventListener('click', onDoc)
     return () => document.removeEventListener('click', onDoc)
   }, [])
+
+  // Poll for unread incoming email replies (admins only)
+  useEffect(() => {
+    if (!(user as any)?.is_admin || !token) return
+    const fetchUnread = async () => {
+      try {
+        const since = localStorage.getItem(LAST_SEEN_KEY) || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+        const res = await api.get(`/admin/feedback/unread-replies?since=${encodeURIComponent(since)}`, token)
+        setUnreadReplies(res?.count || 0)
+      } catch { /* ignore */ }
+    }
+    fetchUnread()
+    const id = setInterval(fetchUnread, 60_000)
+    // Immediately reset badge when another component calls markRepliesSeen()
+    const onSeen = () => setUnreadReplies(0)
+    window.addEventListener('platzpilot:replies-seen', onSeen)
+    return () => { clearInterval(id); window.removeEventListener('platzpilot:replies-seen', onSeen) }
+  }, [user, token])
 
   // Keep hooks at top level so render hook count is stable even when `user` is null
 
@@ -56,7 +83,25 @@ export default function UserMenu() {
             </Link>
             {(user as any).is_admin && (
               <Link to="/admin" style={{ textDecoration: 'none' }}>
-                <button onClick={() => setOpen(false)} style={{ width: '100%', padding: '6px 8px' }}>Admin Center</button>
+                <button
+                  onClick={() => { setOpen(false); markRepliesSeen(); setUnreadReplies(0) }}
+                  style={{ width: '100%', padding: '6px 8px', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                >
+                  Admin Center
+                  {unreadReplies > 0 && (
+                    <span style={{
+                      background: '#dc2626',
+                      color: '#fff',
+                      borderRadius: 10,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      padding: '1px 6px',
+                      lineHeight: '16px',
+                      minWidth: 18,
+                      textAlign: 'center',
+                    }}>{unreadReplies > 99 ? '99+' : unreadReplies}</span>
+                  )}
+                </button>
               </Link>
             )}
             <button onClick={() => { setOpen(false); setShowFeedback(true) }} style={{ width: '100%', padding: '6px 8px' }}>Feedback</button>

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/apiClient'
+import { markRepliesSeen } from './UserMenu'
 import '../styles/admin-panel.css'
 
 type UserRow = { id: string; name: string; email: string; created_at: string; is_admin: boolean; email_verified?: boolean; deleted_at?: string }
@@ -55,7 +56,12 @@ export default function AdminPanel() {
 
   useEffect(() => { fetchUsers(page, perPage, q) }, [auth.user, page, perPage, q])
   useEffect(() => { if (menu === 'audit') fetchAudit(auditPage, auditPerPage) }, [auth.user, menu, auditPage, auditPerPage])
-  useEffect(() => { if (menu === 'feedback') fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ) }, [auth.user, menu, feedbackPage, feedbackPerPage, feedbackQ, showNew, showOpen, showResolved])
+  useEffect(() => {
+    if (menu === 'feedback') {
+      fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ)
+      markRepliesSeen()
+    }
+  }, [auth.user, menu, feedbackPage, feedbackPerPage, feedbackQ, showNew, showOpen, showResolved])
 
   // System info state
   const [backendInfo, setBackendInfo] = useState<any | null>(null)
@@ -213,7 +219,7 @@ export default function AdminPanel() {
           <nav className="admin-nav">
             <button onClick={() => setMenu('users')} className={`admin-nav-button ${menu === 'users' ? 'active' : ''}`}>Benutzerverwaltung</button>
             <button onClick={() => setMenu('audit')} className={`admin-nav-button ${menu === 'audit' ? 'active' : ''}`}>Audit Log</button>
-            <button onClick={() => setMenu('feedback')} className={`admin-nav-button ${menu === 'feedback' ? 'active' : ''}`}>Feedbackübersicht</button>
+            <button onClick={() => { setMenu('feedback'); markRepliesSeen() }} className={`admin-nav-button ${menu === 'feedback' ? 'active' : ''}`}>Feedbackübersicht</button>
             <button onClick={() => setMenu('system')} className={`admin-nav-button ${menu === 'system' ? 'active' : ''}`}>System</button>
           </nav>
         </div>
