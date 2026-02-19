@@ -43,6 +43,15 @@ export default function AdminPanel() {
   const [showResolved, setShowResolved] = useState(true)
   const [selectedFeedback, setSelectedFeedback] = useState<any | null>(null)
   const [feedbackDetailLoading, setFeedbackDetailLoading] = useState(false)
+  // Inline comment form
+  const [commentText, setCommentText] = useState('')
+  const [commentSending, setCommentSending] = useState(false)
+  // Email reply form
+  const [replyText, setReplyText] = useState('')
+  const [replySubject, setReplySubject] = useState('')
+  const [replySending, setReplySending] = useState(false)
+  const [replyError, setReplyError] = useState<string | null>(null)
+  const [replySuccess, setReplySuccess] = useState(false)
 
   useEffect(() => { fetchUsers(page, perPage, q) }, [auth.user, page, perPage, q])
   useEffect(() => { if (menu === 'audit') fetchAudit(auditPage, auditPerPage) }, [auth.user, menu, auditPage, auditPerPage])
@@ -131,9 +140,12 @@ export default function AdminPanel() {
     }
   }
 
-  async function fetchFeedbackDetail(id: string) {
+  async function fetchFeedbackDetail(id: string, resetForms = false) {
     if (!auth.user) return
     setFeedbackDetailLoading(true)
+    if (resetForms) {
+      setCommentText(''); setReplyText(''); setReplySubject(''); setReplyError(null); setReplySuccess(false)
+    }
     try {
       const res = await api.get(`/admin/feedback/${id}`, auth.token ?? undefined)
       setSelectedFeedback(res)
@@ -144,11 +156,32 @@ export default function AdminPanel() {
 
   async function addFeedbackComment(id: string, message: string) {
     if (!auth.user) return
+    setCommentSending(true)
     try {
       await api.post(`/admin/feedback/${id}/comment`, { message }, auth.token ?? undefined)
+      setCommentText('')
       fetchFeedbackDetail(id)
       fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ)
     } catch (e: any) { alert(e?.message || 'Failed to add comment') }
+    finally { setCommentSending(false) }
+  }
+
+  async function sendFeedbackReply(id: string) {
+    if (!auth.user) return
+    setReplyError(null)
+    setReplySuccess(false)
+    if (!replyText.trim()) { setReplyError('Nachricht darf nicht leer sein.'); return }
+    setReplySending(true)
+    try {
+      await api.post(`/admin/feedback/${id}/reply`, { message: replyText.trim(), subject: replySubject.trim() || undefined }, auth.token ?? undefined)
+      setReplyText('')
+      setReplySubject('')
+      setReplySuccess(true)
+      fetchFeedbackDetail(id)
+    } catch (e: any) {
+      const detail = e?.body?.detail || e?.message || 'E-Mail konnte nicht gesendet werden.'
+      setReplyError(detail)
+    } finally { setReplySending(false) }
   }
 
   async function resolveFeedback(id: string, resolved = true) {
@@ -372,7 +405,7 @@ export default function AdminPanel() {
                       <div style={{ fontWeight: 700 }}>{f.headline || '(no headline)'}</div>
                       <div style={{ marginTop: 6 }}>{f.message?.slice?.(0, 160)}</div>
                       <div style={{ marginTop: 8 }}>
-                        <button onClick={() => fetchFeedbackDetail(f.id)}>View</button>
+                        <button onClick={() => fetchFeedbackDetail(f.id, true)}>View</button>
                       </div>
                     </td>
                   </tr>
@@ -476,7 +509,7 @@ export default function AdminPanel() {
       {selectedFeedback && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ width: '90%', maxWidth: 900, maxHeight: '90vh', overflow: 'auto', background: 'white', borderRadius: 8, padding: 18, boxShadow: '0 10px 40px rgba(0,0,0,0.3)', position: 'relative' }}>
-            <button onClick={() => setSelectedFeedback(null)} style={{ position: 'absolute', right: 12, top: 12 }}>Close</button>
+            <button onClick={() => { setSelectedFeedback(null); setCommentText(''); setReplyText(''); setReplySubject(''); setReplyError(null); setReplySuccess(false) }} style={{ position: 'absolute', right: 12, top: 12 }}>Close</button>
             <h3 style={{ marginTop: 6 }}>{selectedFeedback.headline || '(no headline)'}</h3>
             {feedbackDetailLoading ? <p>Loading…</p> : (
               <div>
@@ -496,22 +529,70 @@ export default function AdminPanel() {
                 <h4>Metadata</h4>
                 <pre style={{ background: '#f6f8fa', padding: 8, borderRadius: 6, overflow: 'auto' }}>{JSON.stringify(selectedFeedback.metadata || {}, null, 2)}</pre>
 
-                <h4 style={{ marginTop: 12 }}>Comments</h4>
+                <h4 style={{ marginTop: 12 }}>Kommentare (intern)</h4>
+                {(selectedFeedback.comments || []).length === 0 && (
+                  <div style={{ color: '#94a3b8', fontSize: 13 }}>Keine Kommentare.</div>
+                )}
                 {(selectedFeedback.comments || []).map((c: any) => (
-                  <div key={c.id} style={{ padding: 8, borderBottom: '1px solid #eee' }}>
+                  <div key={c.id} style={{ padding: '8px 10px', borderBottom: '1px solid #eee', background: c.message?.startsWith('[E-Mail-Antwort') ? '#f0fdf4' : undefined, borderRadius: 4 }}>
                     <div style={{ fontSize: 12, color: '#64748b' }}>{c.author_id || 'admin'} • {new Date(c.created_at).toLocaleString()}</div>
-                    <div style={{ marginTop: 6 }}>{c.message}</div>
+                    <div style={{ marginTop: 4, whiteSpace: 'pre-wrap', fontSize: 14 }}>{c.message}</div>
                   </div>
                 ))}
 
-                <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-                  <button onClick={async () => {
-                    const txt = prompt('Kommentar hinzufügen')
-                    if (txt) {
-                      await addFeedbackComment(String(selectedFeedback.id), txt)
-                      fetchFeedbackDetail(String(selectedFeedback.id))
-                    }
-                  }}>Add comment</button>
+                {/* Inline comment form */}
+                <div style={{ marginTop: 10 }}>
+                  <textarea
+                    rows={2}
+                    placeholder="Interner Kommentar …"
+                    value={commentText}
+                    onChange={e => setCommentText(e.target.value)}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14, resize: 'vertical' }}
+                  />
+                  <button
+                    disabled={commentSending || !commentText.trim()}
+                    onClick={() => addFeedbackComment(String(selectedFeedback.id), commentText)}
+                    style={{ marginTop: 4 }}
+                  >{commentSending ? 'Speichern …' : 'Kommentar speichern'}</button>
+                </div>
+
+                {/* Email reply — only if feedback has an email */}
+                {selectedFeedback.email ? (
+                  <div style={{ marginTop: 16, padding: 12, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                    <h4 style={{ margin: '0 0 8px' }}>E-Mail-Antwort an {selectedFeedback.email}</h4>
+                    <input
+                      type="text"
+                      placeholder={`Betreff (Standard: Re: ${selectedFeedback.headline || 'Feedback'})`}
+                      value={replySubject}
+                      onChange={e => { setReplySubject(e.target.value); setReplyError(null); setReplySuccess(false) }}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14, marginBottom: 6 }}
+                    />
+                    <textarea
+                      rows={4}
+                      placeholder="Antworttext …"
+                      value={replyText}
+                      onChange={e => { setReplyText(e.target.value); setReplyError(null); setReplySuccess(false) }}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14, resize: 'vertical' }}
+                    />
+                    {replyError && (
+                      <div style={{ marginTop: 4, color: '#dc2626', fontSize: 13 }}>{replyError}</div>
+                    )}
+                    {replySuccess && (
+                      <div style={{ marginTop: 4, color: '#16a34a', fontSize: 13 }}>E-Mail erfolgreich gesendet.</div>
+                    )}
+                    <button
+                      disabled={replySending || !replyText.trim()}
+                      onClick={() => sendFeedbackReply(String(selectedFeedback.id))}
+                      style={{ marginTop: 6 }}
+                    >{replySending ? 'Senden …' : 'E-Mail senden'}</button>
+                  </div>
+                ) : (
+                  <div style={{ marginTop: 12, padding: '8px 12px', background: '#fef9c3', borderRadius: 6, fontSize: 13, color: '#854d0e' }}>
+                    Keine E-Mail-Adresse in diesem Feedback — Antwort per E-Mail nicht möglich.
+                  </div>
+                )}
+
+                <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
                   <button onClick={async () => {
                     const ok = await resolveFeedback(String(selectedFeedback.id), !(selectedFeedback.status === 'resolved'))
                     if (ok) { setSelectedFeedback(null); fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ) }
