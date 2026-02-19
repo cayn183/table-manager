@@ -202,7 +202,6 @@ export default function LandingPage() {
                 <h3 style={{ fontSize: '1.3rem', marginBottom: '0.5rem', color: '#2c3e50' }}>Große Events</h3>
                 <p style={{ color: '#666', lineHeight: '1.6' }}>
                   Auch für größere Veranstaltungen geeignet. 
-                  Mehrere Räume, große Gästelisten und Zeitmanagement inklusive.
                 </p>
               </div>
             </div>

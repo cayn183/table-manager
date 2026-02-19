@@ -6,7 +6,7 @@ import PublicLayout from './components/PublicLayout'
 import AppLayout from './components/AppLayout'
 import LandingPage from './components/LandingPage'
 import ClubLandingPage from './components/ClubLandingPage'
-import WeddingLandingPage from './components/WeddingLandingPage'
+// import WeddingLandingPage from './components/WeddingLandingPage'
 import Home from './components/Home'
 import RoomEditor from './components/RoomEditor'
 import Room from './components/Room'
@@ -42,7 +42,7 @@ export default function App() {
       {/* ═══ SEO LANDING PAGES (shared PublicLayout with nav + footer) ═══ */}
       <Route element={<PublicLayout />}>
         <Route path="/sitzplan-verein" element={<ClubLandingPage />} />
-        <Route path="/sitzplan-hochzeit" element={<WeddingLandingPage />} />
+        {/* <Route path="/sitzplan-hochzeit" element={<WeddingLandingPage />} /> */}
       </Route>
       
       {/* ═══ AUTH ROUTES (No nested layout) ═══ */}
