@@ -67,10 +67,29 @@ export default function UserMenu() {
           background: '#2b6cb0',
           color: 'white',
           fontWeight: 700,
-          cursor: 'pointer'
+          cursor: 'pointer',
+          position: 'relative'
         }}
       >
         {initial}
+        {unreadReplies > 0 && (
+          <span style={{
+            position: 'absolute',
+            top: -4,
+            right: -4,
+            background: '#dc2626',
+            color: '#fff',
+            borderRadius: 10,
+            fontSize: 10,
+            fontWeight: 700,
+            padding: '1px 5px',
+            lineHeight: '14px',
+            minWidth: 16,
+            textAlign: 'center',
+            border: '2px solid white',
+            pointerEvents: 'none'
+          }}>{unreadReplies > 99 ? '99+' : unreadReplies}</span>
+        )}
       </button>
       {open && (
         <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 8, minWidth: 160, background: 'white', boxShadow: '0 6px 18px rgba(0,0,0,0.12)', borderRadius: 6 }}>
@@ -85,22 +104,9 @@ export default function UserMenu() {
               <Link to="/admin" style={{ textDecoration: 'none' }}>
                 <button
                   onClick={() => { setOpen(false); markRepliesSeen(); setUnreadReplies(0) }}
-                  style={{ width: '100%', padding: '6px 8px', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  style={{ width: '100%', padding: '6px 8px' }}
                 >
                   Admin Center
-                  {unreadReplies > 0 && (
-                    <span style={{
-                      background: '#dc2626',
-                      color: '#fff',
-                      borderRadius: 10,
-                      fontSize: 11,
-                      fontWeight: 700,
-                      padding: '1px 6px',
-                      lineHeight: '16px',
-                      minWidth: 18,
-                      textAlign: 'center',
-                    }}>{unreadReplies > 99 ? '99+' : unreadReplies}</span>
-                  )}
                 </button>
               </Link>
             )}
