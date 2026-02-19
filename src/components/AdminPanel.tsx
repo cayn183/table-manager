@@ -393,19 +393,24 @@ export default function AdminPanel() {
                     <td style={{ padding: 10 }}>{new Date(f.created_at).toLocaleString()}</td>
                     <td style={{ padding: 10 }}>{f.email || '—'}</td>
                     <td style={{ padding: 10 }}>
-                      {(() => {
-                        const status = f.status || 'open'
-                        let display = status
-                        if (status === 'new') display = 'Neu'
-                        else if (status === 'open') display = 'Offen'
-                        else if (status === 'resolved') display = 'Abgeschlossen'
-                        const resolved = status === 'resolved'
-                        let bg = '#fff7ed'
-                        let color = '#92400e'
-                        if (status === 'resolved') { bg = '#e6fffa'; color = '#0f766e' }
-                        else if (status === 'new') { bg = '#eff6ff'; color = '#1e3a8a' }
-                        return <div style={{ display: 'inline-block', padding: '4px 8px', borderRadius: 6, background: bg, color, fontWeight: 600, fontSize: 12 }}>{display}</div>
-                      })()}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {(() => {
+                          const status = f.status || 'open'
+                          let display = status
+                          if (status === 'new') display = 'Neu'
+                          else if (status === 'open') display = 'Offen'
+                          else if (status === 'resolved') display = 'Abgeschlossen'
+                          const resolved = status === 'resolved'
+                          let bg = '#fff7ed'
+                          let color = '#92400e'
+                          if (status === 'resolved') { bg = '#e6fffa'; color = '#0f766e' }
+                          else if (status === 'new') { bg = '#eff6ff'; color = '#1e3a8a' }
+                          return <div style={{ display: 'inline-block', padding: '4px 8px', borderRadius: 6, background: bg, color, fontWeight: 600, fontSize: 12 }}>{display}</div>
+                        })()}
+                        {(f.comments || []).some((c: any) => c.message?.startsWith('[E-Mail-Eingang')) && (
+                          <span title="Neue E-Mail-Antwort" style={{ fontSize: 16 }}>✉️</span>
+                        )}
+                      </div>
                     </td>
                     <td style={{ padding: 10 }}>
                       <div style={{ fontWeight: 700 }}>{f.headline || '(no headline)'}</div>
@@ -539,12 +544,19 @@ export default function AdminPanel() {
                 {(selectedFeedback.comments || []).length === 0 && (
                   <div style={{ color: '#94a3b8', fontSize: 13 }}>Keine Kommentare.</div>
                 )}
-                {(selectedFeedback.comments || []).map((c: any) => (
-                  <div key={c.id} style={{ padding: '8px 10px', borderBottom: '1px solid #eee', background: c.message?.startsWith('[E-Mail-Antwort') ? '#f0fdf4' : undefined, borderRadius: 4 }}>
-                    <div style={{ fontSize: 12, color: '#64748b' }}>{c.author_id || 'admin'} • {new Date(c.created_at).toLocaleString()}</div>
-                    <div style={{ marginTop: 4, whiteSpace: 'pre-wrap', fontSize: 14 }}>{c.message}</div>
-                  </div>
-                ))}
+                {(selectedFeedback.comments || []).map((c: any) => {
+                  const isEmailReply = c.message?.startsWith('[E-Mail-Antwort')
+                  const isEmailInbound = c.message?.startsWith('[E-Mail-Eingang')
+                  let bgColor = undefined
+                  if (isEmailReply) bgColor = '#f0fdf4' // Admin reply: light green
+                  if (isEmailInbound) bgColor = '#eff6ff' // Inbound email: light blue
+                  return (
+                    <div key={c.id} style={{ padding: '8px 10px', borderBottom: '1px solid #eee', background: bgColor, borderRadius: 4 }}>
+                      <div style={{ fontSize: 12, color: '#64748b' }}>{c.author_id || (isEmailInbound ? 'User (E-Mail)' : 'admin')} • {new Date(c.created_at).toLocaleString()}</div>
+                      <div style={{ marginTop: 4, whiteSpace: 'pre-wrap', fontSize: 14 }}>{c.message}</div>
+                    </div>
+                  )
+                })}
 
                 {/* Inline comment form */}
                 <div style={{ marginTop: 10 }}>
