@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './auth/AuthContext'
 import PublicLayout from './components/PublicLayout'
+import PublicLayoutNoFooter from './components/PublicLayoutNoFooter'
 import AppLayout from './components/AppLayout'
 import LandingPage from './components/LandingPage'
 import ClubLandingPage from './components/ClubLandingPage'
@@ -39,8 +40,8 @@ export default function App() {
       {/* ═══ LANDING PAGE (has its own layout/nav/footer) ═══ */}
       <Route path="/" element={<LandingPage />} />
       
-      {/* ═══ SEO LANDING PAGES (shared PublicLayout with nav + footer) ═══ */}
-      <Route element={<PublicLayout />}>
+      {/* ═══ SEO LANDING PAGES (shared PublicLayoutNoFooter with nav, no footer) ═══ */}
+      <Route element={<PublicLayoutNoFooter />}>
         <Route path="/sitzplan-verein" element={<ClubLandingPage />} />
         {/* <Route path="/sitzplan-hochzeit" element={<WeddingLandingPage />} /> */}
       </Route>

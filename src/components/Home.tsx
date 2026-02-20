@@ -120,7 +120,112 @@ export default function Home() {
     <div style={{ background: '#f8fafc', display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Main Content */}
       <div style={{ flex: 1, padding: '40px 24px', maxWidth: '1200px', width: '100%', margin: '0 auto' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px', marginTop: '20px', maxWidth: '800px', margin: '20px auto 0' }}>
+        {/* Welcome Section */}
+        <div style={{
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          borderRadius: '20px',
+          padding: '40px 36px',
+          marginBottom: '40px',
+          color: 'white',
+          boxShadow: '0 10px 30px rgba(102, 126, 234, 0.2)',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          {/* Background decoration */}
+          <div style={{
+            position: 'absolute',
+            top: '-40px',
+            right: '-40px',
+            width: '200px',
+            height: '200px',
+            background: 'rgba(255, 255, 255, 0.1)',
+            borderRadius: '50%'
+          }} />
+          
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <h1 style={{
+              margin: '0 0 12px',
+              fontSize: '32px',
+              fontWeight: '700',
+              letterSpacing: '-0.02em'
+            }}>
+              👋 Willkommen zurück, {auth.user?.name || 'Freund'}!
+            </h1>
+            <p style={{
+              margin: '0 0 20px',
+              fontSize: '16px',
+              lineHeight: '1.6',
+              opacity: 0.95,
+              maxWidth: '600px'
+            }}>
+              Viel Spaß beim Planen deiner Events! Benötigst du Hilfe? 
+              <span style={{
+                marginLeft: '4px',
+                opacity: 0.8
+              }}>
+                Eine Anleitung findest du oben rechts im Eck.
+              </span>
+            </p>
+            
+            <div style={{
+              display: 'flex',
+              gap: '16px',
+              flexWrap: 'wrap'
+            }}>
+              <Link to="/app/profile" style={{ textDecoration: 'none' }}>
+                <button style={{
+                  padding: '10px 16px',
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  border: '1px solid rgba(255, 255, 255, 0.4)',
+                  borderRadius: '8px',
+                  color: 'white',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  backdropFilter: 'blur(4px)'
+                }}
+                onMouseOver={e => {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)'
+                  e.currentTarget.style.transform = 'translateY(-2px)'
+                }}
+                onMouseOut={e => {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'
+                  e.currentTarget.style.transform = 'translateY(0)'
+                }}>
+                  📢 Feedback geben
+                </button>
+              </Link>
+              
+              <button style={{
+                padding: '10px 16px',
+                background: 'rgba(255, 255, 255, 0.2)',
+                border: '1px solid rgba(255, 255, 255, 0.4)',
+                borderRadius: '8px',
+                color: 'white',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                backdropFilter: 'blur(4px)'
+              }}
+              onClick={() => alert('Anleitung wird bald hier verfügbar sein!')}
+              onMouseOver={e => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)'
+                e.currentTarget.style.transform = 'translateY(-2px)'
+              }}
+              onMouseOut={e => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'
+                e.currentTarget.style.transform = 'translateY(0)'
+              }}>
+                ❓ Anleitung
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px', maxWidth: '800px', margin: '0 auto' }}>
           <button 
             onClick={() => setShowEventModal(true)}
             style={{

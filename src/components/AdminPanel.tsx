@@ -35,13 +35,13 @@ export default function AdminPanel() {
   // Feedback list state
   const [feedbackEntries, setFeedbackEntries] = useState<any[]>([])
   const [feedbackPage, setFeedbackPage] = useState(1)
-  const [feedbackPerPage, setFeedbackPerPage] = useState(25)
+  const [feedbackPerPage, setFeedbackPerPage] = useState(10)
   const [feedbackTotal, setFeedbackTotal] = useState(0)
   const [feedbackQ, setFeedbackQ] = useState('')
   // Filters: Neu / Offen / Abgeschlossen
   const [showNew, setShowNew] = useState(true)
   const [showOpen, setShowOpen] = useState(true)
-  const [showResolved, setShowResolved] = useState(true)
+  const [showResolved, setShowResolved] = useState(false)
   const [selectedFeedback, setSelectedFeedback] = useState<any | null>(null)
   const [feedbackDetailLoading, setFeedbackDetailLoading] = useState(false)
   // Inline comment form
