@@ -19,7 +19,11 @@ function collectMetadata() {
   }
 }
 
-export default function FeedbackForm() {
+interface FeedbackFormProps {
+  onDone?: () => void
+}
+
+export default function FeedbackForm({ onDone }: FeedbackFormProps = {}) {
   const { token, user } = useAuth()
   const [email, setEmail] = useState(user?.email || '')
   const [headline, setHeadline] = useState('')
@@ -45,7 +49,23 @@ export default function FeedbackForm() {
     } finally { setLoading(false) }
   }
 
-  if (done) return <div style={{ padding: 12, background: '#f6ffed', border: '1px solid #d1f7c4', borderRadius: 6 }}>Danke für dein Feedback!</div>
+  if (done) return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 16px', gap: 16, textAlign: 'center' }}>
+      <div style={{ fontSize: 48 }}>🎉</div>
+      <div style={{ fontSize: 20, fontWeight: 700, color: '#1e293b' }}>Danke für dein Feedback!</div>
+      <div style={{ fontSize: 14, color: '#64748b', maxWidth: 340 }}>
+        Wir haben deine Nachricht erhalten und melden uns bei Bedarf per E-Mail zurück.
+      </div>
+      {onDone && (
+        <button
+          onClick={onDone}
+          style={{ marginTop: 8, padding: '10px 24px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+        >
+          Schließen
+        </button>
+      )}
+    </div>
+  )
 
   return (
     <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

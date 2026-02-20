@@ -123,7 +123,7 @@ export default function UserMenu() {
               <h3 style={{ margin: 0 }}>Feedback senden</h3>
               <button onClick={() => setShowFeedback(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}>✕</button>
             </div>
-            <FeedbackForm />
+            <FeedbackForm onDone={() => setShowFeedback(false)} />
           </div>
         </div>
       )}

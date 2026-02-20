@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext'
 import userStorage from '../utils/userStorage'
 import { syncUserData } from '../utils/sync'
 import type { ToGoEventConfig } from '../types/togo'
+import FeedbackForm from './FeedbackForm'
 
 const EVENTS_KEY = 'events'
 const CURRENT_EVENT_KEY = 'currentEvent'
@@ -27,6 +28,7 @@ export default function Home() {
   const auth = useAuth()
   const userId = auth.user ? auth.user.id : null
   const [showEventModal, setShowEventModal] = useState(false)
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false)
   const [eventName, setEventName] = useState('')
   const [eventDate, setEventDate] = useState('')
   const [fromTime, setFromTime] = useState('')
@@ -123,101 +125,69 @@ export default function Home() {
         {/* Welcome Section */}
         <div style={{
           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          borderRadius: '20px',
-          padding: '40px 36px',
-          marginBottom: '40px',
+          borderRadius: '16px',
+          padding: '24px 28px',
+          marginBottom: '32px',
           color: 'white',
-          boxShadow: '0 10px 30px rgba(102, 126, 234, 0.2)',
+          boxShadow: '0 6px 20px rgba(102, 126, 234, 0.2)',
           position: 'relative',
           overflow: 'hidden'
         }}>
-          {/* Background decoration */}
           <div style={{
             position: 'absolute',
-            top: '-40px',
-            right: '-40px',
-            width: '200px',
-            height: '200px',
-            background: 'rgba(255, 255, 255, 0.1)',
+            top: '-30px',
+            right: '-30px',
+            width: '140px',
+            height: '140px',
+            background: 'rgba(255, 255, 255, 0.08)',
             borderRadius: '50%'
           }} />
-          
-          <div style={{ position: 'relative', zIndex: 1 }}>
-            <h1 style={{
-              margin: '0 0 12px',
-              fontSize: '32px',
-              fontWeight: '700',
-              letterSpacing: '-0.02em'
-            }}>
-              👋 Willkommen zurück, {auth.user?.name || 'Freund'}!
-            </h1>
-            <p style={{
-              margin: '0 0 20px',
-              fontSize: '16px',
-              lineHeight: '1.6',
-              opacity: 0.95,
-              maxWidth: '600px'
-            }}>
-              Viel Spaß beim Planen deiner Events! Benötigst du Hilfe? 
-              <span style={{
-                marginLeft: '4px',
-                opacity: 0.8
-              }}>
-                Eine Anleitung findest du oben rechts im Eck.
-              </span>
-            </p>
-            
-            <div style={{
-              display: 'flex',
-              gap: '16px',
-              flexWrap: 'wrap'
-            }}>
-              <Link to="/app/profile" style={{ textDecoration: 'none' }}>
-                <button style={{
-                  padding: '10px 16px',
-                  background: 'rgba(255, 255, 255, 0.2)',
-                  border: '1px solid rgba(255, 255, 255, 0.4)',
+          <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+            <div>
+              <h2 style={{ margin: '0 0 4px', fontSize: '22px', fontWeight: '700', letterSpacing: '-0.01em' }}>
+                👋 Willkommen zurück, {auth.user?.name || 'Freund'}!
+              </h2>
+              <p style={{ margin: 0, fontSize: '13px', opacity: 0.85 }}>
+                Viel Spaß beim Planen! Die Anleitung findest du oben rechts im Eck.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '10px', flexShrink: 0 }}>
+              <button
+                onClick={() => setShowFeedbackModal(true)}
+                style={{
+                  padding: '8px 14px',
+                  background: 'rgba(255,255,255,0.2)',
+                  border: '1px solid rgba(255,255,255,0.4)',
                   borderRadius: '8px',
                   color: 'white',
-                  fontSize: '14px',
+                  fontSize: '13px',
                   fontWeight: '600',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
                   backdropFilter: 'blur(4px)'
                 }}
-                onMouseOver={e => {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)'
-                  e.currentTarget.style.transform = 'translateY(-2px)'
+                onMouseOver={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.3)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+                onMouseOut={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.2)'; e.currentTarget.style.transform = 'translateY(0)' }}
+              >
+                📢 Feedback
+              </button>
+              <button
+                onClick={() => alert('Anleitung wird bald hier verfügbar sein!')}
+                style={{
+                  padding: '8px 14px',
+                  background: 'rgba(255,255,255,0.2)',
+                  border: '1px solid rgba(255,255,255,0.4)',
+                  borderRadius: '8px',
+                  color: 'white',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  backdropFilter: 'blur(4px)'
                 }}
-                onMouseOut={e => {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'
-                  e.currentTarget.style.transform = 'translateY(0)'
-                }}>
-                  📢 Feedback geben
-                </button>
-              </Link>
-              
-              <button style={{
-                padding: '10px 16px',
-                background: 'rgba(255, 255, 255, 0.2)',
-                border: '1px solid rgba(255, 255, 255, 0.4)',
-                borderRadius: '8px',
-                color: 'white',
-                fontSize: '14px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                backdropFilter: 'blur(4px)'
-              }}
-              onClick={() => alert('Anleitung wird bald hier verfügbar sein!')}
-              onMouseOver={e => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)'
-                e.currentTarget.style.transform = 'translateY(-2px)'
-              }}
-              onMouseOut={e => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'
-                e.currentTarget.style.transform = 'translateY(0)'
-              }}>
+                onMouseOver={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.3)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+                onMouseOut={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.2)'; e.currentTarget.style.transform = 'translateY(0)' }}
+              >
                 ❓ Anleitung
               </button>
             </div>
@@ -474,6 +444,18 @@ export default function Home() {
                 onMouseOut={e => { e.currentTarget.style.background = 'white'; }}
               >Abbrechen</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showFeedbackModal && (
+        <div onClick={() => setShowFeedbackModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: 'min(720px, 96%)', background: 'white', borderRadius: 12, padding: 24, boxShadow: '0 10px 40px rgba(2,6,23,0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#1e293b' }}>📢 Feedback senden</h3>
+              <button onClick={() => setShowFeedbackModal(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 18, color: '#64748b' }}>✕</button>
+            </div>
+            <FeedbackForm onDone={() => setShowFeedbackModal(false)} />
           </div>
         </div>
       )}

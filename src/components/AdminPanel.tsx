@@ -38,10 +38,9 @@ export default function AdminPanel() {
   const [feedbackPerPage, setFeedbackPerPage] = useState(10)
   const [feedbackTotal, setFeedbackTotal] = useState(0)
   const [feedbackQ, setFeedbackQ] = useState('')
-  // Filters: Neu / Offen / Abgeschlossen
-  const [showNew, setShowNew] = useState(true)
-  const [showOpen, setShowOpen] = useState(true)
-  const [showResolved, setShowResolved] = useState(false)
+  // Tab: Neu / Offen / Abgeschlossen
+  const [feedbackTab, setFeedbackTab] = useState<'new' | 'open' | 'resolved'>('new')
+  const [feedbackTabCounts, setFeedbackTabCounts] = useState<Record<string, number>>({ new: 0, open: 0, resolved: 0 })
   const [selectedFeedback, setSelectedFeedback] = useState<any | null>(null)
   const [feedbackDetailLoading, setFeedbackDetailLoading] = useState(false)
   // Inline comment form
@@ -61,7 +60,7 @@ export default function AdminPanel() {
       fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ)
       markRepliesSeen()
     }
-  }, [auth.user, menu, feedbackPage, feedbackPerPage, feedbackQ, showNew, showOpen, showResolved])
+  }, [auth.user, menu, feedbackPage, feedbackPerPage, feedbackQ, feedbackTab])
 
   // System info state
   const [backendInfo, setBackendInfo] = useState<any | null>(null)
@@ -130,17 +129,13 @@ export default function AdminPanel() {
     }
   }
 
-  async function fetchFeedback(p = 1, pp = 25, query = '') {
+  async function fetchFeedback(p = 1, pp = 10, query = '') {
     if (!auth.user) return
     try {
-      const statuses: string[] = []
-      if (showNew) statuses.push('new')
-      if (showOpen) statuses.push('open')
-      if (showResolved) statuses.push('resolved')
-      const statusesParam = statuses.join(',')
-      const res = await api.get(`/admin/feedback?page=${p}&perPage=${pp}&q=${encodeURIComponent(query)}&statuses=${encodeURIComponent(statusesParam)}`, auth.token ?? undefined)
+      const res = await api.get(`/admin/feedback?page=${p}&perPage=${pp}&q=${encodeURIComponent(query)}&statuses=${encodeURIComponent(feedbackTab)}`, auth.token ?? undefined)
       setFeedbackEntries(res.entries || [])
       setFeedbackTotal(res.total || 0)
+      setFeedbackTabCounts(prev => ({ ...prev, [feedbackTab]: res.total || 0 }))
     } catch (e: any) {
       // ignore
     }
@@ -352,21 +347,44 @@ export default function AdminPanel() {
           <>
             <h2>Feedback</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <input type="checkbox" checked={showNew} onChange={e => { setShowNew(e.target.checked); setFeedbackPage(1) }} />
-                  <span>Neu</span>
-                </label>
-                <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <input type="checkbox" checked={showOpen} onChange={e => { setShowOpen(e.target.checked); setFeedbackPage(1) }} />
-                  <span>Offen</span>
-                </label>
-                <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <input type="checkbox" checked={showResolved} onChange={e => { setShowResolved(e.target.checked); setFeedbackPage(1) }} />
-                  <span>Abgeschlossen</span>
-                </label>
-                {/* 'Gelöscht' filter removed — deleted feedback is permanently removed */}
-                <button style={{ marginLeft: 'auto' }} onClick={() => fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ)}>Reload</button>
+              {/* Tabs */}
+              <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid #e2e8f0' }}>
+                {(['new', 'open', 'resolved'] as const).map(tab => {
+                  const labels: Record<string, string> = { new: 'Neu', open: 'Offen', resolved: 'Abgeschlossen' }
+                  const active = feedbackTab === tab
+                  return (
+                    <button
+                      key={tab}
+                      onClick={() => { setFeedbackTab(tab); setFeedbackPage(1) }}
+                      style={{
+                        padding: '8px 18px',
+                        border: 'none',
+                        borderBottom: active ? '2px solid #667eea' : '2px solid transparent',
+                        background: 'transparent',
+                        color: active ? '#667eea' : '#64748b',
+                        fontWeight: active ? 700 : 400,
+                        fontSize: 14,
+                        cursor: 'pointer',
+                        marginBottom: '-2px',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      {labels[tab]}
+                      {feedbackTabCounts[tab] > 0 && (
+                        <span style={{
+                          marginLeft: 6,
+                          background: active ? '#667eea' : '#e2e8f0',
+                          color: active ? 'white' : '#475569',
+                          borderRadius: 10,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          padding: '1px 7px'
+                        }}>{feedbackTabCounts[tab]}</span>
+                      )}
+                    </button>
+                  )
+                })}
+                <button style={{ marginLeft: 'auto', padding: '6px 12px', fontSize: 12, border: '1px solid #e2e8f0', borderRadius: 6, background: 'white', cursor: 'pointer', color: '#64748b' }} onClick={() => fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ)}>↻ Reload</button>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <input placeholder="Search email or message" value={feedbackQ} onChange={e => { setFeedbackQ(e.target.value); setFeedbackPage(1) }} style={{ padding: 8, flex: 1 }} />
@@ -381,43 +399,43 @@ export default function AdminPanel() {
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>Time</th>
+                  <th>Zeit</th>
                   <th>Email</th>
+                  <th></th>
                   <th>Status</th>
-                  <th>Message</th>
+                  <th>Nachricht</th>
                 </tr>
               </thead>
               <tbody>
                 {feedbackEntries.map(f => (
                   <tr key={f.id}>
-                    <td style={{ padding: 10 }}>{new Date(f.created_at).toLocaleString()}</td>
-                    <td style={{ padding: 10 }}>{f.email || '—'}</td>
-                    <td style={{ padding: 10 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <td style={{ padding: '6px 10px', whiteSpace: 'nowrap' }}>{new Date(f.created_at).toLocaleString()}</td>
+                    <td style={{ padding: '6px 10px' }}>{f.email || '—'}</td>
+                    <td style={{ padding: '6px 8px' }}>
+                      <button onClick={() => fetchFeedbackDetail(f.id, true)} style={{ padding: '3px 10px', fontSize: 12 }}>View</button>
+                    </td>
+                    <td style={{ padding: '6px 10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         {(() => {
                           const status = f.status || 'open'
                           let display = status
                           if (status === 'new') display = 'Neu'
                           else if (status === 'open') display = 'Offen'
                           else if (status === 'resolved') display = 'Abgeschlossen'
-                          const resolved = status === 'resolved'
                           let bg = '#fff7ed'
                           let color = '#92400e'
                           if (status === 'resolved') { bg = '#e6fffa'; color = '#0f766e' }
                           else if (status === 'new') { bg = '#eff6ff'; color = '#1e3a8a' }
-                          return <div style={{ display: 'inline-block', padding: '4px 8px', borderRadius: 6, background: bg, color, fontWeight: 600, fontSize: 12 }}>{display}</div>
+                          return <div style={{ display: 'inline-block', padding: '3px 7px', borderRadius: 6, background: bg, color, fontWeight: 600, fontSize: 11 }}>{display}</div>
                         })()}
                         {(f.comments || []).some((c: any) => c.message?.startsWith('[E-Mail-Eingang')) && (
-                          <span title="Neue E-Mail-Antwort" style={{ fontSize: 16 }}>✉️</span>
+                          <span title="Neue E-Mail-Antwort" style={{ fontSize: 14 }}>✉️</span>
                         )}
                       </div>
                     </td>
-                    <td style={{ padding: 10 }}>
+                    <td style={{ padding: '6px 10px' }}>
                       <div style={{ fontWeight: 700 }}>{f.headline || '(no headline)'}</div>
-                      <div style={{ marginTop: 6 }}>{f.message?.slice?.(0, 160)}</div>
-                      <div style={{ marginTop: 8 }}>
-                        <button onClick={() => fetchFeedbackDetail(f.id, true)}>View</button>
-                      </div>
+                      <div style={{ marginTop: 2, fontSize: 13, color: '#475569' }}>{f.message?.slice?.(0, 120)}</div>
                     </td>
                   </tr>
                 ))}
