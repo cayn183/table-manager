@@ -55,6 +55,14 @@ export default function AdminPanel() {
 
   useEffect(() => { fetchUsers(page, perPage, q) }, [auth.user, page, perPage, q])
   useEffect(() => { if (menu === 'audit') fetchAudit(auditPage, auditPerPage) }, [auth.user, menu, auditPage, auditPerPage])
+  
+  // Load all feedback tab counts when opening feedback menu
+  useEffect(() => {
+    if (menu === 'feedback') {
+      fetchFeedbackCounts()
+    }
+  }, [menu, auth.user])
+  
   useEffect(() => {
     if (menu === 'feedback') {
       fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ)
@@ -126,6 +134,24 @@ export default function AdminPanel() {
       setAuditTotal(res.total || 0)
     } catch (e: any) {
       // ignore for now
+    }
+  }
+
+  async function fetchFeedbackCounts() {
+    if (!auth.user) return
+    try {
+      const [newRes, openRes, resolvedRes] = await Promise.all([
+        api.get(`/admin/feedback?page=1&perPage=1&q=&statuses=new`, auth.token ?? undefined),
+        api.get(`/admin/feedback?page=1&perPage=1&q=&statuses=open`, auth.token ?? undefined),
+        api.get(`/admin/feedback?page=1&perPage=1&q=&statuses=resolved`, auth.token ?? undefined),
+      ])
+      setFeedbackTabCounts({
+        new: newRes.total || 0,
+        open: openRes.total || 0,
+        resolved: resolvedRes.total || 0
+      })
+    } catch (e: any) {
+      // ignore
     }
   }
 
@@ -512,7 +538,7 @@ export default function AdminPanel() {
           </>
         )}
 
-        {menu !== 'users' && menu !== 'audit' && menu !== 'system' && (
+        {menu !== 'users' && menu !== 'audit' && menu !== 'feedback' && menu !== 'system' && (
           <div style={{ marginTop: 24, color: '#64748b' }}>Diese Ansicht ist noch nicht implementiert.</div>
         )}
       </main>
