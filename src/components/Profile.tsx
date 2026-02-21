@@ -87,7 +87,7 @@ export default function Profile() {
 
   async function handleDeleteAccount() {
     try {
-      await api.del('/auth/me')
+      await api.del('/auth/me', token || undefined)
       logout()
     } catch (e) {
       setMsg('Account-Löschen fehlgeschlagen')
