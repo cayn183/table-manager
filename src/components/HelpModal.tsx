@@ -3,12 +3,13 @@ import { useHelp } from './HelpContext'
 import type { HelpTab } from './HelpContext'
 
 const TABS: { key: HelpTab; label: string; icon: string }[] = [
-  { key: 'home',    label: 'Startseite',      icon: '🏠' },
-  { key: 'room',    label: 'Tischplaner',     icon: '🪑' },
-  { key: 'events',  label: 'Events laden',    icon: '📂' },
-  { key: 'rooms',   label: 'Räume laden',     icon: '🏠' },
-  { key: 'togo',    label: 'ToGo-Bestellungen', icon: '🥡' },
-  { key: 'profile', label: 'Profil',          icon: '👤' },
+  { key: 'home',       label: 'Startseite',        icon: '🏠' },
+  { key: 'room',       label: 'Tischplaner',        icon: '🪑' },
+  { key: 'roomeditor', label: 'Raum bearbeiten',    icon: '✏️' },
+  { key: 'events',     label: 'Events laden',       icon: '📂' },
+  { key: 'rooms',      label: 'Räume laden',        icon: '🗂️' },
+  { key: 'togo',       label: 'ToGo-Bestellungen',  icon: '🥡' },
+  { key: 'profile',    label: 'Profil',             icon: '👤' },
 ]
 
 // ─── Per-tab help content ───────────────────────────────────────────────────
@@ -38,28 +39,80 @@ function HelpHome() {
 function HelpRoom() {
   return (
     <div style={{ display: 'grid', gap: 14 }}>
-      <Section step="1" title="Tisch hinzufügen">
-        Klicke auf <strong>Tisch hinzufügen</strong> in der Werkzeugleiste. Wähle die Tischform und die Anzahl der Plätze.
-        Tische lassen sich mit der Maus frei verschieben und drehen.
-      </Section>
-      <Section step="2" title="Gäste zuweisen">
+      <Section step="1" title="Gäste zuweisen">
         Klicke auf einen freien Sitzplatz, um einen Gast zuzuweisen. Du kannst Gäste auch per CSV importieren
         (Spalten: <strong>Name</strong>, optional <strong>Tisch</strong> und <strong>Platz</strong>).
       </Section>
-      <Section step="3" title="Tische bearbeiten">
+      <Section step="2" title="Tisch auswählen & bearbeiten">
         Einen Tisch anklicken, um ihn auszuwählen. Im Eigenschaftspanel rechts kannst du
-        Name, Größe und Rotation ändern. Mit <strong>Entf</strong> oder dem Papierkorb-Icon wird der Tisch gelöscht.
+        Name und Sitzplätze anpassen. Mit <strong>Entf</strong> oder dem Papierkorb-Icon wird der Tisch entfernt.
       </Section>
-      <Section step="4" title="Speichern & Drucken" color="#f0fdf4" borderColor="#bbf7d0" headColor="#065f46">
+      <Section step="3" title="Speichern & Drucken" color="#f0fdf4" borderColor="#bbf7d0" headColor="#065f46">
         Über <strong>💾 Speichern</strong> wird die Veranstaltung gespeichert. Mit <strong>🖨️ Drucken</strong>
-        öffnet sich die Druckvorschau. Der Sitzplan kann als PDF exportiert werden.
+        öffnet sich die Druckvorschau — der Sitzplan lässt sich als PDF exportieren.
       </Section>
-      <Section step="5" title="CSV-Import">
+      <Section step="4" title="CSV-Import">
         Über den CSV-Import-Button lassen sich Gäste aus einer Tabelle einfügen.
         Pflichtfelder: <strong>Name</strong>. Optional: <strong>Tisch</strong>, <strong>Platz</strong>, <strong>Notiz</strong>.
       </Section>
+      <Section step="5" title="Tastenbefehle" color="#f5f3ff" borderColor="#ddd6fe" headColor="#5b21b6">
+        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 14px', alignItems: 'center' }}>
+          <kbd style={kbd}>Entf</kbd><span>Ausgewählten Tisch löschen</span>
+          <kbd style={kbd}>Strg + Z</kbd><span>Rückgängig</span>
+          <kbd style={kbd}>Strg + S</kbd><span>Speichern</span>
+          <kbd style={kbd}>Esc</kbd><span>Auswahl aufheben</span>
+          <kbd style={kbd}>Klick + Ziehen</kbd><span>Tisch verschieben</span>
+          <kbd style={kbd}>Mausrad</kbd><span>Zoom</span>
+        </div>
+      </Section>
     </div>
   )
+}
+
+function HelpRoomEditor() {
+  return (
+    <div style={{ display: 'grid', gap: 14 }}>
+      <Section step="1" title="Tisch hinzufügen">
+        Klicke auf <strong>Tisch hinzufügen</strong> in der Werkzeugleiste. Wähle Tischform und Platzanzahl.
+        Tische lassen sich danach frei auf der Zeichenfläche positionieren.
+      </Section>
+      <Section step="2" title="Tisch verschieben & drehen">
+        Tisch anklicken und mit der Maus ziehen, um ihn zu verschieben.
+        Im Eigenschaftspanel rechts kannst du Rotation, Größe und Name exakt einstellen.
+      </Section>
+      <Section step="3" title="Tisch löschen">
+        Tisch auswählen und <strong>Entf</strong> drücken oder das Papierkorb-Icon im Eigenschaftspanel verwenden.
+      </Section>
+      <Section step="4" title="Raum speichern" color="#f0fdf4" borderColor="#bbf7d0" headColor="#065f46">
+        Über <strong>💾 Speichern</strong> wird das Layout als Raum-Vorlage gespeichert.
+        Gespeicherte Räume können beim Anlegen einer neuen Veranstaltung als Basis ausgewählt werden.
+      </Section>
+      <Section step="5" title="Tastenbefehle" color="#f5f3ff" borderColor="#ddd6fe" headColor="#5b21b6">
+        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 14px', alignItems: 'center' }}>
+          <kbd style={kbd}>Entf</kbd><span>Ausgewählten Tisch löschen</span>
+          <kbd style={kbd}>Strg + Z</kbd><span>Rückgängig</span>
+          <kbd style={kbd}>Strg + S</kbd><span>Speichern</span>
+          <kbd style={kbd}>Esc</kbd><span>Auswahl aufheben</span>
+          <kbd style={kbd}>Klick + Ziehen</kbd><span>Tisch verschieben</span>
+          <kbd style={kbd}>Mausrad</kbd><span>Zoom</span>
+          <kbd style={kbd}>Shift + Ziehen</kbd><span>Mehrere Tische auswählen</span>
+        </div>
+      </Section>
+    </div>
+  )
+}
+
+const kbd: React.CSSProperties = {
+  display: 'inline-block',
+  padding: '2px 7px',
+  background: '#e2e8f0',
+  borderRadius: 4,
+  fontFamily: 'monospace',
+  fontSize: 12,
+  fontWeight: 700,
+  color: '#334155',
+  border: '1px solid #cbd5e1',
+  whiteSpace: 'nowrap',
 }
 
 function HelpEvents() {
@@ -185,12 +238,13 @@ export default function HelpModal() {
   if (!isOpen) return null
 
   const tabContent: Record<HelpTab, React.ReactNode> = {
-    home:    <HelpHome />,
-    room:    <HelpRoom />,
-    events:  <HelpEvents />,
-    rooms:   <HelpRooms />,
-    togo:    <HelpToGo />,
-    profile: <HelpProfile />,
+    home:       <HelpHome />,
+    room:       <HelpRoom />,
+    roomeditor: <HelpRoomEditor />,
+    events:     <HelpEvents />,
+    rooms:      <HelpRooms />,
+    togo:       <HelpToGo />,
+    profile:    <HelpProfile />,
   }
 
   return (

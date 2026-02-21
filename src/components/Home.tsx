@@ -5,6 +5,7 @@ import userStorage from '../utils/userStorage'
 import { syncUserData } from '../utils/sync'
 import type { ToGoEventConfig } from '../types/togo'
 import FeedbackForm from './FeedbackForm'
+import { useHelp } from './HelpContext'
 
 const EVENTS_KEY = 'events'
 const CURRENT_EVENT_KEY = 'currentEvent'
@@ -26,6 +27,7 @@ type EventItem = {
 export default function Home() {
   const navigate = useNavigate()
   const auth = useAuth()
+  const { openHelp } = useHelp()
   const userId = auth.user ? auth.user.id : null
   const [showEventModal, setShowEventModal] = useState(false)
   const [showFeedbackModal, setShowFeedbackModal] = useState(false)
@@ -148,7 +150,7 @@ export default function Home() {
                 👋 Willkommen zurück, {auth.user?.name || 'Freund'}!
               </h2>
               <p style={{ margin: 0, fontSize: '13px', opacity: 0.85 }}>
-                Viel Spaß beim Planen! Die Anleitung findest du oben rechts im Eck.
+                Viel Spaß beim Planen! ❓ Anleitung für schnelle Hilfe — 📢 Feedback für Fragen & Wünsche.
               </p>
             </div>
             <div style={{ display: 'flex', gap: '10px', flexShrink: 0 }}>
@@ -172,7 +174,7 @@ export default function Home() {
                 📢 Feedback
               </button>
               <button
-                onClick={() => alert('Anleitung wird bald hier verfügbar sein!')}
+                onClick={() => openHelp('home')}
                 style={{
                   padding: '8px 14px',
                   background: 'rgba(255,255,255,0.2)',
