@@ -20,13 +20,13 @@ function HelpHome() {
         PlatzPilot hilft dir dabei, Sitzpläne zu erstellen, Gäste zu verwalten und ToGo-Bestellungen zu koordinieren.
         Wähle auf der Startseite eine der Kacheln, um loszulegen.
       </Section>
-      <Section step="2" title="Event erstellen oder laden">
-        Ein <strong>Event</strong> enthält deinen Sitzplan mit Tischen und Gästen.
-        Erstelle ein neues Event oder lade ein gespeichertes Event über <strong>📂 Event laden</strong>.
+      <Section step="2" title="Veranstaltung erstellen oder laden">
+        Eine <strong>Veranstaltung</strong> enthält deinen Sitzplan mit Tischen und Gästen.
+        Erstelle eine neue Veranstaltung oder lade eine gespeicherte über <strong>📂 Events laden</strong>.
       </Section>
       <Section step="3" title="Raum verwalten">
         Ein <strong>Raum</strong> enthält das Grundlayout (Tischpositionen ohne Gäste).
-        Lade oder erstelle einen Raum über <strong>🏠 Raum laden</strong>.
+        Lade oder erstelle einen Raum über <strong>🏠 Räume laden</strong>.
       </Section>
       <Section step="4" title="ToGo-Bestellungen">
         Unter <strong>🥡 ToGo-Bestellungen</strong> koordinierst du Essensbestellungen mit Zeitfenstern, Menükarte und CSV-Import.
@@ -51,7 +51,7 @@ function HelpRoom() {
         Name, Größe und Rotation ändern. Mit <strong>Entf</strong> oder dem Papierkorb-Icon wird der Tisch gelöscht.
       </Section>
       <Section step="4" title="Speichern & Drucken" color="#f0fdf4" borderColor="#bbf7d0" headColor="#065f46">
-        Über <strong>💾 Speichern</strong> wird das Event gespeichert. Mit <strong>🖨️ Drucken</strong>
+        Über <strong>💾 Speichern</strong> wird die Veranstaltung gespeichert. Mit <strong>🖨️ Drucken</strong>
         öffnet sich die Druckvorschau. Der Sitzplan kann als PDF exportiert werden.
       </Section>
       <Section step="5" title="CSV-Import">
@@ -65,16 +65,18 @@ function HelpRoom() {
 function HelpEvents() {
   return (
     <div style={{ display: 'grid', gap: 14 }}>
-      <Section step="1" title="Event laden">
-        Alle gespeicherten Events werden in der Liste aufgeführt.
-        Klicke auf ein Event, um es zu laden und direkt in den Tischplaner zu wechseln.
+      <Section step="1" title="Veranstaltung laden">
+        Alle gespeicherten Veranstaltungen werden in der Liste aufgeführt.
+        Klicke auf einen Eintrag, um ihn zu laden und direkt in den Tischplaner zu wechseln.
       </Section>
-      <Section step="2" title="Event löschen">
-        Über das <strong>🗑️</strong>-Icon neben einem Event-Eintrag kann es dauerhaft gelöscht werden.
+      <Section step="2" title="Veranstaltung löschen">
+        Über das <strong>🗑️</strong>-Icon neben einem Eintrag kann die Veranstaltung dauerhaft gelöscht werden.
         Diese Aktion ist unwiderruflich.
       </Section>
-      <Section step="3" title="Neues Event">
-        Auf der Startseite unter <strong>Neues Event erstellen</strong> legst du ein neues Event an, gibst ihm einen Namen, ein Datum und optionale Uhrzeit. Anschließend kannst du einen vorhandenen Raum als Basis laden.
+      <Section step="3" title="Neue Veranstaltung">
+        Auf der Startseite unter <strong>Neues Event erstellen</strong> legst du eine neue Veranstaltung an,
+        gibst ihr einen Namen, ein Datum und optionale Uhrzeit.
+        Anschließend kannst du einen vorhandenen Raum als Basis laden.
       </Section>
     </div>
   )
@@ -87,9 +89,9 @@ function HelpRooms() {
         Alle gespeicherten Raum-Layouts werden in der Liste angezeigt.
         Klicke auf einen Raum, um ihn in den Raumeditor zu laden.
       </Section>
-      <Section step="2" title="Raum als Basis für Events">
+      <Section step="2" title="Raum als Vorlage für Veranstaltungen">
         Ein Raum-Layout enthält die Tischpositionen ohne Gästezuweisungen.
-        Beim Erstellen eines neuen Events kannst du einen gespeicherten Raum als Vorlage auswählen.
+        Beim Anlegen einer neuen Veranstaltung kannst du einen gespeicherten Raum als Vorlage auswählen.
       </Section>
       <Section step="3" title="Raum löschen">
         Über das <strong>🗑️</strong>-Icon neben einem Eintrag kann der Raum dauerhaft gelöscht werden.
@@ -206,7 +208,7 @@ export default function HelpModal() {
         style={{
           background: 'white',
           borderRadius: 16,
-          width: 760,
+          width: 820,
           maxWidth: '95vw',
           maxHeight: '88vh',
           display: 'flex',
@@ -218,7 +220,7 @@ export default function HelpModal() {
         {/* Header */}
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '18px 22px 14px',
+          padding: '16px 22px',
           borderBottom: '1px solid #e2e8f0',
           flexShrink: 0,
         }}>
@@ -232,47 +234,55 @@ export default function HelpModal() {
           >×</button>
         </div>
 
-        {/* Tab Bar */}
-        <div style={{
-          display: 'flex',
-          borderBottom: '2px solid #e2e8f0',
-          overflowX: 'auto',
-          flexShrink: 0,
-          background: '#f8fafc',
-        }}>
-          {TABS.map(tab => {
-            const active = activeTab === tab.key
-            return (
-              <button
-                key={tab.key}
-                onClick={() => openHelp(tab.key)}
-                style={{
-                  padding: '10px 18px',
-                  border: 'none',
-                  borderBottom: active ? '2px solid #667eea' : '2px solid transparent',
-                  background: 'transparent',
-                  color: active ? '#667eea' : '#475569',
-                  fontWeight: active ? 700 : 400,
-                  fontSize: 13,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  marginBottom: -2,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  transition: 'color 0.15s',
-                }}
-              >
-                <span>{tab.icon}</span>
-                <span>{tab.label}</span>
-              </button>
-            )
-          })}
-        </div>
+        {/* Body: sidebar + content */}
+        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-        {/* Content */}
-        <div style={{ padding: 22, overflowY: 'auto', flex: 1 }}>
-          {tabContent[activeTab]}
+          {/* Vertical Tab Sidebar */}
+          <div style={{
+            width: 190,
+            flexShrink: 0,
+            background: '#f8fafc',
+            borderRight: '1px solid #e2e8f0',
+            overflowY: 'auto',
+            padding: '10px 8px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+          }}>
+            {TABS.map(tab => {
+              const active = activeTab === tab.key
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => openHelp(tab.key)}
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    border: 'none',
+                    borderRadius: 8,
+                    background: active ? '#667eea' : 'transparent',
+                    color: active ? 'white' : '#475569',
+                    fontWeight: active ? 700 : 400,
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    transition: 'background 0.12s, color 0.12s',
+                  }}
+                >
+                  <span style={{ fontSize: 15 }}>{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Content */}
+          <div style={{ flex: 1, padding: 22, overflowY: 'auto' }}>
+            {tabContent[activeTab]}
+          </div>
         </div>
       </div>
     </div>
