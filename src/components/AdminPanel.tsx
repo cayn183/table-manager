@@ -245,7 +245,13 @@ export default function AdminPanel() {
           </nav>
         </div>
         <div>
-          <button className="admin-leave-button" onClick={() => navigate('/')}>Admincenter verlassen</button>
+          <button className="admin-leave-button" onClick={() => {
+            if (window.history.length > 1) {
+              navigate(-1)
+            } else {
+              navigate('/')
+            }
+          }}>Admincenter verlassen</button>
         </div>
       </aside>
 

@@ -3,6 +3,8 @@ import { Outlet, Link } from 'react-router-dom'
 import UserMenu from './UserMenu'
 import EmailVerificationBanner from './EmailVerificationBanner'
 import { PageHeaderProvider, usePageHeader } from './PageHeaderContext'
+import { HelpProvider, useHelp } from './HelpContext'
+import HelpModal from './HelpModal'
 
 function AppLayoutInner() {
   const { pageTitle, pageIcon, headerContent } = usePageHeader()
@@ -41,6 +43,7 @@ function AppLayoutInner() {
           )}
         </div>
 
+        <HelpButton />
         <UserMenu />
       </nav>
       
@@ -49,14 +52,42 @@ function AppLayoutInner() {
         <EmailVerificationBanner />
         <Outlet />
       </main>
+      <HelpModal />
     </div>
+  )
+}
+
+function HelpButton() {
+  const { openHelp } = useHelp()
+  return (
+    <button
+      onClick={() => openHelp()}
+      aria-label="Anleitung öffnen"
+      title="Anleitung"
+      style={{
+        background: 'rgba(255,255,255,0.18)',
+        border: '1px solid rgba(255,255,255,0.35)',
+        color: 'white',
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        cursor: 'pointer',
+        fontSize: 18,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+      }}
+    >📖</button>
   )
 }
 
 export default function AppLayout() {
   return (
     <PageHeaderProvider>
-      <AppLayoutInner />
+      <HelpProvider>
+        <AppLayoutInner />
+      </HelpProvider>
     </PageHeaderProvider>
   )
 }
