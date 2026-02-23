@@ -8,7 +8,18 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 _Noch keine Änderungen eingetragen._
 ## [1.0.2] - 2026-02-23
+### Added
+- Umfassende Keyboard-Shortcuts für `/room` und `/roomeditor`: ESC (Abbruch), Ctrl+Z (Rückgängig), Ctrl+Y/Shift+Z (Wiederholen), Ctrl+S (Speichern), R/T (beim Ziehen).
+- Redo/Undo-Funktionalität mit getrennten Stacks (je max. 5 Schritte) und visuellen Schrittzählern.
+- Schmale Action-Spalte rechts in `/room` mit Icon-Buttons für Zurück, Vorwärts, Drehen und Spiegeln.
+- Erweiterte Help-Modal mit aktualisierten Tastatur-Referenzen.
 
+### Changed
+- Undo-Button aus Seitenleiste entfernt (nun in Action-Spalte mit Redo-Funktion).
+- Help-Modal mit Tab-Navigation und separater RoomEditor-Hilfe erweitert.
+
+### Fixed
+- Keyboard-Shortcut-Handler refaktoriert zur Vermeidung von Duplikaten.
 
 ## [1.0.2] - 2026-02-23
 ### Added
