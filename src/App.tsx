@@ -3,10 +3,11 @@ import type { ReactNode } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './auth/AuthContext'
 import PublicLayout from './components/PublicLayout'
+import PublicLayoutNoFooter from './components/PublicLayoutNoFooter'
 import AppLayout from './components/AppLayout'
 import LandingPage from './components/LandingPage'
 import ClubLandingPage from './components/ClubLandingPage'
-import WeddingLandingPage from './components/WeddingLandingPage'
+// import WeddingLandingPage from './components/WeddingLandingPage'
 import Home from './components/Home'
 import RoomEditor from './components/RoomEditor'
 import Room from './components/Room'
@@ -23,7 +24,10 @@ import ToGo from './components/ToGo'
 function RequireAuth({ children }: { children: ReactNode }) {
   const auth = useAuth()
   if (auth.loading) return null
-  if (!auth.user) return <Navigate to="/login" replace />
+  if (!auth.user) {
+    const redirect = encodeURIComponent(window.location.pathname + window.location.search)
+    return <Navigate to={`/login?redirect=${redirect}`} replace />
+  }
   return <>{children}</>
 }
 
@@ -36,10 +40,10 @@ export default function App() {
       {/* ═══ LANDING PAGE (has its own layout/nav/footer) ═══ */}
       <Route path="/" element={<LandingPage />} />
       
-      {/* ═══ SEO LANDING PAGES (shared PublicLayout with nav + footer) ═══ */}
-      <Route element={<PublicLayout />}>
+      {/* ═══ SEO LANDING PAGES (shared PublicLayoutNoFooter with nav, no footer) ═══ */}
+      <Route element={<PublicLayoutNoFooter />}>
         <Route path="/sitzplan-verein" element={<ClubLandingPage />} />
-        <Route path="/sitzplan-hochzeit" element={<WeddingLandingPage />} />
+        {/* <Route path="/sitzplan-hochzeit" element={<WeddingLandingPage />} /> */}
       </Route>
       
       {/* ═══ AUTH ROUTES (No nested layout) ═══ */}

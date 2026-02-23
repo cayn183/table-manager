@@ -33,6 +33,7 @@ import {
 } from '../utils/roomUtils'
 import { openPrintDocument } from '../utils/printUtils'
 import logger from '../utils/logger'
+import { usePageHeader } from './PageHeaderContext'
 
 // ============================================================================
 // MAIN COMPONENT: Room
@@ -49,9 +50,15 @@ function getResponsiveFontSize(text: string): number {
   return 10
 }
 
+type SavedRoom = {
+  id: string
+  data?: { tables?: Table[] }
+}
+
 export default function Room() {
   const navigate = useNavigate()
   const auth = useAuth()
+  const userId = auth.user ? auth.user.id : null
   
   // --------------------------------------------------------------------------
   // STATE: Core Data
@@ -60,6 +67,8 @@ export default function Room() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [groups, setGroups] = useState<Group[]>([])
   const [assignedGroups, setAssignedGroups] = useState<Record<string, AssignedGroup[]>>({})
+  const [roomEditPath, setRoomEditPath] = useState('/app/rooms')
+  const [currentEventId, setCurrentEventId] = useState<string | null>(null)
   
   // --------------------------------------------------------------------------
   // STATE: Modals & UI Controls
@@ -123,6 +132,14 @@ export default function Room() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const [uiScale, setUiScale] = useState(1)
   const draggingGroupRef = useRef<{ group: Group; rotation: number } | null>(null)
+
+  // Undo/Redo-Stack (max 5 Schritte) + Refs für stabile Keyboard-Handler
+  const undoStackRef = useRef<Array<{ assignedGroups: Record<string, AssignedGroup[]>; groups: Group[] }>>([]);
+  const redoStackRef = useRef<Array<{ assignedGroups: Record<string, AssignedGroup[]>; groups: Group[] }>>([]);
+  const [undoCount, setUndoCount] = useState(0)
+  const [redoCount, setRedoCount] = useState(0)
+  const assignedGroupsRef = useRef<Record<string, AssignedGroup[]>>({})
+  const groupsRef = useRef<Group[]>([])
 
   // --------------------------------------------------------------------------
   // HELPER: Find best rotation for optimal gap-filling placement
@@ -572,6 +589,114 @@ export default function Room() {
     return { tableCount, totalSeats, occupied, freeSeats, familyCount, toGoPersons }
   }, [room, assignedGroups, groups])
 
+  // ----- Inject page-specific controls into the unified AppLayout header -----
+  const { setPageTitle, setHeaderContent } = usePageHeader()
+
+  useEffect(() => {
+    setPageTitle('Gäste platzieren')
+    return () => { setPageTitle(null); setHeaderContent(null) }
+  }, [setPageTitle, setHeaderContent])
+
+  useEffect(() => {
+    setHeaderContent(
+      <div style={{ width: '100%', minHeight: '70px', display: 'flex', alignItems: 'center' }}>
+        <div style={{ flex: '0 1 185px', minWidth: 0, display: 'flex', justifyContent: 'flex-end' }}>
+          <Link
+            to={roomEditPath}
+            state={currentEventId ? { returnToEventId: currentEventId } : undefined}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '8px 18px',
+              borderRadius: '999px',
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.24), rgba(255,255,255,0.08))',
+              border: '1px solid rgba(255,255,255,0.6)',
+              color: 'white',
+              fontSize: '13px',
+              fontWeight: 700,
+              textDecoration: 'none',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.25)'
+            }}
+          >Raum bearbeiten</Link>
+        </div>
+
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '16px', minHeight: '70px', flexWrap: 'wrap', paddingLeft: '80px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 8px', borderRadius: '10px', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', boxShadow: '0 12px 20px rgba(0,0,0,0.25)' }}>
+            <button
+              onClick={() => setViewMode('map')}
+              style={{
+                padding: '8px 18px',
+                background: viewMode === 'map' ? 'rgba(255,255,255,0.35)' : 'transparent',
+                color: 'white',
+                border: viewMode === 'map' ? '1px solid rgba(255,255,255,0.4)' : '1px solid transparent',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: '14px',
+                transition: 'all 0.2s ease',
+                boxShadow: viewMode === 'map' ? '0 6px 16px rgba(0,0,0,0.25)' : 'none',
+                whiteSpace: 'nowrap'
+              }}
+            >📍 Kartenansicht</button>
+            <button
+              onClick={() => setViewMode('timeline')}
+              style={{
+                padding: '8px 18px',
+                background: viewMode === 'timeline' ? 'rgba(255,255,255,0.35)' : 'transparent',
+                color: 'white',
+                border: viewMode === 'timeline' ? '1px solid rgba(255,255,255,0.4)' : '1px solid transparent',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontWeight: 600,
+                fontSize: '14px',
+                transition: 'all 0.2s ease',
+                boxShadow: viewMode === 'timeline' ? '0 6px 16px rgba(0,0,0,0.25)' : 'none',
+                whiteSpace: 'nowrap'
+              }}
+            >📋 Zeitplanansicht</button>
+          </div>
+
+          {viewMode === 'timeline' && (
+            <select
+              value={timeInterval}
+              onChange={e => setTimeInterval(parseInt(e.target.value))}
+              style={{
+                padding: '8px 14px',
+                background: 'rgba(255,255,255,0.1)',
+                color: 'white',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 600,
+                outline: 'none',
+                minWidth: '130px'
+              }}
+            >
+              <option value={5} style={{ background: '#667eea' }}>⏱️ 5 Min</option>
+              <option value={10} style={{ background: '#667eea' }}>⏱️ 10 Min</option>
+              <option value={15} style={{ background: '#667eea' }}>⏱️ 15 Min</option>
+            </select>
+          )}
+
+          <div style={{ display: 'inline-flex', gap: '12px', alignItems: 'center', padding: '8px 16px', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: '10px', fontSize: '13px', color: 'white', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <div style={{ display: 'flex', gap: '14px', fontWeight: 600 }}>
+                <span>🪑 {headerStats.tableCount} Tische</span>
+                <span style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>{headerStats.freeSeats} von {headerStats.totalSeats} Plätzen frei</span>
+              </div>
+              <div style={{ display: 'flex', gap: '14px', fontWeight: 600 }}>
+                <span>👪 {headerStats.familyCount} Familien</span>
+                <span style={{ color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>🥡 {headerStats.toGoPersons} ToGo</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }, [viewMode, timeInterval, headerStats, setHeaderContent, setViewMode, setTimeInterval, roomEditPath, currentEventId])
+
   const computePlacementFromClient = useCallback((coords: { clientX: number; clientY: number }) => {
     if (!draggingGroup || !room) return null
     const gridElement = document.querySelector('.grid') as HTMLElement
@@ -636,6 +761,68 @@ export default function Room() {
     setHeldCursor(null)
   }, [])
 
+  // Undo: aktuellen Zustand vor einer Aktion sichern
+  const pushUndo = useCallback(() => {
+    const entry = { assignedGroups: assignedGroupsRef.current, groups: groupsRef.current }
+    undoStackRef.current = [...undoStackRef.current, entry].slice(-5)
+    setUndoCount(undoStackRef.current.length)
+    // Neue Aktion löscht Redo-Stack
+    redoStackRef.current = []
+    setRedoCount(0)
+  }, [])
+
+  const performUndo = useCallback(() => {
+    if (undoStackRef.current.length === 0) return
+    // Aktuellen Zustand in Redo sichern
+    const current = { assignedGroups: assignedGroupsRef.current, groups: groupsRef.current }
+    redoStackRef.current = [...redoStackRef.current, current].slice(-5)
+    setRedoCount(redoStackRef.current.length)
+    const stack = [...undoStackRef.current]
+    const prev = stack.pop()!
+    undoStackRef.current = stack
+    setUndoCount(stack.length)
+    setAssignedGroups(prev.assignedGroups)
+    setGroups(prev.groups)
+    setIsDirty(true)
+  }, [])
+
+  const performRedo = useCallback(() => {
+    if (redoStackRef.current.length === 0) return
+    // Aktuellen Zustand in Undo sichern
+    const current = { assignedGroups: assignedGroupsRef.current, groups: groupsRef.current }
+    undoStackRef.current = [...undoStackRef.current, current].slice(-5)
+    setUndoCount(undoStackRef.current.length)
+    const stack = [...redoStackRef.current]
+    const next = stack.pop()!
+    redoStackRef.current = stack
+    setRedoCount(stack.length)
+    setAssignedGroups(next.assignedGroups)
+    setGroups(next.groups)
+    setIsDirty(true)
+  }, [])
+
+  const rotateGroup = useCallback(() => {
+    if (!draggingGroupRef.current) return
+    setPreviewRotation(prev => {
+      const next = (prev + 1) % 8
+      setRotationOverride(next)
+      return next
+    })
+  }, [])
+
+  const mirrorGroup = useCallback(() => {
+    if (!draggingGroupRef.current) return
+    setPreviewRotation(prev => {
+      const next = prev >= 4 ? prev - 4 : prev + 4
+      setRotationOverride(next)
+      return next
+    })
+  }, [])
+
+  const cancelDraggingRef = useRef(cancelDragging)
+  const performUndoRef = useRef(performUndo)
+  const performRedoRef = useRef(performRedo)
+
   const toggleTableLock = useCallback((tableId: string) => {
     if (!room) return
     const target = room.tables.find(t => t.id === tableId)
@@ -689,6 +876,7 @@ export default function Room() {
         return
       }
 
+      pushUndo()
       if (draggingMeta.tableId === table.id) {
         setAssignedGroups({
           ...assignedGroups,
@@ -725,6 +913,7 @@ export default function Room() {
         return
       }
 
+      pushUndo()
       setAssignedGroups({
         ...assignedGroups,
         [table.id]: [...current, { group, rotation, locked: false, x: relX, y: relY, color: PALETTE[0] }]
@@ -736,7 +925,7 @@ export default function Room() {
     }
 
     cancelDragging()
-  }, [draggingGroup, draggingMeta, room, assignedGroups, groups, computePlacementFromClient, cancelDragging])
+  }, [draggingGroup, draggingMeta, room, assignedGroups, groups, computePlacementFromClient, cancelDragging, pushUndo])
 
 
   // Load room definition from localStorage on mount (prefer user-scoped storage)
@@ -771,6 +960,9 @@ export default function Room() {
           if (event.lastModified) {
             setLastSaveTime(event.lastModified)
           }
+          if (event.id) {
+            setCurrentEventId(event.id)
+          }
         }
       } catch (err) {
         logger.error('Room', { action: 'loadEvent', err })
@@ -779,6 +971,51 @@ export default function Room() {
       setLoadError('Kein gespeicherter Raum gefunden. Bitte im Editor speichern und erneut öffnen.')
     }
   }, [])
+
+  useEffect(() => {
+    if (!room) {
+      setRoomEditPath('/app/rooms')
+      return
+    }
+
+    let resolvedPath = '/app/rooms'
+    let matchedId: string | null = null
+
+    const rawCurrentEvent = userStorage.getItem('currentEvent', userId) || localStorage.getItem('currentEvent')
+    if (rawCurrentEvent) {
+      try {
+        const currentEvent = JSON.parse(rawCurrentEvent as string)
+        if (currentEvent?.roomId) {
+          matchedId = currentEvent.roomId
+        }
+      } catch (err) {
+        // ignore parse errors
+      }
+    }
+
+    if (!matchedId) {
+      const tablesJson = JSON.stringify(room.tables || [])
+      const rawRooms = userStorage.getItem('rooms', userId) || localStorage.getItem('rooms') || '[]'
+      try {
+        const savedRooms = JSON.parse(rawRooms as string) as SavedRoom[]
+        for (const entry of savedRooms) {
+          if (!entry?.data?.tables) continue
+          if (JSON.stringify(entry.data.tables) === tablesJson) {
+            matchedId = entry.id
+            break
+          }
+        }
+      } catch (err) {
+        // ignore parse errors
+      }
+    }
+
+    if (matchedId) {
+      resolvedPath = `/app/rooms/${matchedId}`
+    }
+
+    setRoomEditPath(resolvedPath)
+  }, [room, userId])
 
   // Hover tracking for preview; skip collision against the item being moved.
   useEffect(() => {
@@ -798,6 +1035,12 @@ export default function Room() {
   useEffect(() => {
     draggingGroupRef.current = draggingGroup
   }, [draggingGroup])
+
+  useEffect(() => { assignedGroupsRef.current = assignedGroups }, [assignedGroups])
+  useEffect(() => { groupsRef.current = groups }, [groups])
+  useEffect(() => { cancelDraggingRef.current = cancelDragging }, [cancelDragging])
+  useEffect(() => { performUndoRef.current = performUndo }, [performUndo])
+  useEffect(() => { performRedoRef.current = performRedo }, [performRedo])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -819,6 +1062,40 @@ export default function Room() {
       }
     }
 
+    window.addEventListener('keydown', handleKeyDown, true)
+    return () => window.removeEventListener('keydown', handleKeyDown, true)
+  }, [])
+
+  // Globale Shortcuts: ESC (Ziehen abbrechen), Ctrl+Z (Rükgängig), Ctrl+S (Speichern)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (draggingGroupRef.current) {
+          e.preventDefault()
+          cancelDraggingRef.current()
+        }
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z') && !e.shiftKey) {
+        const target = e.target as HTMLElement
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+        e.preventDefault()
+        performUndoRef.current()
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && ((e.key === 'y' || e.key === 'Y') || ((e.key === 'z' || e.key === 'Z') && e.shiftKey))) {
+        const target = e.target as HTMLElement
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+        e.preventDefault()
+        performRedoRef.current()
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault()
+        saveEventSilentlyRef.current()
+        return
+      }
+    }
     window.addEventListener('keydown', handleKeyDown, true)
     return () => window.removeEventListener('keydown', handleKeyDown, true)
   }, [])
@@ -1099,6 +1376,21 @@ export default function Room() {
     return () => { clearInterval(interval); clearTimeout(timeout) }
   }, [isDirty, assignedGroups, groups])
 
+  // Save before auto-logout (triggered by idle timer in AuthContext)
+  const saveEventSilentlyRef = useRef(saveEventSilently)
+  const isDirtyRef = useRef(isDirty)
+  useEffect(() => { saveEventSilentlyRef.current = saveEventSilently }, [saveEventSilently, assignedGroups, groups])
+  useEffect(() => { isDirtyRef.current = isDirty }, [isDirty])
+  useEffect(() => {
+    function handleAutoLogout() {
+      if (isDirtyRef.current) {
+        saveEventSilentlyRef.current()
+      }
+    }
+    window.addEventListener('app:auto-logout', handleAutoLogout)
+    return () => window.removeEventListener('app:auto-logout', handleAutoLogout)
+  }, [])
+
   function autoAssign() {
     if (!room) return
     const tables = room.tables
@@ -1222,177 +1514,6 @@ export default function Room() {
           </div>
         </div>
       )}
-      {/* Header */}
-      <div style={{ 
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
-        padding: '16px 24px', 
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0'
-      }}>
-        {/* Left Column - Logo & Title (aligned with sidebar width) */}
-        <div style={{ 
-          flex: '0 0 560px',
-          minWidth: '480px',
-          maxWidth: '640px',
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '12px' 
-        }}>
-          <Link to="/app" style={{ textDecoration: 'none', color: 'white', display: 'flex', alignItems: 'center', transition: 'all 0.2s' }}>
-            <span 
-              style={{ 
-                fontSize: '24px', 
-                cursor: 'pointer',
-                padding: '6px 10px',
-                borderRadius: '8px',
-                transition: 'all 0.2s ease',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'rgba(255,255,255,0.1)',
-                border: '2px solid rgba(255,255,255,0.2)'
-              }} 
-              title="Zur Startseite"
-              onMouseOver={e => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.2)';
-                e.currentTarget.style.border = '2px solid rgba(255,255,255,0.4)';
-                e.currentTarget.style.transform = 'scale(1.1)';
-              }}
-              onMouseOut={e => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-                e.currentTarget.style.border = '2px solid rgba(255,255,255,0.2)';
-                e.currentTarget.style.transform = 'scale(1)';
-              }}
-            >🏠</span>
-          </Link>
-          <h1 style={{ margin: 0, fontSize: '24px', color: 'white', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>Tischplaner</h1>
-        </div>
-
-        {/* Right Column - View Toggle & Controls */}
-        <div style={{ 
-          flex: 1, 
-          display: 'flex', 
-          gap: '12px', 
-          alignItems: 'center',
-          justifyContent: 'flex-start'
-        }}>
-          {/* View Toggle - Kartenansicht / Planansicht */}
-          <div style={{ display: 'inline-flex', gap: '3px', background: 'rgba(255,255,255,0.15)', padding: '5px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', backdropFilter: 'blur(10px)' }}>
-            <button
-              onClick={() => setViewMode('map')}
-              style={{
-                padding: '8px 14px',
-                background: viewMode === 'map' ? 'rgba(255,255,255,0.3)' : 'transparent',
-                color: 'white',
-                border: viewMode === 'map' ? '1px solid rgba(255,255,255,0.4)' : 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontWeight: '600',
-                fontSize: '13px',
-                transition: 'all 0.2s ease',
-                boxShadow: viewMode === 'map' ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
-                textShadow: '0 1px 2px rgba(0,0,0,0.1)'
-              }}
-              title="Kartenansicht"
-            >
-              📍 Kartenansicht
-            </button>
-            <button
-              onClick={() => setViewMode('timeline')}
-              style={{
-                padding: '8px 14px',
-                background: viewMode === 'timeline' ? 'rgba(255,255,255,0.3)' : 'transparent',
-                color: 'white',
-                border: viewMode === 'timeline' ? '1px solid rgba(255,255,255,0.4)' : 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontWeight: '600',
-                fontSize: '13px',
-                transition: 'all 0.2s ease',
-                boxShadow: viewMode === 'timeline' ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
-                textShadow: '0 1px 2px rgba(0,0,0,0.1)'
-              }}
-              title="Zeitplanansicht"
-            >
-              📋 Zeitplanansicht
-            </button>
-          </div>
-
-          {/* Zeitintervall - nur in Zeitplan-Ansicht */}
-          {viewMode === 'timeline' && (
-            <select 
-              value={timeInterval} 
-              onChange={e => setTimeInterval(parseInt(e.target.value))}
-              style={{
-                padding: '6px 10px',
-                background: 'rgba(255,255,255,0.1)',
-                color: 'white',
-                border: '1px solid rgba(255,255,255,0.2)',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '13px',
-                fontWeight: '600',
-                outline: 'none',
-                transition: 'all 0.2s'
-              }}
-            >
-              <option value={5} style={{ background: '#667eea' }}>⏱️ 5 Min</option>
-              <option value={10} style={{ background: '#667eea' }}>⏱️ 10 Min</option>
-              <option value={15} style={{ background: '#667eea' }}>⏱️ 15 Min</option>
-            </select>
-          )}
-
-          {/* Header-Statistik-Box (passt zum Button-Design) */}
-          <div style={{
-            display: 'inline-flex',
-            flexDirection: 'row',
-            gap: '12px',
-            alignItems: 'center',
-            padding: '8px 14px',
-            background: 'rgba(255,255,255,0.12)',
-            border: '1px solid rgba(255,255,255,0.18)',
-            borderRadius: '10px',
-            color: 'white',
-            fontSize: '13px',
-            minWidth: '280px',
-            marginLeft: '120px',
-            flexShrink: 0
-          }}>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
-                <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>🪑 {headerStats.tableCount} Tische</div>
-                <div style={{ color: 'rgba(255,255,255,0.9)' }}>{headerStats.freeSeats} von {headerStats.totalSeats} Plätzen frei</div>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
-                <div style={{ fontWeight: 700 }}>👪 {headerStats.familyCount} Familien</div>
-                <div style={{ color: 'rgba(255,255,255,0.9)' }}>🥡 {headerStats.toGoPersons} ToGo</div>
-              </div>
-            </div>
-          </div>
-
-          <button 
-            onClick={() => navigate('/app/rooms')}
-            style={{
-              padding: '8px 16px',
-              background: 'rgba(255,255,255,0.2)',
-              color: 'white',
-              border: '1px solid rgba(255,255,255,0.3)',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '500',
-              transition: 'all 0.2s',
-              backdropFilter: 'blur(10px)',
-              marginLeft: 'auto'
-            }}
-            onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
-            onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-          >Raum bearbeiten</button>
-        </div>
-      </div>
       
       {/* Main Content */}
       <div className="room-content" style={{ flex: 1, display: 'flex', overflowX: 'hidden', overflowY: 'auto' }}>
@@ -2065,7 +2186,7 @@ export default function Room() {
                 onClick={() => handleSaveEvent()} 
                 disabled={!isDirty || !Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0)}
                 style={{ 
-                  flex: 3,
+                  flex: 1,
                   padding: '12px 20px',
                   background: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? '#10b981' : '#e0e7ff',
                   color: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 'white' : '#94a3b8',
@@ -2168,8 +2289,10 @@ export default function Room() {
               alignItems: 'flex-start',
               padding: '12px 12px 12px',
               width: '100%',
-              overflow: 'hidden',
-              maxHeight: 'calc(100vh - 180px)'
+              flex: 1,
+              minHeight: 0,
+              height: 'calc(100vh - 150px)',
+              overflow: 'hidden'
             }}
           >
             {viewMode === 'map' ? (
@@ -2537,6 +2660,106 @@ export default function Room() {
           )}
           </div>
         </div>
+
+        {/* Schmale Aktions-Spalte rechts */}
+        {(() => {
+          const isDragging = !!draggingGroup
+          const btnBase: React.CSSProperties = {
+            width: '40px',
+            height: '40px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: '1.5px solid #e2e8f0',
+            borderRadius: '10px',
+            background: 'white',
+            cursor: 'pointer',
+            transition: 'all 0.15s',
+            flexShrink: 0,
+            padding: 0,
+          }
+          const btnActive: React.CSSProperties = { ...btnBase, borderColor: '#a5b4fc', background: '#f5f3ff' }
+          const btnDisabled: React.CSSProperties = { ...btnBase, opacity: 0.35, cursor: 'not-allowed', background: '#f8fafc' }
+          return (
+            <div style={{
+              flex: '0 0 56px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '16px 8px',
+              background: 'white',
+              borderLeft: '1px solid #f1f5f9',
+              boxShadow: '-2px 0 8px rgba(0,0,0,0.03)',
+            }}>
+              {/* Zurück / Undo */}
+              <button
+                onClick={performUndo}
+                disabled={undoCount === 0}
+                title={`Rückgängig (Strg+Z)${undoCount > 0 ? ` – ${undoCount} Schritt${undoCount > 1 ? 'e' : ''}` : ''}`}
+                style={undoCount > 0 ? btnActive : btnDisabled}
+                onMouseOver={e => { if (undoCount > 0) { (e.currentTarget as HTMLElement).style.background = '#ede9fe'; (e.currentTarget as HTMLElement).style.borderColor = '#7c3aed'; } }}
+                onMouseOut={e => { if (undoCount > 0) { (e.currentTarget as HTMLElement).style.background = '#f5f3ff'; (e.currentTarget as HTMLElement).style.borderColor = '#a5b4fc'; } }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={undoCount > 0 ? '#5b21b6' : '#94a3b8'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 7v6h6"/>
+                  <path d="M3 13C5 7.5 10 4 15.5 4c5 0 8.5 3.5 8.5 8s-3.5 8-8.5 8c-3 0-5.5-1-7.5-3"/>
+                </svg>
+              </button>
+
+              {/* Vorwärts / Redo */}
+              <button
+                onClick={performRedo}
+                disabled={redoCount === 0}
+                title={`Wiederholen (Strg+Y)${redoCount > 0 ? ` – ${redoCount} Schritt${redoCount > 1 ? 'e' : ''}` : ''}`}
+                style={redoCount > 0 ? btnActive : btnDisabled}
+                onMouseOver={e => { if (redoCount > 0) { (e.currentTarget as HTMLElement).style.background = '#ede9fe'; (e.currentTarget as HTMLElement).style.borderColor = '#7c3aed'; } }}
+                onMouseOut={e => { if (redoCount > 0) { (e.currentTarget as HTMLElement).style.background = '#f5f3ff'; (e.currentTarget as HTMLElement).style.borderColor = '#a5b4fc'; } }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={redoCount > 0 ? '#5b21b6' : '#94a3b8'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 7v6h-6"/>
+                  <path d="M21 13C19 7.5 14 4 8.5 4 3.5 4 0 7.5 0 12s3.5 8 8.5 8c3 0 5.5-1 7.5-3"/>
+                </svg>
+              </button>
+
+              {/* Trennlinie */}
+              <div style={{ width: '28px', height: '1px', background: '#e2e8f0', margin: '2px 0' }} />
+
+              {/* Drehen (R) */}
+              <button
+                onClick={rotateGroup}
+                disabled={!isDragging}
+                title="Drehen (R) – nur beim Ziehen"
+                style={isDragging ? btnBase : btnDisabled}
+                onMouseOver={e => { if (isDragging) { (e.currentTarget as HTMLElement).style.background = '#f0fdf4'; (e.currentTarget as HTMLElement).style.borderColor = '#86efac'; } }}
+                onMouseOut={e => { if (isDragging) { (e.currentTarget as HTMLElement).style.background = 'white'; (e.currentTarget as HTMLElement).style.borderColor = '#e2e8f0'; } }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isDragging ? '#16a34a' : '#94a3b8'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 2v6h-6"/>
+                  <path d="M21 8A9 9 0 1 0 18 18"/>
+                </svg>
+              </button>
+
+              {/* Spiegeln (T) */}
+              <button
+                onClick={mirrorGroup}
+                disabled={!isDragging}
+                title="Spiegeln (T) – nur beim Ziehen"
+                style={isDragging ? btnBase : btnDisabled}
+                onMouseOver={e => { if (isDragging) { (e.currentTarget as HTMLElement).style.background = '#f0fdf4'; (e.currentTarget as HTMLElement).style.borderColor = '#86efac'; } }}
+                onMouseOut={e => { if (isDragging) { (e.currentTarget as HTMLElement).style.background = 'white'; (e.currentTarget as HTMLElement).style.borderColor = '#e2e8f0'; } }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isDragging ? '#16a34a' : '#94a3b8'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 3v18"/>
+                  <path d="M4 7l-2 5 2 5"/>
+                  <path d="M20 7l2 5-2 5"/>
+                  <path d="M2 12h8"/>
+                  <path d="M14 12h8"/>
+                </svg>
+              </button>
+            </div>
+          )
+        })()}
       </div>
       {tableContextMenu && (
         <div
@@ -2973,6 +3196,7 @@ export default function Room() {
             <>
               <button
                 onClick={() => {
+                  pushUndo()
                   const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
                   setGroups([...groups, ag.group])
                   setAssignedGroups({
@@ -4526,7 +4750,7 @@ function TimelineView({
     <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
       {/* Unassigned families are rendered inside the timeline-list so they share scrolling and column wrapping */}
 
-      <div ref={scrollRef} className="timeline-scroll-wrapper" style={{ height: 'calc(100vh - 220px)', overflow: 'hidden' }}>
+      <div ref={scrollRef} className="timeline-scroll-wrapper" style={{ height: 'calc(100vh - 150px)', overflow: 'hidden' }}>
         <div className="timeline-list">
           {columns.map((column, columnIndex) => (
             <div className="timeline-column" key={`timeline-column-${columnIndex}`}>

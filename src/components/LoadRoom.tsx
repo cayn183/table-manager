@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext'
 import userStorage from '../utils/userStorage'
 import api from '../api/apiClient'
 import { hydrateUserData, syncUserData } from '../utils/sync'
+import { useSetPageHeader } from './PageHeaderContext'
 
 type SavedRoom = { id: string; name: string; createdAt: string; data: any }
 type EventItem = { id: string; name: string; roomId?: string }
@@ -20,6 +21,7 @@ export default function LoadRoom() {
   const [rooms, setRooms] = useState<SavedRoom[]>([])
   const [deleteConfirm, setDeleteConfirm] = useState<{ room: SavedRoom; linkedEvents: EventItem[] } | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  useSetPageHeader('Erstellten Raum laden', '🏠')
 
   useEffect(() => {
     let mounted = true
@@ -104,24 +106,6 @@ export default function LoadRoom() {
 
   return (
     <div style={{ background: '#f8fafc', display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Header */}
-      <div style={{ 
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
-        padding: '16px 24px', 
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px'
-      }}>
-        <button 
-          onClick={() => navigate('/app')}
-          style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '16px', transition: 'all 0.2s' }}
-          onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
-          onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-        >←</button>
-        <h1 style={{ margin: '0', fontSize: '24px', fontWeight: '600', color: 'white' }}>🏠 Raum laden</h1>
-      </div>
-      
       {/* Main Content */}
       <div style={{ flex: 1, padding: '32px 24px', maxWidth: '900px', width: '100%', margin: '0 auto' }}>
       {rooms.length === 0 ? (

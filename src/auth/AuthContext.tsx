@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/apiClient'
 import userStorage from '../utils/userStorage'
@@ -17,26 +17,44 @@ type AuthCtx = {
   refreshUser: () => Promise<void>
   login: (email: string, password: string) => Promise<AuthResult>
   register: (name: string, email: string, password: string) => Promise<AuthResult>
-  logout: () => void
+  logout: (options?: { navigateTo?: string }) => void
 }
 // Migration is disabled by default. Manual import endpoint remains on the server.
 
 const AuthContext = createContext<AuthCtx | undefined>(undefined)
 
+const AUTH_TOKEN_KEY = 'auth_token'
+
+function persistToken(t: string | null) {
+  try {
+    if (t) localStorage.setItem(AUTH_TOKEN_KEY, t)
+    else localStorage.removeItem(AUTH_TOKEN_KEY)
+  } catch (e) {}
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string | null>(null)
+  const [token, setTokenState] = useState<string | null>(() => {
+    try { return localStorage.getItem(AUTH_TOKEN_KEY) } catch { return null }
+  })
   const [user, setUser] = useState<User>(null)
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
+  function setToken(t: string | null) {
+    setTokenState(t)
+    persistToken(t)
+  }
+
   useEffect(() => {
     let mounted = true
     async function bootstrap() {
+      const storedToken = (() => { try { return localStorage.getItem(AUTH_TOKEN_KEY) } catch { return null } })()
       try {
-        const res = await api.get('/auth/me')
+        const res = await api.get('/auth/me', storedToken || undefined)
         if (mounted && res && res.id) setUser(res)
+        else if (mounted) { setToken(null); setUser(null) }
       } catch (e) {
-        if (mounted) setUser(null)
+        if (mounted) { setToken(null); setUser(null) }
       } finally {
         if (mounted) setLoading(false)
       }
@@ -94,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  function logout() {
+  function logout(options?: { navigateTo?: string }) {
     try {
       if (user && user.id) {
         void syncUserData(token, user.id)
@@ -106,8 +124,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try { sentry.clearUser() } catch (e) {}
     // Do not clear local user data here; we use user-scoped storage keys
     // so data of different accounts do not collide on the same browser.
-    try { navigate('/login', { replace: true }) } catch (e) {}
+    try { navigate(options?.navigateTo ?? '/login', { replace: true }) } catch (e) {}
   }
+
+  // ── Idle auto-logout after 30 minutes of inactivity ──────────────────────
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const IDLE_TIMEOUT_MS = 30 * 60 * 1000
+
+  useEffect(() => {
+    if (!user) return // only track when logged in
+
+    function resetTimer() {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+      idleTimerRef.current = setTimeout(() => {
+        // Let active components (e.g. Room) save before logout
+        window.dispatchEvent(new CustomEvent('app:auto-logout'))
+        // Short delay so handlers can run synchronously
+        setTimeout(() => {
+          logout({ navigateTo: '/login' })
+        }, 200)
+      }, IDLE_TIMEOUT_MS)
+    }
+
+    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'] as const
+    events.forEach(ev => window.addEventListener(ev, resetTimer, { passive: true }))
+    resetTimer()
+
+    return () => {
+      events.forEach(ev => window.removeEventListener(ev, resetTimer))
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
+  // ─────────────────────────────────────────────────────────────────────────
 
   // Best-effort sync when the page is reloaded or closed. Uses fetch keepalive.
   useEffect(() => {

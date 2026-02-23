@@ -51,8 +51,11 @@ export default function Login({ initialMode }: LoginProps) {
 
     try {
       const result = mode === 'login' ? await auth.login(email, password) : await auth.register(name, email, password)
-      if (result.ok) nav('/app')
-      else setError(result.error)
+      if (result.ok) {
+        const params = new URLSearchParams(location.search)
+        const redirect = params.get('redirect')
+        nav(redirect ? decodeURIComponent(redirect) : '/app', { replace: true })
+      } else setError(result.error)
     } catch (err: any) {
       setError(err?.message || 'Fehler')
     }
@@ -90,8 +93,12 @@ export default function Login({ initialMode }: LoginProps) {
     }
   }, [email, mode, emailValid])
 
-  // Already logged in → redirect to app (must be after all hooks)
-  if (auth.user) return <Navigate to="/app" replace />
+  // Already logged in → redirect to original URL or app (must be after all hooks)
+  if (auth.user) {
+    const params = new URLSearchParams(location.search)
+    const redirect = params.get('redirect')
+    return <Navigate to={redirect ? decodeURIComponent(redirect) : '/app'} replace />
+  }
 
   return (
     <div style={{ padding: '32px', display: 'flex', justifyContent: 'center' }}>

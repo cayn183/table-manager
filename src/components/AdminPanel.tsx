@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/apiClient'
+import { markRepliesSeen } from './UserMenu'
 import '../styles/admin-panel.css'
 
 type UserRow = { id: string; name: string; email: string; created_at: string; is_admin: boolean; email_verified?: boolean; deleted_at?: string }
@@ -34,19 +35,40 @@ export default function AdminPanel() {
   // Feedback list state
   const [feedbackEntries, setFeedbackEntries] = useState<any[]>([])
   const [feedbackPage, setFeedbackPage] = useState(1)
-  const [feedbackPerPage, setFeedbackPerPage] = useState(25)
+  const [feedbackPerPage, setFeedbackPerPage] = useState(10)
   const [feedbackTotal, setFeedbackTotal] = useState(0)
   const [feedbackQ, setFeedbackQ] = useState('')
-  // Filters: Neu / Offen / Abgeschlossen
-  const [showNew, setShowNew] = useState(true)
-  const [showOpen, setShowOpen] = useState(true)
-  const [showResolved, setShowResolved] = useState(true)
+  // Tab: Neu / Offen / Abgeschlossen
+  const [feedbackTab, setFeedbackTab] = useState<'new' | 'open' | 'resolved'>('new')
+  const [feedbackTabCounts, setFeedbackTabCounts] = useState<Record<string, number>>({ new: 0, open: 0, resolved: 0 })
   const [selectedFeedback, setSelectedFeedback] = useState<any | null>(null)
   const [feedbackDetailLoading, setFeedbackDetailLoading] = useState(false)
+  // Inline comment form
+  const [commentText, setCommentText] = useState('')
+  const [commentSending, setCommentSending] = useState(false)
+  // Email reply form
+  const [replyText, setReplyText] = useState('')
+  const [replySubject, setReplySubject] = useState('')
+  const [replySending, setReplySending] = useState(false)
+  const [replyError, setReplyError] = useState<string | null>(null)
+  const [replySuccess, setReplySuccess] = useState(false)
 
   useEffect(() => { fetchUsers(page, perPage, q) }, [auth.user, page, perPage, q])
   useEffect(() => { if (menu === 'audit') fetchAudit(auditPage, auditPerPage) }, [auth.user, menu, auditPage, auditPerPage])
-  useEffect(() => { if (menu === 'feedback') fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ) }, [auth.user, menu, feedbackPage, feedbackPerPage, feedbackQ, showNew, showOpen, showResolved])
+  
+  // Load all feedback tab counts when opening feedback menu
+  useEffect(() => {
+    if (menu === 'feedback') {
+      fetchFeedbackCounts()
+    }
+  }, [menu, auth.user])
+  
+  useEffect(() => {
+    if (menu === 'feedback') {
+      fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ)
+      markRepliesSeen()
+    }
+  }, [auth.user, menu, feedbackPage, feedbackPerPage, feedbackQ, feedbackTab])
 
   // System info state
   const [backendInfo, setBackendInfo] = useState<any | null>(null)
@@ -115,25 +137,42 @@ export default function AdminPanel() {
     }
   }
 
-  async function fetchFeedback(p = 1, pp = 25, query = '') {
+  async function fetchFeedbackCounts() {
     if (!auth.user) return
     try {
-      const statuses: string[] = []
-      if (showNew) statuses.push('new')
-      if (showOpen) statuses.push('open')
-      if (showResolved) statuses.push('resolved')
-      const statusesParam = statuses.join(',')
-      const res = await api.get(`/admin/feedback?page=${p}&perPage=${pp}&q=${encodeURIComponent(query)}&statuses=${encodeURIComponent(statusesParam)}`, auth.token ?? undefined)
-      setFeedbackEntries(res.entries || [])
-      setFeedbackTotal(res.total || 0)
+      const [newRes, openRes, resolvedRes] = await Promise.all([
+        api.get(`/admin/feedback?page=1&perPage=1&q=&statuses=new`, auth.token ?? undefined),
+        api.get(`/admin/feedback?page=1&perPage=1&q=&statuses=open`, auth.token ?? undefined),
+        api.get(`/admin/feedback?page=1&perPage=1&q=&statuses=resolved`, auth.token ?? undefined),
+      ])
+      setFeedbackTabCounts({
+        new: newRes.total || 0,
+        open: openRes.total || 0,
+        resolved: resolvedRes.total || 0
+      })
     } catch (e: any) {
       // ignore
     }
   }
 
-  async function fetchFeedbackDetail(id: string) {
+  async function fetchFeedback(p = 1, pp = 10, query = '') {
+    if (!auth.user) return
+    try {
+      const res = await api.get(`/admin/feedback?page=${p}&perPage=${pp}&q=${encodeURIComponent(query)}&statuses=${encodeURIComponent(feedbackTab)}`, auth.token ?? undefined)
+      setFeedbackEntries(res.entries || [])
+      setFeedbackTotal(res.total || 0)
+      setFeedbackTabCounts(prev => ({ ...prev, [feedbackTab]: res.total || 0 }))
+    } catch (e: any) {
+      // ignore
+    }
+  }
+
+  async function fetchFeedbackDetail(id: string, resetForms = false) {
     if (!auth.user) return
     setFeedbackDetailLoading(true)
+    if (resetForms) {
+      setCommentText(''); setReplyText(''); setReplySubject(''); setReplyError(null); setReplySuccess(false)
+    }
     try {
       const res = await api.get(`/admin/feedback/${id}`, auth.token ?? undefined)
       setSelectedFeedback(res)
@@ -144,11 +183,32 @@ export default function AdminPanel() {
 
   async function addFeedbackComment(id: string, message: string) {
     if (!auth.user) return
+    setCommentSending(true)
     try {
       await api.post(`/admin/feedback/${id}/comment`, { message }, auth.token ?? undefined)
+      setCommentText('')
       fetchFeedbackDetail(id)
       fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ)
     } catch (e: any) { alert(e?.message || 'Failed to add comment') }
+    finally { setCommentSending(false) }
+  }
+
+  async function sendFeedbackReply(id: string) {
+    if (!auth.user) return
+    setReplyError(null)
+    setReplySuccess(false)
+    if (!replyText.trim()) { setReplyError('Nachricht darf nicht leer sein.'); return }
+    setReplySending(true)
+    try {
+      await api.post(`/admin/feedback/${id}/reply`, { message: replyText.trim(), subject: replySubject.trim() || undefined }, auth.token ?? undefined)
+      setReplyText('')
+      setReplySubject('')
+      setReplySuccess(true)
+      fetchFeedbackDetail(id)
+    } catch (e: any) {
+      const detail = e?.body?.detail || e?.message || 'E-Mail konnte nicht gesendet werden.'
+      setReplyError(detail)
+    } finally { setReplySending(false) }
   }
 
   async function resolveFeedback(id: string, resolved = true) {
@@ -180,12 +240,18 @@ export default function AdminPanel() {
           <nav className="admin-nav">
             <button onClick={() => setMenu('users')} className={`admin-nav-button ${menu === 'users' ? 'active' : ''}`}>Benutzerverwaltung</button>
             <button onClick={() => setMenu('audit')} className={`admin-nav-button ${menu === 'audit' ? 'active' : ''}`}>Audit Log</button>
-            <button onClick={() => setMenu('feedback')} className={`admin-nav-button ${menu === 'feedback' ? 'active' : ''}`}>Feedbackübersicht</button>
+            <button onClick={() => { setMenu('feedback'); markRepliesSeen() }} className={`admin-nav-button ${menu === 'feedback' ? 'active' : ''}`}>Feedbackübersicht</button>
             <button onClick={() => setMenu('system')} className={`admin-nav-button ${menu === 'system' ? 'active' : ''}`}>System</button>
           </nav>
         </div>
         <div>
-          <button className="admin-leave-button" onClick={() => navigate('/')}>Admincenter verlassen</button>
+          <button className="admin-leave-button" onClick={() => {
+            if (window.history.length > 1) {
+              navigate(-1)
+            } else {
+              navigate('/')
+            }
+          }}>Admincenter verlassen</button>
         </div>
       </aside>
 
@@ -313,21 +379,44 @@ export default function AdminPanel() {
           <>
             <h2>Feedback</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <input type="checkbox" checked={showNew} onChange={e => { setShowNew(e.target.checked); setFeedbackPage(1) }} />
-                  <span>Neu</span>
-                </label>
-                <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <input type="checkbox" checked={showOpen} onChange={e => { setShowOpen(e.target.checked); setFeedbackPage(1) }} />
-                  <span>Offen</span>
-                </label>
-                <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <input type="checkbox" checked={showResolved} onChange={e => { setShowResolved(e.target.checked); setFeedbackPage(1) }} />
-                  <span>Abgeschlossen</span>
-                </label>
-                {/* 'Gelöscht' filter removed — deleted feedback is permanently removed */}
-                <button style={{ marginLeft: 'auto' }} onClick={() => fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ)}>Reload</button>
+              {/* Tabs */}
+              <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid #e2e8f0' }}>
+                {(['new', 'open', 'resolved'] as const).map(tab => {
+                  const labels: Record<string, string> = { new: 'Neu', open: 'Offen', resolved: 'Abgeschlossen' }
+                  const active = feedbackTab === tab
+                  return (
+                    <button
+                      key={tab}
+                      onClick={() => { setFeedbackTab(tab); setFeedbackPage(1) }}
+                      style={{
+                        padding: '8px 18px',
+                        border: 'none',
+                        borderBottom: active ? '2px solid #667eea' : '2px solid transparent',
+                        background: 'transparent',
+                        color: active ? '#667eea' : '#64748b',
+                        fontWeight: active ? 700 : 400,
+                        fontSize: 14,
+                        cursor: 'pointer',
+                        marginBottom: '-2px',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      {labels[tab]}
+                      {feedbackTabCounts[tab] > 0 && (
+                        <span style={{
+                          marginLeft: 6,
+                          background: active ? '#667eea' : '#e2e8f0',
+                          color: active ? 'white' : '#475569',
+                          borderRadius: 10,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          padding: '1px 7px'
+                        }}>{feedbackTabCounts[tab]}</span>
+                      )}
+                    </button>
+                  )
+                })}
+                <button style={{ marginLeft: 'auto', padding: '6px 12px', fontSize: 12, border: '1px solid #e2e8f0', borderRadius: 6, background: 'white', cursor: 'pointer', color: '#64748b' }} onClick={() => fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ)}>↻ Reload</button>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <input placeholder="Search email or message" value={feedbackQ} onChange={e => { setFeedbackQ(e.target.value); setFeedbackPage(1) }} style={{ padding: 8, flex: 1 }} />
@@ -342,38 +431,43 @@ export default function AdminPanel() {
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>Time</th>
+                  <th>Zeit</th>
                   <th>Email</th>
+                  <th></th>
                   <th>Status</th>
-                  <th>Message</th>
+                  <th>Nachricht</th>
                 </tr>
               </thead>
               <tbody>
                 {feedbackEntries.map(f => (
                   <tr key={f.id}>
-                    <td style={{ padding: 10 }}>{new Date(f.created_at).toLocaleString()}</td>
-                    <td style={{ padding: 10 }}>{f.email || '—'}</td>
-                    <td style={{ padding: 10 }}>
-                      {(() => {
-                        const status = f.status || 'open'
-                        let display = status
-                        if (status === 'new') display = 'Neu'
-                        else if (status === 'open') display = 'Offen'
-                        else if (status === 'resolved') display = 'Abgeschlossen'
-                        const resolved = status === 'resolved'
-                        let bg = '#fff7ed'
-                        let color = '#92400e'
-                        if (status === 'resolved') { bg = '#e6fffa'; color = '#0f766e' }
-                        else if (status === 'new') { bg = '#eff6ff'; color = '#1e3a8a' }
-                        return <div style={{ display: 'inline-block', padding: '4px 8px', borderRadius: 6, background: bg, color, fontWeight: 600, fontSize: 12 }}>{display}</div>
-                      })()}
+                    <td style={{ padding: '6px 10px', whiteSpace: 'nowrap' }}>{new Date(f.created_at).toLocaleString()}</td>
+                    <td style={{ padding: '6px 10px' }}>{f.email || '—'}</td>
+                    <td style={{ padding: '6px 8px' }}>
+                      <button onClick={() => fetchFeedbackDetail(f.id, true)} style={{ padding: '3px 10px', fontSize: 12 }}>View</button>
                     </td>
-                    <td style={{ padding: 10 }}>
-                      <div style={{ fontWeight: 700 }}>{f.headline || '(no headline)'}</div>
-                      <div style={{ marginTop: 6 }}>{f.message?.slice?.(0, 160)}</div>
-                      <div style={{ marginTop: 8 }}>
-                        <button onClick={() => fetchFeedbackDetail(f.id)}>View</button>
+                    <td style={{ padding: '6px 10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {(() => {
+                          const status = f.status || 'open'
+                          let display = status
+                          if (status === 'new') display = 'Neu'
+                          else if (status === 'open') display = 'Offen'
+                          else if (status === 'resolved') display = 'Abgeschlossen'
+                          let bg = '#fff7ed'
+                          let color = '#92400e'
+                          if (status === 'resolved') { bg = '#e6fffa'; color = '#0f766e' }
+                          else if (status === 'new') { bg = '#eff6ff'; color = '#1e3a8a' }
+                          return <div style={{ display: 'inline-block', padding: '3px 7px', borderRadius: 6, background: bg, color, fontWeight: 600, fontSize: 11 }}>{display}</div>
+                        })()}
+                        {(f.comments || []).some((c: any) => c.message?.startsWith('[E-Mail-Eingang')) && (
+                          <span title="Neue E-Mail-Antwort" style={{ fontSize: 14 }}>✉️</span>
+                        )}
                       </div>
+                    </td>
+                    <td style={{ padding: '6px 10px' }}>
+                      <div style={{ fontWeight: 700 }}>{f.headline || '(no headline)'}</div>
+                      <div style={{ marginTop: 2, fontSize: 13, color: '#475569' }}>{f.message?.slice?.(0, 120)}</div>
                     </td>
                   </tr>
                 ))}
@@ -450,7 +544,7 @@ export default function AdminPanel() {
           </>
         )}
 
-        {menu !== 'users' && menu !== 'audit' && menu !== 'system' && (
+        {menu !== 'users' && menu !== 'audit' && menu !== 'feedback' && menu !== 'system' && (
           <div style={{ marginTop: 24, color: '#64748b' }}>Diese Ansicht ist noch nicht implementiert.</div>
         )}
       </main>
@@ -476,7 +570,7 @@ export default function AdminPanel() {
       {selectedFeedback && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ width: '90%', maxWidth: 900, maxHeight: '90vh', overflow: 'auto', background: 'white', borderRadius: 8, padding: 18, boxShadow: '0 10px 40px rgba(0,0,0,0.3)', position: 'relative' }}>
-            <button onClick={() => setSelectedFeedback(null)} style={{ position: 'absolute', right: 12, top: 12 }}>Close</button>
+            <button onClick={() => { setSelectedFeedback(null); setCommentText(''); setReplyText(''); setReplySubject(''); setReplyError(null); setReplySuccess(false) }} style={{ position: 'absolute', right: 12, top: 12 }}>Close</button>
             <h3 style={{ marginTop: 6 }}>{selectedFeedback.headline || '(no headline)'}</h3>
             {feedbackDetailLoading ? <p>Loading…</p> : (
               <div>
@@ -496,22 +590,77 @@ export default function AdminPanel() {
                 <h4>Metadata</h4>
                 <pre style={{ background: '#f6f8fa', padding: 8, borderRadius: 6, overflow: 'auto' }}>{JSON.stringify(selectedFeedback.metadata || {}, null, 2)}</pre>
 
-                <h4 style={{ marginTop: 12 }}>Comments</h4>
-                {(selectedFeedback.comments || []).map((c: any) => (
-                  <div key={c.id} style={{ padding: 8, borderBottom: '1px solid #eee' }}>
-                    <div style={{ fontSize: 12, color: '#64748b' }}>{c.author_id || 'admin'} • {new Date(c.created_at).toLocaleString()}</div>
-                    <div style={{ marginTop: 6 }}>{c.message}</div>
-                  </div>
-                ))}
+                <h4 style={{ marginTop: 12 }}>Kommentare (intern)</h4>
+                {(selectedFeedback.comments || []).length === 0 && (
+                  <div style={{ color: '#94a3b8', fontSize: 13 }}>Keine Kommentare.</div>
+                )}
+                {(selectedFeedback.comments || []).map((c: any) => {
+                  const isEmailReply = c.message?.startsWith('[E-Mail-Antwort')
+                  const isEmailInbound = c.message?.startsWith('[E-Mail-Eingang')
+                  let bgColor = undefined
+                  if (isEmailReply) bgColor = '#f0fdf4' // Admin reply: light green
+                  if (isEmailInbound) bgColor = '#eff6ff' // Inbound email: light blue
+                  return (
+                    <div key={c.id} style={{ padding: '8px 10px', borderBottom: '1px solid #eee', background: bgColor, borderRadius: 4 }}>
+                      <div style={{ fontSize: 12, color: '#64748b' }}>{c.author_id || (isEmailInbound ? 'User (E-Mail)' : 'admin')} • {new Date(c.created_at).toLocaleString()}</div>
+                      <div style={{ marginTop: 4, whiteSpace: 'pre-wrap', fontSize: 14 }}>{c.message}</div>
+                    </div>
+                  )
+                })}
 
-                <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-                  <button onClick={async () => {
-                    const txt = prompt('Kommentar hinzufügen')
-                    if (txt) {
-                      await addFeedbackComment(String(selectedFeedback.id), txt)
-                      fetchFeedbackDetail(String(selectedFeedback.id))
-                    }
-                  }}>Add comment</button>
+                {/* Inline comment form */}
+                <div style={{ marginTop: 10 }}>
+                  <textarea
+                    rows={2}
+                    placeholder="Interner Kommentar …"
+                    value={commentText}
+                    onChange={e => setCommentText(e.target.value)}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14, resize: 'vertical' }}
+                  />
+                  <button
+                    disabled={commentSending || !commentText.trim()}
+                    onClick={() => addFeedbackComment(String(selectedFeedback.id), commentText)}
+                    style={{ marginTop: 4 }}
+                  >{commentSending ? 'Speichern …' : 'Kommentar speichern'}</button>
+                </div>
+
+                {/* Email reply — only if feedback has an email */}
+                {selectedFeedback.email ? (
+                  <div style={{ marginTop: 16, padding: 12, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                    <h4 style={{ margin: '0 0 8px' }}>E-Mail-Antwort an {selectedFeedback.email}</h4>
+                    <input
+                      type="text"
+                      placeholder={`Betreff (Standard: Re: ${selectedFeedback.headline || 'Feedback'})`}
+                      value={replySubject}
+                      onChange={e => { setReplySubject(e.target.value); setReplyError(null); setReplySuccess(false) }}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14, marginBottom: 6 }}
+                    />
+                    <textarea
+                      rows={4}
+                      placeholder="Antworttext …"
+                      value={replyText}
+                      onChange={e => { setReplyText(e.target.value); setReplyError(null); setReplySuccess(false) }}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: 8, borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14, resize: 'vertical' }}
+                    />
+                    {replyError && (
+                      <div style={{ marginTop: 4, color: '#dc2626', fontSize: 13 }}>{replyError}</div>
+                    )}
+                    {replySuccess && (
+                      <div style={{ marginTop: 4, color: '#16a34a', fontSize: 13 }}>E-Mail erfolgreich gesendet.</div>
+                    )}
+                    <button
+                      disabled={replySending || !replyText.trim()}
+                      onClick={() => sendFeedbackReply(String(selectedFeedback.id))}
+                      style={{ marginTop: 6 }}
+                    >{replySending ? 'Senden …' : 'E-Mail senden'}</button>
+                  </div>
+                ) : (
+                  <div style={{ marginTop: 12, padding: '8px 12px', background: '#fef9c3', borderRadius: 6, fontSize: 13, color: '#854d0e' }}>
+                    Keine E-Mail-Adresse in diesem Feedback — Antwort per E-Mail nicht möglich.
+                  </div>
+                )}
+
+                <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
                   <button onClick={async () => {
                     const ok = await resolveFeedback(String(selectedFeedback.id), !(selectedFeedback.status === 'resolved'))
                     if (ok) { setSelectedFeedback(null); fetchFeedback(feedbackPage, feedbackPerPage, feedbackQ) }

@@ -5,6 +5,7 @@ import logger from '../utils/logger'
 import { syncUserData } from '../utils/sync'
 import { useNavigate, useLocation } from 'react-router-dom'
 import type { Table } from '../types/room'
+import { usePageHeader } from './PageHeaderContext'
 
 type ViewFrame = { x: number; y: number; width: number; height: number }
 
@@ -16,12 +17,17 @@ export default function RoomEditor() {
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [saveRoomName, setSaveRoomName] = useState('Neuer Raum')
   const [isEditingExisting, setIsEditingExisting] = useState(false)
+  const { setPageTitle, setHeaderContent } = usePageHeader()
   const [viewFrame, setViewFrame] = useState<ViewFrame | null>(null)
   const [frameDragStart, setFrameDragStart] = useState<{ x: number; y: number } | null>(null)
   const [defineViewMode, setDefineViewMode] = useState(false)
   const [showHelp, setShowHelp] = useState(true)
   const [draggingTable, setDraggingTable] = useState<Table | null>(null)
   const [dragPreviewPos, setDragPreviewPos] = useState<{ x: number; y: number } | null>(null)
+  // Original-Zustand des aufgenommenen Tisches (für ESC-Abbruch)
+  const origTableStateRef = useRef<Table | null>(null)
+  // Undo-Stack für Tisch-Mutationen (max 5)
+  const [undoStack, setUndoStack] = useState<Table[][]>([])
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tableId: string } | null>(null)
   const [sizeModal, setSizeModal] = useState<{ tableId: string; capacity: string } | null>(null)
@@ -32,12 +38,31 @@ export default function RoomEditor() {
   const { user, token } = useAuth()
   const [isSavingRoom, setIsSavingRoom] = useState(false)
   const [saveRoomError, setSaveRoomError] = useState<string | null>(null)
+  const [duplicateConfirmModal, setDuplicateConfirmModal] = useState<{ name: string; existingId: string; existingCreatedAt: string } | null>(null)
   const userId = user ? user.id : null
   const pendingEventId: string | null = (location.state as any)?.pendingEventId || null
+  const returnToEventId: string | null = (location.state as any)?.returnToEventId || null
+  const [existingRoomId, setExistingRoomId] = useState<string | null>(null)
+  const [existingCreatedAt, setExistingCreatedAt] = useState<string | null>(null)
 
   const gridWidth = 28
   const gridHeight = 20
   const cellSize = 40
+
+  // Undo-Hilfsfunktionen
+  function pushUndoEditor(currentTables: Table[]) {
+    setUndoStack(prev => [...prev, currentTables].slice(-5))
+  }
+
+  function performUndoEditor() {
+    setUndoStack(prev => {
+      if (prev.length === 0) return prev
+      const stack = [...prev]
+      const restored = stack.pop()!
+      setTables(restored)
+      return stack
+    })
+  }
 
   // Keyboard: rotate selected table with 'R', delete with 'Delete'
   useEffect(() => {
@@ -46,15 +71,21 @@ export default function RoomEditor() {
       if (!selectedTableId) return
       if (e.key === 'r' || e.key === 'R') {
         e.preventDefault()
-        setTables(prev => prev.map(t => {
-          if (t.id === selectedTableId) {
-            return { ...t, rotation: ((t.rotation ?? 0) + 1) % 4 }
-          }
-          return t
-        }))
+        setTables(prev => {
+          pushUndoEditor(prev)
+          return prev.map(t => {
+            if (t.id === selectedTableId) {
+              return { ...t, rotation: ((t.rotation ?? 0) + 1) % 4 }
+            }
+            return t
+          })
+        })
       } else if (e.key === 'Delete') {
         e.preventDefault()
-        setTables(prev => prev.filter(t => t.id !== selectedTableId))
+        setTables(prev => {
+          pushUndoEditor(prev)
+          return prev.filter(t => t.id !== selectedTableId)
+        })
         setSelectedTableId(null)
       }
     }
@@ -76,6 +107,8 @@ export default function RoomEditor() {
           // Try to find a matching saved room entry to determine if we're editing an existing room
           const roomsRaw = userStorage.getItem('rooms', userId) || localStorage.getItem('rooms')
           let matchedName: string | null = null
+          let matchedId: string | null = null
+          let matchedCreatedAt: string | null = null
           if (roomsRaw) {
             try {
               const list = JSON.parse(roomsRaw)
@@ -85,6 +118,8 @@ export default function RoomEditor() {
                     // simple deep-compare of tables arrays
                     if (JSON.stringify(entry.data.tables) === JSON.stringify(room.tables)) {
                       matchedName = entry.name
+                      matchedId = entry.id
+                      matchedCreatedAt = entry.createdAt || null
                       break
                     }
                   }
@@ -101,6 +136,8 @@ export default function RoomEditor() {
             setIsEditingExisting(true)
             setRoomName(matchedName)
             setSaveRoomName(matchedName)
+            setExistingRoomId(matchedId)
+            setExistingCreatedAt(matchedCreatedAt)
           } else {
             // No matching saved room found: treat as new room
             setIsEditingExisting(false)
@@ -131,6 +168,7 @@ export default function RoomEditor() {
       height,
       locked: false
     }
+    pushUndoEditor(tables)
     setTables([...tables, newTable])
     setNextId(nextId + 1)
   }
@@ -138,7 +176,10 @@ export default function RoomEditor() {
   function handleDragStart(e: React.DragEvent, tableId: string) {
     e.dataTransfer.setData('text/plain', tableId)
     const table = tables.find(t => t.id === tableId)
-    if (table) setDraggingTable(table)
+    if (table) {
+      origTableStateRef.current = { ...table }
+      setDraggingTable(table)
+    }
   }
 
   function handleDrop(e: React.DragEvent) {
@@ -161,6 +202,7 @@ export default function RoomEditor() {
 
     // allow moving even if new rect intersects previous rect of same table
 
+    pushUndoEditor(tables)
     setTables(tables.map(t => t.id === tableId ? { ...t, x: clampedX, y: clampedY } : t))
     setDraggingTable(null)
     setDragPreviewPos(null)
@@ -181,6 +223,44 @@ export default function RoomEditor() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [draggingTable, showSaveModal])
 
+  // Globale Shortcuts: ESC (Ziehen abbrechen + Original wiederherstellen), Ctrl+Z (Rükgängig), Ctrl+S (Speichern-Dialog)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (draggingTable) {
+          e.preventDefault()
+          // Tisch auf Ursprungsposition/-größe zurücksetzen
+          if (origTableStateRef.current) {
+            const orig = origTableStateRef.current
+            setTables(prev => prev.map(t => t.id === orig.id ? { ...orig } : t))
+          }
+          setDraggingTable(null)
+          setDragPreviewPos(null)
+          origTableStateRef.current = null
+        }
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z') && !e.shiftKey) {
+        const target = e.target as HTMLElement
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+        e.preventDefault()
+        performUndoEditor()
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+        if (showSaveModal) return
+        if (tables.length === 0) return
+        e.preventDefault()
+        setSaveRoomError(null)
+        setSaveRoomName(roomName)
+        setShowSaveModal(true)
+        return
+      }
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [draggingTable, showSaveModal, tables, roomName])
+
   function updateDragPreview(e: React.DragEvent | React.MouseEvent) {
     if (!draggingTable || !gridRef.current) return
     const rect = gridRef.current.getBoundingClientRect()
@@ -196,29 +276,61 @@ export default function RoomEditor() {
     updateDragPreview(e)
   }
 
-  async function confirmSaveRoom(name: string) {
+  async function confirmSaveRoom(name: string, overrideExistingId?: string, overrideCreatedAt?: string) {
     setSaveRoomError(null)
     const room = { tables, viewFrame: viewFrame || undefined }
     userStorage.setItem('currentRoom', JSON.stringify(room), userId)
     const raw = userStorage.getItem('rooms', userId) || localStorage.getItem('rooms') || '[]'
     const list = JSON.parse(raw as string)
-    const entry = { id: `r-${Date.now()}`, name: name || `Raum ${list.length + 1}`, createdAt: new Date().toLocaleDateString(), data: room }
-    userStorage.setItem('rooms', JSON.stringify([...list, entry]), userId)
+
+    // Determine the effective name
+    const effectiveName = name || `Raum ${list.length + 1}`
+
+    // Check for duplicate name (unless we already confirmed overwrite via modal)
+    if (!overrideExistingId) {
+      const duplicate = list.find((e: any) => e.name === effectiveName && e.id !== existingRoomId)
+      if (duplicate) {
+        // Show confirmation modal instead of saving right away
+        setDuplicateConfirmModal({ name: effectiveName, existingId: duplicate.id, existingCreatedAt: duplicate.createdAt || '' })
+        setShowSaveModal(false)
+        return
+      }
+    }
+
+    let entry: any
+    // If editing an existing room (same id) OR overwriting a duplicate by name
+    const targetId = overrideExistingId || existingRoomId
+    if (targetId) {
+      // Overwrite existing entry, preserve createdAt
+      const targetCreatedAt = overrideCreatedAt !== undefined ? overrideCreatedAt : (existingCreatedAt || new Date().toLocaleDateString())
+      entry = { id: targetId, name: effectiveName, createdAt: targetCreatedAt, data: room }
+      const updated = list.map((e: any) => e.id === targetId ? entry : e)
+      // If targetId not in list (shouldn't happen, but safety), append
+      if (!list.find((e: any) => e.id === targetId)) {
+        updated.push(entry)
+      }
+      userStorage.setItem('rooms', JSON.stringify(updated), userId)
+    } else {
+      // New room
+      entry = { id: `r-${Date.now()}`, name: effectiveName, createdAt: new Date().toLocaleDateString(), data: room }
+      userStorage.setItem('rooms', JSON.stringify([...list, entry]), userId)
+    }
 
     // If this room was created as part of event creation, link it to the event
-    if (pendingEventId) {
+    const targetEventId = pendingEventId || returnToEventId
+    if (targetEventId) {
       try {
         const rawEvent = userStorage.getItem('currentEvent', userId) || localStorage.getItem('currentEvent')
         if (rawEvent) {
           const event = JSON.parse(rawEvent as string)
-          if (event && event.id === pendingEventId) {
+          if (event && event.id === targetEventId) {
             event.roomId = entry.id
             userStorage.setItem('currentEvent', JSON.stringify(event), userId)
             // Also update the event in the events list
             const rawEvents = userStorage.getItem('events', userId) || localStorage.getItem('events') || '[]'
             const events = JSON.parse(rawEvents as string)
-            const updated = events.map((e: any) => e.id === pendingEventId ? { ...e, roomId: entry.id } : e)
-            userStorage.setItem('events', JSON.stringify(updated), userId)
+            const updatedEvents = events.map((e: any) => e.id === targetEventId ? { ...e, roomId: entry.id } : e)
+            userStorage.setItem('events', JSON.stringify(updatedEvents), userId)
           }
         }
       } catch (e) {
@@ -229,9 +341,12 @@ export default function RoomEditor() {
     // show saving indicator during background sync
     setIsSavingRoom(true)
     setShowSaveModal(false)
+    setDuplicateConfirmModal(null)
 
     if (pendingEventId) {
       navigate(`/app/events/${pendingEventId}`)
+    } else if (returnToEventId) {
+      navigate(`/app/events/${returnToEventId}`)
     } else {
       navigate('/app/rooms')
     }
@@ -299,6 +414,12 @@ export default function RoomEditor() {
     }
   }, [frameDragStart])
 
+  // Set page header title (dynamic based on editing mode)
+  useEffect(() => {
+    setPageTitle(isEditingExisting ? 'Raum bearbeiten' : 'Neuen Raum erstellen', '🏗️')
+    return () => { setPageTitle(null); setHeaderContent(null) }
+  }, [isEditingExisting, setPageTitle, setHeaderContent])
+
   return (
     <div style={{ 
       height: '100%', 
@@ -306,24 +427,6 @@ export default function RoomEditor() {
       display: 'flex', 
       flexDirection: 'column'
     }}>
-      {/* Header */}
-      <div style={{ 
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
-        padding: '16px 24px', 
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px'
-      }}>
-        <button 
-          onClick={() => navigate('/app')}
-          style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '16px', transition: 'all 0.2s' }}
-          onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
-          onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-        >←</button>
-        <h1 style={{ margin: '0', fontSize: '24px', fontWeight: '600', color: 'white' }}>🏗️ {isEditingExisting ? 'Raum bearbeiten' : 'Raum anlegen'}</h1>
-      </div>
-      
       {/* Main Content: Sidebar + Grid */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Sidebar */}
@@ -375,11 +478,19 @@ export default function RoomEditor() {
               style={{ flex: 1, padding: '10px 12px', background: '#fff', color: '#64748b', border: '2px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}
             >Zurücksetzen</button>
           </div>
-          <button
-            onClick={() => { setSaveRoomError(null); setSaveRoomName(roomName); setShowSaveModal(true); }}
-            disabled={tables.length === 0}
-            style={{ padding: '12px 16px', background: tables.length === 0 ? '#e2e8f0' : '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: tables.length === 0 ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: 700, opacity: tables.length === 0 ? 0.6 : 1 }}
-          >💾 Speichern</button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => { setSaveRoomError(null); setSaveRoomName(roomName); setShowSaveModal(true); }}
+              disabled={tables.length === 0}
+              style={{ flex: 2, padding: '12px 14px', background: tables.length === 0 ? '#e2e8f0' : '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: tables.length === 0 ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: 700, opacity: tables.length === 0 ? 0.6 : 1 }}
+            >💾 Speichern</button>
+            <button
+              onClick={performUndoEditor}
+              disabled={undoStack.length === 0}
+              title="Rückgängig (Strg+Z)"
+              style={{ flex: 1, padding: '12px 10px', background: undoStack.length > 0 ? '#f8fafc' : '#f1f5f9', color: undoStack.length > 0 ? '#374151' : '#94a3b8', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: undoStack.length > 0 ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 600, opacity: undoStack.length > 0 ? 1 : 0.5, whiteSpace: 'nowrap' }}
+            >↩ {undoStack.length > 0 ? `(${undoStack.length})` : ''}</button>
+          </div>
           
           {showHelp && (
             <div style={{
@@ -419,6 +530,9 @@ export default function RoomEditor() {
                 <div><strong>Desktop:</strong></div>
                 <div>• Tisch verschieben: Tisch anklicken zum Aufnehmen, auf Ziel klicken zum Absetzen</div>
                 <div>• Tisch drehen: Taste <strong>R</strong> (während Tisch aufgenommen)</div>
+                <div>• Ziehen abbrechen: <strong>ESC</strong> (setzt Tisch auf Ursprungsposition zurück)</div>
+                <div>• Rückgängig: <strong>Strg+Z</strong> (max. 5 Schritte)</div>
+                <div>• Speichern: <strong>Strg+S</strong></div>
                 <div>• Rechtsklick: Kontextmenü zum <strong>Größe ändern</strong> oder <strong>Löschen</strong></div>
                 {/* Tablet/Phone instructions removed (deprecated) */}
               </div>
@@ -458,9 +572,11 @@ export default function RoomEditor() {
 
               // allow moving even if new rect intersects previous rect of same table
 
+              pushUndoEditor(tables)
               setTables(tables.map(t => t.id === draggingTable.id ? { ...t, x: clampedX, y: clampedY } : t))
               setDraggingTable(null)
               setDragPreviewPos(null)
+              origTableStateRef.current = null
             }}
             style={{
               display: 'grid',
@@ -536,6 +652,7 @@ export default function RoomEditor() {
                   e.stopPropagation()
                   // Click to pick up table (if not already dragging)
                   if (!draggingTable) {
+                    origTableStateRef.current = { ...table }
                     setDraggingTable(table)
                     setDragPreviewPos({ x: table.x, y: table.y })
                     setSelectedTableId(table.id)
@@ -601,7 +718,7 @@ export default function RoomEditor() {
                   style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', background: 'white', border: 'none', cursor: 'pointer', fontSize: 13 }}>
             📏 Größe ändern
           </button>
-          <button onClick={() => { setTables(prev => prev.filter(t => t.id !== contextMenu.tableId)); setContextMenu(null); if (selectedTableId === contextMenu.tableId) setSelectedTableId(null) }}
+          <button onClick={() => { setTables(prev => { pushUndoEditor(prev); return prev.filter(t => t.id !== contextMenu.tableId) }); setContextMenu(null); if (selectedTableId === contextMenu.tableId) setSelectedTableId(null) }}
                   style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', background: 'white', border: 'none', cursor: 'pointer', fontSize: 13, color: '#ef4444' }}>
             🗑️ Tisch löschen
           </button>
@@ -656,6 +773,7 @@ export default function RoomEditor() {
                           const otherOldId = existing.id
                           const otherNewId = candidate
 
+                          pushUndoEditor(tables)
                           setTables(prev => prev.map(t => {
                             if (t.id === otherOldId) return { ...t, id: otherNewId }
                             if (t.id === renameModal.tableId) return { ...t, id: newId }
@@ -669,6 +787,7 @@ export default function RoomEditor() {
                         }
 
                         // No collision: simple rename
+                        pushUndoEditor(tables)
                         setTables(prev => prev.map(t => t.id === renameModal.tableId ? { ...t, id: newId } : t))
                         if (selectedTableId === renameModal.tableId) setSelectedTableId(newId)
                         setRenameModal(null)
@@ -693,6 +812,7 @@ export default function RoomEditor() {
                       style={{ flex: 1, padding: '10px 14px', background: 'white', color: '#64748b', border: '2px solid #e2e8f0', borderRadius: 8, cursor: 'pointer' }}>Abbrechen</button>
               <button onClick={() => {
                         const cap = Math.max(1, parseInt(sizeModal.capacity || '4'))
+                        pushUndoEditor(tables)
                         setTables(prev => prev.map(t => t.id === sizeModal.tableId ? { ...t, capacity: cap, width: Math.ceil(cap / 2), height: 2 } : t))
                         setSizeModal(null)
                       }}
@@ -734,6 +854,30 @@ export default function RoomEditor() {
                 onMouseOver={e => { e.currentTarget.style.background = '#f1f5f9'; }}
                 onMouseOut={e => { e.currentTarget.style.background = 'white'; }}
               >Abbrechen</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Duplicate Name Confirmation Modal */}
+      {duplicateConfirmModal && (
+        <div className="modal" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}>
+          <div style={{ background: 'white', borderRadius: '16px', padding: '32px', minWidth: '420px', maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <h3 style={{ margin: '0 0 16px', fontSize: '20px', fontWeight: '700', color: '#1e293b' }}>⚠️ Name bereits vorhanden</h3>
+            <p style={{ margin: '0 0 20px', fontSize: '14px', color: '#475569', lineHeight: 1.6 }}>
+              Ein Raum mit dem Namen <strong>„{duplicateConfirmModal.name}"</strong> existiert bereits.<br />
+              Soll der bestehende Raum überschrieben werden?
+            </p>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button
+                onClick={() => confirmSaveRoom(duplicateConfirmModal.name, duplicateConfirmModal.existingId, duplicateConfirmModal.existingCreatedAt)}
+                disabled={isSavingRoom}
+                style={{ flex: 1, padding: '12px 24px', background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)', color: 'white', border: 'none', borderRadius: '8px', cursor: isSavingRoom ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: '700' }}
+              >{isSavingRoom ? 'Speichert…' : 'Überschreiben'}</button>
+              <button
+                onClick={() => { setDuplicateConfirmModal(null); setSaveRoomName(duplicateConfirmModal.name); setShowSaveModal(true) }}
+                style={{ flex: 1, padding: '12px 24px', background: 'white', color: '#64748b', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}
+              >Namen anpassen</button>
             </div>
           </div>
         </div>
