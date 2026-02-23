@@ -96,8 +96,6 @@ function HelpRoomEditor() {
           <kbd style={kbd}>Strg + S</kbd><span>Speicherdialog öffnen</span>
           <kbd style={kbd}>Esc</kbd><span>Ziehen abbrechen (Tisch zurücksetzen)</span>
           <kbd style={kbd}>Klick + Ziehen</kbd><span>Tisch verschieben</span>
-          <kbd style={kbd}>Mausrad</kbd><span>Zoom</span>
-          <kbd style={kbd}>Shift + Ziehen</kbd><span>Mehrere Tische auswählen</span>
         </div>
       </Section>
     </div>
