@@ -6,6 +6,7 @@ import { syncUserData } from '../utils/sync'
 import type { ToGoEventConfig } from '../types/togo'
 import FeedbackForm from './FeedbackForm'
 import { useHelp } from './HelpContext'
+import api from '../api/apiClient'
 
 const EVENTS_KEY = 'events'
 const CURRENT_EVENT_KEY = 'currentEvent'
@@ -36,9 +37,10 @@ export default function Home() {
   const [fromTime, setFromTime] = useState('')
   const [toTime, setToTime] = useState('')
   const [isToGo, setIsToGo] = useState(false)
-  const [useExistingRoom, setUseExistingRoom] = useState<'existing' | 'new'>('existing')
+  const [useExistingRoom, setUseExistingRoom] = useState<'existing' | 'new' | 'none'>('existing')
   const [rooms, setRooms] = useState<SavedRoom[]>([])
   const [selectedRoomId, setSelectedRoomId] = useState<string>('')
+  const [withReservation, setWithReservation] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -69,54 +71,51 @@ export default function Home() {
     }
     const rawEvents = userStorage.getItem(EVENTS_KEY, userId) || localStorage.getItem(EVENTS_KEY) || '[]'
     const all = JSON.parse(rawEvents as string) as EventItem[]
-    
-    // ToGo events don't need a room
-    if (isToGo) {
+
+    /** Save, sync and optionally publish the reservation page. */
+    async function saveAndPublish(navigateTo: string | null, newRoomNav?: string) {
       userStorage.setItem(CURRENT_EVENT_KEY, JSON.stringify(ev), userId)
       userStorage.setItem(EVENTS_KEY, JSON.stringify([...all, ev]), userId)
       try {
-        if (userId) {
-          await syncUserData(auth.token, userId)
-        }
+        if (userId) await syncUserData(auth.token, userId)
       } catch (e: any) {
         setCreateError(e?.message || 'Speichern fehlgeschlagen.')
-        return
+        return false
       }
-      navigate('/app/togo')
+      if (withReservation) {
+        try {
+          await api.post(`/events/${id}/publish`, { reservationConfig: {} })
+        } catch {
+          // Non-fatal: event is saved, reservation can be enabled later via 🎟️
+        }
+      }
+      if (newRoomNav) navigate(newRoomNav, { state: { pendingEventId: id } })
+      else if (navigateTo) navigate(navigateTo)
+      return true
+    }
+
+    // ToGo events don't need a room
+    if (isToGo) {
+      await saveAndPublish('/app/togo')
       return
     }
-    
+
+    if (useExistingRoom === 'none') {
+      await saveAndPublish(`/app/events/${id}`)
+      return
+    }
+
     if (useExistingRoom === 'existing' && selectedRoomId) {
       const room = rooms.find(r => r.id === selectedRoomId)
       if (room) {
         userStorage.setItem(STORAGE_KEY, JSON.stringify(room.data), userId)
         ev.roomId = room.id
       }
-      userStorage.setItem(CURRENT_EVENT_KEY, JSON.stringify(ev), userId)
-      userStorage.setItem(EVENTS_KEY, JSON.stringify([...all, ev]), userId)
-      try {
-        if (userId) {
-          await syncUserData(auth.token, userId)
-        }
-      } catch (e: any) {
-        setCreateError(e?.message || 'Speichern fehlgeschlagen.')
-        return
-      }
-      navigate(`/app/events/${id}`)
+      await saveAndPublish(`/app/events/${id}`)
     } else {
       userStorage.removeItem(STORAGE_KEY, userId)
       localStorage.removeItem(STORAGE_KEY)
-      userStorage.setItem(CURRENT_EVENT_KEY, JSON.stringify(ev), userId)
-      userStorage.setItem(EVENTS_KEY, JSON.stringify([...all, ev]), userId)
-      try {
-        if (userId) {
-          await syncUserData(auth.token, userId)
-        }
-      } catch (e: any) {
-        setCreateError(e?.message || 'Speichern fehlgeschlagen.')
-        return
-      }
-      navigate('/app/rooms/new', { state: { pendingEventId: id } })
+      await saveAndPublish(null, '/app/rooms/new')
     }
   }
 
@@ -399,37 +398,79 @@ export default function Home() {
               </div>
 
               {/* Room selection - only show when NOT ToGo */}
-              <div style={{ 
-                background: '#f1f5f9', 
-                padding: '16px', 
-                borderRadius: '8px', 
-                display: 'flex', 
-                flexDirection: 'column', 
-                gap: '12px',
-                opacity: isToGo ? 0.4 : 1,
-                pointerEvents: isToGo ? 'none' : 'auto',
-                transition: 'opacity 0.3s ease'
-              }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '500' }}>
-                  <input type="radio" checked={useExistingRoom === 'existing'} onChange={() => setUseExistingRoom('existing')} disabled={isToGo} /> 
-                  Bestehenden Raum verwenden
-                </label>
-                {useExistingRoom === 'existing' && (
-                  <select 
-                    style={{ padding: '12px 16px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', background: 'white', cursor: 'pointer', outline: 'none' }} 
-                    value={selectedRoomId} 
-                    onChange={e => setSelectedRoomId(e.target.value)}
-                    onFocus={e => e.target.style.borderColor = '#667eea'}
-                    onBlur={e => e.target.style.borderColor = '#e2e8f0'}
-                    disabled={isToGo}
-                  >
-                    {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                  </select>
-                )}
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '500' }}>
-                  <input type="radio" checked={useExistingRoom === 'new'} onChange={() => setUseExistingRoom('new')} disabled={isToGo} /> 
-                  Neuen Raum anlegen
-                </label>
+              {!isToGo && (
+                <div style={{ background: '#f1f5f9', padding: '16px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>Raumplanung</div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '500', color: '#1e293b' }}>
+                    <input type="radio" checked={useExistingRoom === 'existing'} onChange={() => setUseExistingRoom('existing')} />
+                    🏠 Bestehenden Raum verwenden
+                  </label>
+                  {useExistingRoom === 'existing' && (
+                    <select
+                      style={{ padding: '10px 14px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', background: 'white', cursor: 'pointer', outline: 'none', marginLeft: '22px' }}
+                      value={selectedRoomId}
+                      onChange={e => setSelectedRoomId(e.target.value)}
+                      onFocus={e => e.target.style.borderColor = '#667eea'}
+                      onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                    >
+                      {rooms.length === 0
+                        ? <option value="">— Keine Räume gespeichert —</option>
+                        : rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)
+                      }
+                    </select>
+                  )}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '500', color: '#1e293b' }}>
+                    <input type="radio" checked={useExistingRoom === 'new'} onChange={() => setUseExistingRoom('new')} />
+                    🏗️ Neuen Raum anlegen
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '500', color: '#1e293b' }}>
+                    <input type="radio" checked={useExistingRoom === 'none'} onChange={() => setUseExistingRoom('none')} />
+                    🚫 Ohne Raumplanung
+                  </label>
+                </div>
+              )}
+
+              {/* Reservation page toggle */}
+              <div
+                onClick={() => setWithReservation(!withReservation)}
+                style={{
+                  background: withReservation ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#f1f5f9',
+                  padding: '14px 16px',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  userSelect: 'none',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '22px' }}>🎟️</span>
+                  <div>
+                    <div style={{ fontWeight: '600', fontSize: '14px', color: withReservation ? 'white' : '#1e293b' }}>
+                      Mit Reservierungsseite
+                    </div>
+                    <div style={{ fontSize: '12px', color: withReservation ? 'rgba(255,255,255,0.8)' : '#64748b' }}>
+                      {isToGo
+                        ? 'Gäste können Speisen online vorbestellen'
+                        : 'Öffentlicher Link zum Reservieren per Token'}
+                    </div>
+                  </div>
+                </div>
+                <div style={{
+                  width: '44px', height: '24px', borderRadius: '12px',
+                  background: withReservation ? 'rgba(255,255,255,0.35)' : '#cbd5e1',
+                  position: 'relative', flexShrink: 0, transition: 'background 0.3s'
+                }}>
+                  <div style={{
+                    width: '18px', height: '18px', borderRadius: '9px', background: 'white',
+                    position: 'absolute', top: '3px',
+                    left: withReservation ? '23px' : '3px',
+                    transition: 'left 0.3s',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.25)'
+                  }} />
+                </div>
               </div>
             </div>
             <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
@@ -440,7 +481,7 @@ export default function Home() {
                 onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
               >Weiter →</button>
               <button 
-                onClick={() => { setCreateError(null); setShowEventModal(false) }}
+                onClick={() => { setCreateError(null); setShowEventModal(false); setIsToGo(false); setUseExistingRoom('existing'); setWithReservation(false) }}
                 style={{ padding: '12px 24px', background: 'white', color: '#64748b', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', transition: 'all 0.2s' }}
                 onMouseOver={e => { e.currentTarget.style.background = '#f1f5f9'; }}
                 onMouseOut={e => { e.currentTarget.style.background = 'white'; }}
