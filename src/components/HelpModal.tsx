@@ -62,6 +62,7 @@ function HelpRoom() {
           <kbd style={kbd}>R</kbd><span>Familien drehen</span>
           <kbd style={kbd}>T</kbd><span>Familien spiegeln</span>
           <kbd style={kbd}>Strg + Z</kbd><span>Rückgängig (max. 5)</span>
+          <kbd style={kbd}>Strg + Y</kbd><span>Wiederholen</span>
           <kbd style={kbd}>Strg + S</kbd><span>Speichern</span>
 
         </div>

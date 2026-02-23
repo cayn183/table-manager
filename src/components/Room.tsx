@@ -133,9 +133,11 @@ export default function Room() {
   const [uiScale, setUiScale] = useState(1)
   const draggingGroupRef = useRef<{ group: Group; rotation: number } | null>(null)
 
-  // Undo-Stack (max 5 Schritte) + Refs für stabile Keyboard-Handler
+  // Undo/Redo-Stack (max 5 Schritte) + Refs für stabile Keyboard-Handler
   const undoStackRef = useRef<Array<{ assignedGroups: Record<string, AssignedGroup[]>; groups: Group[] }>>([]);
+  const redoStackRef = useRef<Array<{ assignedGroups: Record<string, AssignedGroup[]>; groups: Group[] }>>([]);
   const [undoCount, setUndoCount] = useState(0)
+  const [redoCount, setRedoCount] = useState(0)
   const assignedGroupsRef = useRef<Record<string, AssignedGroup[]>>({})
   const groupsRef = useRef<Group[]>([])
 
@@ -764,10 +766,17 @@ export default function Room() {
     const entry = { assignedGroups: assignedGroupsRef.current, groups: groupsRef.current }
     undoStackRef.current = [...undoStackRef.current, entry].slice(-5)
     setUndoCount(undoStackRef.current.length)
+    // Neue Aktion löscht Redo-Stack
+    redoStackRef.current = []
+    setRedoCount(0)
   }, [])
 
   const performUndo = useCallback(() => {
     if (undoStackRef.current.length === 0) return
+    // Aktuellen Zustand in Redo sichern
+    const current = { assignedGroups: assignedGroupsRef.current, groups: groupsRef.current }
+    redoStackRef.current = [...redoStackRef.current, current].slice(-5)
+    setRedoCount(redoStackRef.current.length)
     const stack = [...undoStackRef.current]
     const prev = stack.pop()!
     undoStackRef.current = stack
@@ -777,8 +786,42 @@ export default function Room() {
     setIsDirty(true)
   }, [])
 
+  const performRedo = useCallback(() => {
+    if (redoStackRef.current.length === 0) return
+    // Aktuellen Zustand in Undo sichern
+    const current = { assignedGroups: assignedGroupsRef.current, groups: groupsRef.current }
+    undoStackRef.current = [...undoStackRef.current, current].slice(-5)
+    setUndoCount(undoStackRef.current.length)
+    const stack = [...redoStackRef.current]
+    const next = stack.pop()!
+    redoStackRef.current = stack
+    setRedoCount(stack.length)
+    setAssignedGroups(next.assignedGroups)
+    setGroups(next.groups)
+    setIsDirty(true)
+  }, [])
+
+  const rotateGroup = useCallback(() => {
+    if (!draggingGroupRef.current) return
+    setPreviewRotation(prev => {
+      const next = (prev + 1) % 8
+      setRotationOverride(next)
+      return next
+    })
+  }, [])
+
+  const mirrorGroup = useCallback(() => {
+    if (!draggingGroupRef.current) return
+    setPreviewRotation(prev => {
+      const next = prev >= 4 ? prev - 4 : prev + 4
+      setRotationOverride(next)
+      return next
+    })
+  }, [])
+
   const cancelDraggingRef = useRef(cancelDragging)
   const performUndoRef = useRef(performUndo)
+  const performRedoRef = useRef(performRedo)
 
   const toggleTableLock = useCallback((tableId: string) => {
     if (!room) return
@@ -997,6 +1040,7 @@ export default function Room() {
   useEffect(() => { groupsRef.current = groups }, [groups])
   useEffect(() => { cancelDraggingRef.current = cancelDragging }, [cancelDragging])
   useEffect(() => { performUndoRef.current = performUndo }, [performUndo])
+  useEffect(() => { performRedoRef.current = performRedo }, [performRedo])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1037,6 +1081,13 @@ export default function Room() {
         if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
         e.preventDefault()
         performUndoRef.current()
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && ((e.key === 'y' || e.key === 'Y') || ((e.key === 'z' || e.key === 'Z') && e.shiftKey))) {
+        const target = e.target as HTMLElement
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+        e.preventDefault()
+        performRedoRef.current()
         return
       }
       if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
@@ -2135,7 +2186,7 @@ export default function Room() {
                 onClick={() => handleSaveEvent()} 
                 disabled={!isDirty || !Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0)}
                 style={{ 
-                  flex: 3,
+                  flex: 1,
                   padding: '12px 20px',
                   background: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? '#10b981' : '#e0e7ff',
                   color: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 'white' : '#94a3b8',
@@ -2150,28 +2201,6 @@ export default function Room() {
                 }}
               >
                 💾 Speichern
-              </button>
-
-              <button
-                onClick={performUndo}
-                disabled={undoCount === 0}
-                title="Rükgängig (Strg+Z)"
-                style={{
-                  flex: 1,
-                  padding: '12px 10px',
-                  background: undoCount > 0 ? '#f8fafc' : '#f1f5f9',
-                  color: undoCount > 0 ? '#374151' : '#94a3b8',
-                  border: '2px solid #e2e8f0',
-                  borderRadius: '8px',
-                  cursor: undoCount > 0 ? 'pointer' : 'not-allowed',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  transition: 'all 0.2s',
-                  opacity: undoCount > 0 ? 1 : 0.5,
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                ↩ {undoCount > 0 ? `(${undoCount})` : ''}
               </button>
               
               <button
@@ -2631,6 +2660,106 @@ export default function Room() {
           )}
           </div>
         </div>
+
+        {/* Schmale Aktions-Spalte rechts */}
+        {(() => {
+          const isDragging = !!draggingGroup
+          const btnBase: React.CSSProperties = {
+            width: '40px',
+            height: '40px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: '1.5px solid #e2e8f0',
+            borderRadius: '10px',
+            background: 'white',
+            cursor: 'pointer',
+            transition: 'all 0.15s',
+            flexShrink: 0,
+            padding: 0,
+          }
+          const btnActive: React.CSSProperties = { ...btnBase, borderColor: '#a5b4fc', background: '#f5f3ff' }
+          const btnDisabled: React.CSSProperties = { ...btnBase, opacity: 0.35, cursor: 'not-allowed', background: '#f8fafc' }
+          return (
+            <div style={{
+              flex: '0 0 56px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '16px 8px',
+              background: 'white',
+              borderLeft: '1px solid #f1f5f9',
+              boxShadow: '-2px 0 8px rgba(0,0,0,0.03)',
+            }}>
+              {/* Zurück / Undo */}
+              <button
+                onClick={performUndo}
+                disabled={undoCount === 0}
+                title={`Rückgängig (Strg+Z)${undoCount > 0 ? ` – ${undoCount} Schritt${undoCount > 1 ? 'e' : ''}` : ''}`}
+                style={undoCount > 0 ? btnActive : btnDisabled}
+                onMouseOver={e => { if (undoCount > 0) { (e.currentTarget as HTMLElement).style.background = '#ede9fe'; (e.currentTarget as HTMLElement).style.borderColor = '#7c3aed'; } }}
+                onMouseOut={e => { if (undoCount > 0) { (e.currentTarget as HTMLElement).style.background = '#f5f3ff'; (e.currentTarget as HTMLElement).style.borderColor = '#a5b4fc'; } }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={undoCount > 0 ? '#5b21b6' : '#94a3b8'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 7v6h6"/>
+                  <path d="M3 13C5 7.5 10 4 15.5 4c5 0 8.5 3.5 8.5 8s-3.5 8-8.5 8c-3 0-5.5-1-7.5-3"/>
+                </svg>
+              </button>
+
+              {/* Vorwärts / Redo */}
+              <button
+                onClick={performRedo}
+                disabled={redoCount === 0}
+                title={`Wiederholen (Strg+Y)${redoCount > 0 ? ` – ${redoCount} Schritt${redoCount > 1 ? 'e' : ''}` : ''}`}
+                style={redoCount > 0 ? btnActive : btnDisabled}
+                onMouseOver={e => { if (redoCount > 0) { (e.currentTarget as HTMLElement).style.background = '#ede9fe'; (e.currentTarget as HTMLElement).style.borderColor = '#7c3aed'; } }}
+                onMouseOut={e => { if (redoCount > 0) { (e.currentTarget as HTMLElement).style.background = '#f5f3ff'; (e.currentTarget as HTMLElement).style.borderColor = '#a5b4fc'; } }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={redoCount > 0 ? '#5b21b6' : '#94a3b8'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 7v6h-6"/>
+                  <path d="M21 13C19 7.5 14 4 8.5 4 3.5 4 0 7.5 0 12s3.5 8 8.5 8c3 0 5.5-1 7.5-3"/>
+                </svg>
+              </button>
+
+              {/* Trennlinie */}
+              <div style={{ width: '28px', height: '1px', background: '#e2e8f0', margin: '2px 0' }} />
+
+              {/* Drehen (R) */}
+              <button
+                onClick={rotateGroup}
+                disabled={!isDragging}
+                title="Drehen (R) – nur beim Ziehen"
+                style={isDragging ? btnBase : btnDisabled}
+                onMouseOver={e => { if (isDragging) { (e.currentTarget as HTMLElement).style.background = '#f0fdf4'; (e.currentTarget as HTMLElement).style.borderColor = '#86efac'; } }}
+                onMouseOut={e => { if (isDragging) { (e.currentTarget as HTMLElement).style.background = 'white'; (e.currentTarget as HTMLElement).style.borderColor = '#e2e8f0'; } }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isDragging ? '#16a34a' : '#94a3b8'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 2v6h-6"/>
+                  <path d="M21 8A9 9 0 1 0 18 18"/>
+                </svg>
+              </button>
+
+              {/* Spiegeln (T) */}
+              <button
+                onClick={mirrorGroup}
+                disabled={!isDragging}
+                title="Spiegeln (T) – nur beim Ziehen"
+                style={isDragging ? btnBase : btnDisabled}
+                onMouseOver={e => { if (isDragging) { (e.currentTarget as HTMLElement).style.background = '#f0fdf4'; (e.currentTarget as HTMLElement).style.borderColor = '#86efac'; } }}
+                onMouseOut={e => { if (isDragging) { (e.currentTarget as HTMLElement).style.background = 'white'; (e.currentTarget as HTMLElement).style.borderColor = '#e2e8f0'; } }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isDragging ? '#16a34a' : '#94a3b8'} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 3v18"/>
+                  <path d="M4 7l-2 5 2 5"/>
+                  <path d="M20 7l2 5-2 5"/>
+                  <path d="M2 12h8"/>
+                  <path d="M14 12h8"/>
+                </svg>
+              </button>
+            </div>
+          )
+        })()}
       </div>
       {tableContextMenu && (
         <div
