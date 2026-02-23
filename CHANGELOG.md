@@ -8,7 +8,37 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 _Noch keine Änderungen eingetragen._
 
+## [1.0.2] - 2026-02-23
+### Added
+- Umfassende Keyboard-Shortcuts für `/room` und `/roomeditor`: ESC (Abbruch), Ctrl+Z (Rückgängig), Ctrl+Y/Shift+Z (Wiederholen), Ctrl+S (Speichern), R/T (beim Ziehen).
+- Redo/Undo-Funktionalität mit getrennten Stacks (je max. 5 Schritte) und visuellen Schrittzählern.
+- Schmale Action-Spalte rechts in `/room` mit Icon-Buttons für Zurück, Vorwärts, Drehen und Spiegeln.
+- Erweiterte Help-Modal mit aktualisierten Tastatur-Referenzen.
+
+### Changed
+- Undo-Button aus Seitenleiste entfernt (nun in Action-Spalte mit Redo-Funktion).
+- Help-Modal mit Tab-Navigation und separater RoomEditor-Hilfe erweitert.
+
+### Fixed
+- Keyboard-Shortcut-Handler refaktoriert zur Vermeidung von Duplikaten.
+
 ## [1.0.1] - 2026-02-15
+### Added
+- Email-Verifikation und Password-Reset: Nutzer können E-Mails verifizieren, Passwörter zurücksetzen und ihre Authentifizierungsdaten verwalten.
+- Email-Change-Funktionalität mit Bestätigungsfluss und Password-Confirmation bei Sicherheitsänderungen.
+- Favicon und Branding-Assets für verbesserte Markenidentität.
+
+### Changed
+- Rebranding zu PlatzPilot auf Landing Pages und öffentlichen Layouts.
+- SEO-Verbesserungen: Route-spezifische Canonical Tags, deutsches Umlaute-Handling (ä/ö/ü), Landing-Page-Refactoring mit Inline-Styles.
+- Sitemap und robots.txt optimiert für Suchmaschinen.
+- Profilverwaltung: Passwortfelder reordert, Fehlerbehandlung verbessert.
+
+### Fixed
+- Session-Token korrekt in Profile Auth-Actions verarbeitet.
+- JSX Syntax-Fehler in VerifyEmail-Komponente behoben.
+- Build-Version auf 1.0.0-dev korrigiert.
+- Entfernung von ungenutzten Landing-Page-CSS-Dateien.
 
 ## [1.0.0] - 2026-02-11
 ### Added
