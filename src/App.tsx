@@ -20,6 +20,8 @@ import VerifyEmail from './components/VerifyEmail'
 import Profile from './components/Profile'
 import AdminPanel from './components/AdminPanel'
 import ToGo from './components/ToGo'
+import ReservationPage from './components/ReservationPage'
+import ReservationCancelPage from './components/ReservationCancelPage'
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const auth = useAuth()
@@ -52,6 +54,10 @@ export default function App() {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/verify-email" element={<VerifyEmail />} />
+      
+      {/* ═══ PUBLIC RESERVATION ROUTES (No login required) ═══ */}
+      <Route path="/e/:shareToken" element={<ReservationPage />} />
+      <Route path="/e/cancel/:cancelToken" element={<ReservationCancelPage />} />
       
       {/* ═══ APP ROUTES (Protected, User must be logged in) ═══ */}
       <Route path="/app" element={<RequireAuth><AppLayout /></RequireAuth>}>

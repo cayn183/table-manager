@@ -63,6 +63,61 @@ export const api = {
   post: (path: string, body?: any, token?: string) => request('POST', path, body, { token }),
   get: (path: string, token?: string) => request('GET', path, undefined, { token }),
   del: (path: string, token?: string) => request('DELETE', path, undefined, { token }),
+  patch: (path: string, body?: any, token?: string) => request('PATCH', path, body, { token }),
+}
+
+/** Make a request without credentials/cookies — used for public endpoints. */
+export async function publicRequest(method: string, path: string, body?: any) {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const requestId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`
+  headers['X-Request-Id'] = requestId
+  let res: Response
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    })
+  } catch (e: any) {
+    logger.error('api', { requestId, method, path, error: e?.message || String(e) })
+    throw e
+  }
+  const text = await res.text()
+  let data: any = null
+  try { data = text ? JSON.parse(text) : null } catch { data = { text } }
+  if (!res.ok) {
+    const err = data?.error || data?.message || `Request failed (${res.status})`
+    const e = new Error(err) as any
+    e.status = res.status
+    e.body = data
+    throw e
+  }
+  return data
+}
+
+/** Upload a file via multipart/form-data (authenticated). */
+export async function uploadFile(path: string, formData: FormData) {
+  const requestId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`
+  let res: Response
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      method: 'POST',
+      headers: { 'X-Request-Id': requestId },
+      body: formData,
+      credentials: 'include',
+    })
+  } catch (e: any) {
+    throw e
+  }
+  const text = await res.text()
+  let data: any = null
+  try { data = text ? JSON.parse(text) : null } catch { data = { text } }
+  if (!res.ok) {
+    const e = new Error(data?.error || `Upload failed (${res.status})`) as any
+    e.status = res.status
+    throw e
+  }
+  return data
 }
 
 export default api

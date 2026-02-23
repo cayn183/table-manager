@@ -6,6 +6,7 @@ import api from '../api/apiClient'
 import { syncUserData } from '../utils/sync'
 import { hydrateUserData } from '../utils/sync'
 import { useSetPageHeader } from './PageHeaderContext'
+import ReservationConfigPanel from './ReservationConfigPanel'
 
 type EventItem = {
   id: string
@@ -32,6 +33,8 @@ export default function LoadEvent() {
   const auth = useAuth()
   const userId = auth.user ? auth.user.id : null
   const [events, setEvents] = useState<EventItem[]>([])
+  const [reservationEventId, setReservationEventId] = useState<string | null>(null)
+  const [reservationIsToGo, setReservationIsToGo] = useState(false)
   useSetPageHeader('Erstelltes Event laden', '📂')
 
   useEffect(() => {
@@ -151,6 +154,13 @@ export default function LoadEvent() {
                 {event.lastModified && <p style={{ margin: '4px 0', fontSize: '12px', color: '#94a3b8' }}>Geändert: {event.lastModified}</p>}
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  onClick={() => { setReservationEventId(event.id); setReservationIsToGo(!!event.isToGo) }}
+                  style={{ padding: '10px 16px', background: '#f0fdf4', color: '#166534', border: '1.5px solid #bbf7d0', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', transition: 'all 0.2s' }}
+                  onMouseOver={e => { e.currentTarget.style.background = '#dcfce7' }}
+                  onMouseOut={e => { e.currentTarget.style.background = '#f0fdf4' }}
+                  title="Reservierungsseite verwalten"
+                >🎟️</button>
                 <button 
                   onClick={() => loadEvent(event)}
                   style={{ 
@@ -184,6 +194,14 @@ export default function LoadEvent() {
         </div>
       )}
       </div>
+
+      {reservationEventId && (
+        <ReservationConfigPanel
+          eventId={reservationEventId}
+          isToGo={reservationIsToGo}
+          onClose={() => setReservationEventId(null)}
+        />
+      )}
     </div>
   )
 }
