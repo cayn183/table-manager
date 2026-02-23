@@ -16,7 +16,7 @@ const ClubContext = createContext<ClubCtx | undefined>(undefined)
 const ACTIVE_CLUB_KEY = 'active_club_id'
 
 export function ClubProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth()
+  const { user, token } = useAuth()
   const [clubs, setClubs] = useState<Club[]>([])
   const [loading, setLoading] = useState(true)
   const [activeClubId, setActiveClubIdState] = useState<string | null>(() => {
@@ -26,7 +26,7 @@ export function ClubProvider({ children }: { children: React.ReactNode }) {
   const refreshClubs = useCallback(async () => {
     if (!user) { setClubs([]); setLoading(false); return }
     try {
-      const data = await getMyClubs()
+      const data = await getMyClubs(token || undefined)
       setClubs(data)
       // If active club no longer exists in the list, reset
       if (activeClubId && !data.find(c => c.id === activeClubId)) {
@@ -37,7 +37,7 @@ export function ClubProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }, [user, activeClubId])
+  }, [user, token, activeClubId])
 
   useEffect(() => {
     refreshClubs()

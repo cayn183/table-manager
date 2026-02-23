@@ -7,7 +7,7 @@ import type { Club, ClubMember } from '../types/club'
 
 export default function ClubSettings() {
   const { clubId } = useParams<{ clubId: string }>()
-  const { user } = useAuth()
+  const { user, token } = useAuth()
   const navigate = useNavigate()
   const { refreshClubs } = useClubs()
   const [club, setClub] = useState<Club | null>(null)
@@ -26,17 +26,17 @@ export default function ClubSettings() {
   useEffect(() => {
     if (!clubId) return
     Promise.all([
-      getClub(clubId).then(c => { setClub(c); setName(c.name); setDescription(c.description || '') }),
-      getClubMembers(clubId).then(setMembers)
+      getClub(clubId, token || undefined).then(c => { setClub(c); setName(c.name); setDescription(c.description || '') }),
+      getClubMembers(clubId, token || undefined).then(setMembers)
     ]).finally(() => setLoading(false))
-  }, [clubId])
+  }, [clubId, token])
 
   async function handleSave() {
     if (!clubId) return
     setSaving(true)
     setSaved(false)
     try {
-      const updated = await updateClub(clubId, { name: name.trim(), description: description.trim() || undefined })
+      const updated = await updateClub(clubId, { name: name.trim(), description: description.trim() || undefined }, token || undefined)
       setClub(prev => prev ? { ...prev, ...updated } : prev)
       await refreshClubs()
       setSaved(true)
@@ -51,7 +51,7 @@ export default function ClubSettings() {
   async function handleDelete() {
     if (!clubId) return
     try {
-      await deleteClub(clubId)
+      await deleteClub(clubId, token || undefined)
       await refreshClubs()
       navigate('/app')
     } catch (err: any) {
@@ -63,7 +63,7 @@ export default function ClubSettings() {
     if (!clubId || !transferTarget) return
     if (!confirm('Bist du sicher? Du wirst danach nur noch Vorstand sein.')) return
     try {
-      await transferOwnership(clubId, transferTarget)
+      await transferOwnership(clubId, transferTarget, token || undefined)
       await refreshClubs()
       navigate('/app')
     } catch (err: any) {

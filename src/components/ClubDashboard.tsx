@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../auth/AuthContext'
 import { useClubs } from './ClubContext'
 import { getClubActivity, getClubMembers, createInvite } from '../api/clubApi'
 import type { ClubActivity, ClubMember } from '../types/club'
 import { ACTIVITY_LABELS, ROLE_LABELS } from '../types/club'
 
 export default function ClubDashboard() {
+  const { token } = useAuth()
   const { clubs, activeClub, setActiveClubId } = useClubs()
   const navigate = useNavigate()
   const [members, setMembers] = useState<ClubMember[]>([])
@@ -15,9 +17,9 @@ export default function ClubDashboard() {
 
   useEffect(() => {
     if (!activeClub) return
-    getClubMembers(activeClub.id).then(setMembers).catch(() => {})
-    getClubActivity(activeClub.id, 10).then(setActivity).catch(() => {})
-  }, [activeClub?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+    getClubMembers(activeClub.id, token || undefined).then(setMembers).catch(() => {})
+    getClubActivity(activeClub.id, 10, token || undefined).then(setActivity).catch(() => {})
+  }, [activeClub?.id, token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!activeClub) return null
 
@@ -27,7 +29,7 @@ export default function ClubDashboard() {
     if (!activeClub) return
     setInviteLoading(true)
     try {
-      const res = await createInvite(activeClub.id, { expires_in_hours: 72 })
+      const res = await createInvite(activeClub.id, { expires_in_hours: 72 }, token || undefined)
       setInviteCode(res.code)
     } catch { }
     finally { setInviteLoading(false) }

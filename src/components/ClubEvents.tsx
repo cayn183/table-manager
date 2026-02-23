@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useAuth } from '../auth/AuthContext'
 import { getClub, getClubEvents, deleteClubEvent } from '../api/clubApi'
 import type { Club, ClubEvent } from '../types/club'
 
 export default function ClubEvents() {
   const { clubId } = useParams<{ clubId: string }>()
+  const { token } = useAuth()
   const navigate = useNavigate()
   const [club, setClub] = useState<Club | null>(null)
   const [events, setEvents] = useState<ClubEvent[]>([])
@@ -15,16 +17,16 @@ export default function ClubEvents() {
   useEffect(() => {
     if (!clubId) return
     Promise.all([
-      getClub(clubId).then(setClub),
-      getClubEvents(clubId).then(setEvents)
+      getClub(clubId, token || undefined).then(setClub),
+      getClubEvents(clubId, token || undefined).then(setEvents)
     ]).finally(() => setLoading(false))
-  }, [clubId])
+  }, [clubId, token])
 
   async function handleDelete(eventId: string, title: string) {
     if (!clubId) return
     if (!confirm(`Event "${title}" wirklich löschen?`)) return
     try {
-      await deleteClubEvent(clubId, eventId)
+      await deleteClubEvent(clubId, eventId, token || undefined)
       setEvents(prev => prev.filter(e => e.id !== eventId))
     } catch (err: any) {
       alert(err?.message || 'Fehler')

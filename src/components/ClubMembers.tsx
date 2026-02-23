@@ -8,7 +8,7 @@ import type { ClubRole } from '../types/club'
 
 export default function ClubMembers() {
   const { clubId } = useParams<{ clubId: string }>()
-  const { user } = useAuth()
+  const { user, token } = useAuth()
   const navigate = useNavigate()
   const [club, setClub] = useState<Club | null>(null)
   const [members, setMembers] = useState<ClubMember[]>([])
@@ -26,16 +26,16 @@ export default function ClubMembers() {
   useEffect(() => {
     if (!clubId) return
     Promise.all([
-      getClub(clubId).then(setClub),
-      getClubMembers(clubId).then(setMembers),
-      getInvites(clubId).then(setInvites).catch(() => {}),
+      getClub(clubId, token || undefined).then(setClub),
+      getClubMembers(clubId, token || undefined).then(setMembers),
+      getInvites(clubId, token || undefined).then(setInvites).catch(() => {}),
     ]).finally(() => setLoading(false))
-  }, [clubId])
+  }, [clubId, token])
 
   async function handleRoleChange(userId: string, newRole: string) {
     if (!clubId) return
     try {
-      await updateClubMember(clubId, userId, { role: newRole })
+      await updateClubMember(clubId, userId, { role: newRole }, token || undefined)
       setMembers(prev => prev.map(m => m.user_id === userId ? { ...m, role: newRole as ClubRole } : m))
     } catch (err: any) {
       alert(err?.message || 'Fehler')
@@ -45,7 +45,7 @@ export default function ClubMembers() {
   async function handleDescSave(userId: string) {
     if (!clubId) return
     try {
-      await updateClubMember(clubId, userId, { description: descDraft })
+      await updateClubMember(clubId, userId, { description: descDraft }, token || undefined)
       setMembers(prev => prev.map(m => m.user_id === userId ? { ...m, description: descDraft } : m))
       setEditingDesc(null)
     } catch (err: any) {
@@ -59,7 +59,7 @@ export default function ClubMembers() {
     const msg = isSelf ? 'Möchtest du den Verein wirklich verlassen?' : `${name} wirklich aus dem Verein entfernen?`
     if (!confirm(msg)) return
     try {
-      await removeClubMember(clubId, userId)
+      await removeClubMember(clubId, userId, token || undefined)
       if (isSelf) { navigate('/app'); return }
       setMembers(prev => prev.filter(m => m.user_id !== userId))
     } catch (err: any) {
@@ -70,8 +70,8 @@ export default function ClubMembers() {
   async function handleCreateInvite() {
     if (!clubId) return
     try {
-      await createInvite(clubId, { expires_in_hours: inviteHours, max_uses: inviteMaxUses || undefined })
-      const list = await getInvites(clubId)
+      await createInvite(clubId, { expires_in_hours: inviteHours, max_uses: inviteMaxUses || undefined }, token || undefined)
+      const list = await getInvites(clubId, token || undefined)
       setInvites(list)
       setInviteForm(false)
     } catch (err: any) {
@@ -82,7 +82,7 @@ export default function ClubMembers() {
   async function handleRevokeInvite(inviteId: string) {
     if (!clubId) return
     try {
-      await revokeInvite(clubId, inviteId)
+      await revokeInvite(clubId, inviteId, token || undefined)
       setInvites(prev => prev.filter(i => i.id !== inviteId))
     } catch {}
   }

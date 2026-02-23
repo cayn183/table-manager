@@ -2,62 +2,62 @@ import api from './apiClient'
 import type { Club, ClubMember, ClubInvite, ClubActivity, ClubEvent } from '../types/club'
 
 // ═══ Club CRUD ═════════════════════════════════════════════════════
-export async function createClub(name: string): Promise<Club> {
-  return api.post('/clubs', { name })
+export async function createClub(name: string, token?: string): Promise<Club> {
+  return api.post('/clubs', { name }, token)
 }
 
-export async function getMyClubs(): Promise<Club[]> {
-  return api.get('/clubs')
+export async function getMyClubs(token?: string): Promise<Club[]> {
+  return api.get('/clubs', token)
 }
 
-export async function getClub(clubId: string): Promise<Club> {
-  return api.get(`/clubs/${clubId}`)
+export async function getClub(clubId: string, token?: string): Promise<Club> {
+  return api.get(`/clubs/${clubId}`, token)
 }
 
-export async function updateClub(clubId: string, data: { name?: string; description?: string }): Promise<Club> {
-  return api.patch(`/clubs/${clubId}`, data)
+export async function updateClub(clubId: string, data: { name?: string; description?: string }, token?: string): Promise<Club> {
+  return api.patch(`/clubs/${clubId}`, data, token)
 }
 
-export async function deleteClub(clubId: string): Promise<void> {
-  return api.del(`/clubs/${clubId}`)
+export async function deleteClub(clubId: string, token?: string): Promise<void> {
+  return api.del(`/clubs/${clubId}`, token)
 }
 
 // ═══ Members ═══════════════════════════════════════════════════════
-export async function getClubMembers(clubId: string): Promise<ClubMember[]> {
-  return api.get(`/clubs/${clubId}/members`)
+export async function getClubMembers(clubId: string, token?: string): Promise<ClubMember[]> {
+  return api.get(`/clubs/${clubId}/members`, token)
 }
 
-export async function updateClubMember(clubId: string, userId: string, data: { role?: string; description?: string }): Promise<void> {
-  return api.patch(`/clubs/${clubId}/members/${userId}`, data)
+export async function updateClubMember(clubId: string, userId: string, data: { role?: string; description?: string }, token?: string): Promise<void> {
+  return api.patch(`/clubs/${clubId}/members/${userId}`, data, token)
 }
 
-export async function removeClubMember(clubId: string, userId: string): Promise<void> {
-  return api.del(`/clubs/${clubId}/members/${userId}`)
+export async function removeClubMember(clubId: string, userId: string, token?: string): Promise<void> {
+  return api.del(`/clubs/${clubId}/members/${userId}`, token)
 }
 
 // ═══ Invites ═══════════════════════════════════════════════════════
-export async function createInvite(clubId: string, opts?: { expires_in_hours?: number; max_uses?: number }): Promise<{ code: string; expires_at?: string; max_uses?: number }> {
-  return api.post(`/clubs/${clubId}/invites`, opts || {})
+export async function createInvite(clubId: string, opts?: { expires_in_hours?: number; max_uses?: number }, token?: string): Promise<{ code: string; expires_at?: string; max_uses?: number }> {
+  return api.post(`/clubs/${clubId}/invites`, opts || {}, token)
 }
 
-export async function getInvites(clubId: string): Promise<ClubInvite[]> {
-  return api.get(`/clubs/${clubId}/invites`)
+export async function getInvites(clubId: string, token?: string): Promise<ClubInvite[]> {
+  return api.get(`/clubs/${clubId}/invites`, token)
 }
 
-export async function revokeInvite(clubId: string, inviteId: string): Promise<void> {
-  return api.del(`/clubs/${clubId}/invites/${inviteId}`)
+export async function revokeInvite(clubId: string, inviteId: string, token?: string): Promise<void> {
+  return api.del(`/clubs/${clubId}/invites/${inviteId}`, token)
 }
 
-export async function joinClub(code: string): Promise<Club> {
-  return api.post(`/clubs/join/${code}`)
+export async function joinClub(code: string, token?: string): Promise<Club> {
+  return api.post(`/clubs/join/${code}`, {}, token)
 }
 
 // ═══ Club Events ═══════════════════════════════════════════════════
-export async function getClubEvents(clubId: string): Promise<ClubEvent[]> {
-  return api.get(`/clubs/${clubId}/events`)
+export async function getClubEvents(clubId: string, token?: string): Promise<ClubEvent[]> {
+  return api.get(`/clubs/${clubId}/events`, token)
 }
 
-export async function createClubEvent(clubId: string, data: { id?: string; title: string; data: any }): Promise<ClubEvent> {
+export async function createClubEvent(clubId: string, data: { id?: string; title: string; data: any }, token?: string): Promise<ClubEvent> {
   return api.post(`/clubs/${clubId}/events`, data)
 }
 

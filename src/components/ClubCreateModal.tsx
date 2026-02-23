@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useAuth } from '../auth/AuthContext'
 import { createClub } from '../api/clubApi'
 import { useClubs } from './ClubContext'
 
@@ -7,6 +8,7 @@ interface Props {
 }
 
 export default function ClubCreateModal({ onClose }: Props) {
+  const { token } = useAuth()
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -18,7 +20,7 @@ export default function ClubCreateModal({ onClose }: Props) {
     setLoading(true)
     setError(null)
     try {
-      const club = await createClub(name.trim())
+      const club = await createClub(name.trim(), token || undefined)
       await refreshClubs()
       setActiveClubId(club.id)
       onClose()
