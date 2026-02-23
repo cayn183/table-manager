@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { useClubs } from './ClubContext'
 import userStorage from '../utils/userStorage'
 import { syncUserData } from '../utils/sync'
 import type { ToGoEventConfig } from '../types/togo'
 import FeedbackForm from './FeedbackForm'
+import ClubCreateModal from './ClubCreateModal'
+import ClubJoinModal from './ClubJoinModal'
+import ClubDashboard from './ClubDashboard'
 import { useHelp } from './HelpContext'
 import api from '../api/apiClient'
 
@@ -30,9 +34,12 @@ export default function Home() {
   const navigate = useNavigate()
   const auth = useAuth()
   const { openHelp } = useHelp()
+  const { clubs, loading: clubsLoading } = useClubs()
   const userId = auth.user ? auth.user.id : null
   const [showEventModal, setShowEventModal] = useState(false)
   const [showFeedbackModal, setShowFeedbackModal] = useState(false)
+  const [showCreateClubModal, setShowCreateClubModal] = useState(false)
+  const [showJoinClubModal, setShowJoinClubModal] = useState(false)
   const [eventName, setEventName] = useState('')
   const [eventDate, setEventDate] = useState('')
   const [fromTime, setFromTime] = useState('')
@@ -197,8 +204,23 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px', maxWidth: '800px', margin: '0 auto' }}>
+        {/* Two-column layout: Private (left) + Club (right) when user is in clubs */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: clubs.length > 0 ? '1fr 1fr' : '1fr',
+          gap: 32,
+          maxWidth: clubs.length > 0 ? '1200px' : '800px',
+          margin: '0 auto'
+        }}>
+          {/* ── Left Column: Private ── */}
+          <div>
+            {clubs.length > 0 && (
+              <h3 style={{ margin: '0 0 16px', fontSize: 15, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                🏠 Privat
+              </h3>
+            )}
+            {/* Action Buttons */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' }}>
           <button 
             onClick={() => setShowEventModal(true)}
             style={{
@@ -299,6 +321,70 @@ export default function Home() {
               <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '400' }}>Neuen Raum mit Tisch-Layout erstellen</span>
             </button>
           </Link>
+
+          {/* Club Buttons */}
+          <button
+            onClick={() => setShowCreateClubModal(true)}
+            style={{
+              padding: '32px 24px',
+              background: 'white',
+              border: '2px solid #10b981',
+              borderRadius: '16px',
+              cursor: 'pointer',
+              fontSize: '18px',
+              fontWeight: '600',
+              color: '#10b981',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+              transition: 'all 0.2s',
+              textAlign: 'left',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}
+            onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(16,185,129,0.3)'; }}
+            onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'; }}
+          >
+            <span style={{ fontSize: '32px' }}>🏆</span>
+            <span>Verein erstellen</span>
+            <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '400' }}>Einen neuen Verein gründen</span>
+          </button>
+          <button
+            onClick={() => setShowJoinClubModal(true)}
+            style={{
+              padding: '32px 24px',
+              background: 'white',
+              border: '2px solid #f59e0b',
+              borderRadius: '16px',
+              cursor: 'pointer',
+              fontSize: '18px',
+              fontWeight: '600',
+              color: '#f59e0b',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+              transition: 'all 0.2s',
+              textAlign: 'left',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}
+            onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(245,158,11,0.3)'; }}
+            onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'; }}
+          >
+            <span style={{ fontSize: '32px' }}>🤝</span>
+            <span>Verein beitreten</span>
+            <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '400' }}>Per Einladungscode beitreten</span>
+          </button>
+            </div>
+          </div>
+
+          {/* ── Right Column: Club Dashboard (only visible when in a club) ── */}
+          {clubs.length > 0 && (
+            <div>
+              <h3 style={{ margin: '0 0 16px', fontSize: 15, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                🏆 Verein
+              </h3>
+              <ClubDashboard />
+            </div>
+          )}
         </div>
       </div>
 
@@ -504,6 +590,9 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {showCreateClubModal && <ClubCreateModal onClose={() => setShowCreateClubModal(false)} />}
+      {showJoinClubModal && <ClubJoinModal onClose={() => setShowJoinClubModal(false)} />}
     </div>
   )
 }

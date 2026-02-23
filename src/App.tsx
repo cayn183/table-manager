@@ -22,6 +22,10 @@ import AdminPanel from './components/AdminPanel'
 import ToGo from './components/ToGo'
 import ReservationPage from './components/ReservationPage'
 import ReservationCancelPage from './components/ReservationCancelPage'
+import ClubMembers from './components/ClubMembers'
+import ClubSettings from './components/ClubSettings'
+import ClubEvents from './components/ClubEvents'
+import { ClubProvider } from './components/ClubContext'
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const auth = useAuth()
@@ -60,7 +64,7 @@ export default function App() {
       <Route path="/e/cancel/:cancelToken" element={<ReservationCancelPage />} />
       
       {/* ═══ APP ROUTES (Protected, User must be logged in) ═══ */}
-      <Route path="/app" element={<RequireAuth><AppLayout /></RequireAuth>}>
+      <Route path="/app" element={<RequireAuth><ClubProvider><AppLayout /></ClubProvider></RequireAuth>}>
         <Route index element={<Home />} />
         <Route path="profile" element={<Profile />} />
         <Route path="events" element={<LoadEvent />} />
@@ -68,6 +72,9 @@ export default function App() {
         <Route path="rooms" element={<LoadRoom />} />
         <Route path="rooms/:roomId" element={<RoomEditor />} />
         <Route path="togo" element={<ToGo />} />
+        <Route path="club/:clubId/members" element={<ClubMembers />} />
+        <Route path="club/:clubId/settings" element={<ClubSettings />} />
+        <Route path="club/:clubId/events" element={<ClubEvents />} />
       </Route>
       
       {/* ═══ ADMIN ROUTE (Special handling) ═══ */}
