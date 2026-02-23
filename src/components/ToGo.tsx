@@ -9,6 +9,8 @@ import { syncUserData } from '../utils/sync'
 import Papa from 'papaparse'
 import type { MenuItem, ToGoOrder, ToGoEventConfig, OrderItem } from '../types/togo'
 import { calculateOrderTotal, formatPrice, generateToGoId } from '../types/togo'
+import { usePageHeader } from './PageHeaderContext'
+import ReservationConfigPanel from './ReservationConfigPanel'
 
 // ============================================================================
 // CONSTANTS
@@ -58,6 +60,7 @@ export default function ToGo() {
   const [menuItemCategory, setMenuItemCategory] = useState('')
 
   const [showHelpModal, setShowHelpModal] = useState(false)
+  const [showReservationPanel, setShowReservationPanel] = useState(false)
   
   // Order Form
   const [orderFamilyName, setOrderFamilyName] = useState('')
@@ -89,6 +92,36 @@ export default function ToGo() {
   // --------------------------------------------------------------------------
   // LOAD EVENT
   // --------------------------------------------------------------------------
+
+  // ── Page header (title + reservation button) ────────────────────────────
+  const { setPageTitle, setHeaderContent } = usePageHeader()
+  useEffect(() => {
+    setPageTitle('ToGo Bestellungen', '🥡')
+    return () => { setPageTitle(null); setHeaderContent(null) }
+  }, [setPageTitle, setHeaderContent])
+
+  useEffect(() => {
+    if (!event) return
+    setHeaderContent(
+      <button
+        onClick={() => setShowReservationPanel(true)}
+        title="Reservierungsseite verwalten"
+        style={{
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          padding: '8px 16px', borderRadius: '999px',
+          background: 'linear-gradient(135deg, rgba(255,255,255,0.24), rgba(255,255,255,0.08))',
+          border: '1px solid rgba(255,255,255,0.6)', color: 'white',
+          fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.2)', whiteSpace: 'nowrap'
+        }}
+      >
+        🎟️ Reservierung
+      </button>
+    )
+  }, [event, setHeaderContent])
+
+  // --------------------------------------------------------------------------
+  // LOAD EVENT (from storage)
   useEffect(() => {
     const raw = userStorage.getItem(CURRENT_EVENT_KEY, userId)
     if (raw) {
@@ -2156,6 +2189,15 @@ export default function ToGo() {
             </div>
           </div>
         </div>
+      )}
+      {/* Reservation Config Panel */}
+      {showReservationPanel && event && (
+        <ReservationConfigPanel
+          eventId={event.id}
+          isToGo={true}
+          token={auth.token ?? undefined}
+          onClose={() => setShowReservationPanel(false)}
+        />
       )}
     </div>
   )

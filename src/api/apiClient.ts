@@ -96,13 +96,15 @@ export async function publicRequest(method: string, path: string, body?: any) {
 }
 
 /** Upload a file via multipart/form-data (authenticated). */
-export async function uploadFile(path: string, formData: FormData) {
+export async function uploadFile(path: string, formData: FormData, token?: string) {
   const requestId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`
+  const headers: Record<string, string> = { 'X-Request-Id': requestId }
+  if (token) headers['Authorization'] = `Bearer ${token}`
   let res: Response
   try {
     res = await fetch(`${BASE}${path}`, {
       method: 'POST',
-      headers: { 'X-Request-Id': requestId },
+      headers,
       body: formData,
       credentials: 'include',
     })

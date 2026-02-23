@@ -21,6 +21,7 @@ type EventItem = {
   groups?: any
   isToGo?: boolean
   toGoConfig?: any
+  noRoom?: boolean
 }
 
 const EVENTS_KEY = 'events'
@@ -34,7 +35,7 @@ export default function LoadEvent() {
   const userId = auth.user ? auth.user.id : null
   const [events, setEvents] = useState<EventItem[]>([])
   const [reservationEventId, setReservationEventId] = useState<string | null>(null)
-  const [reservationIsToGo, setReservationIsToGo] = useState(false)
+  const reservationEvent = events.find(e => e.id === reservationEventId)
   useSetPageHeader('Erstelltes Event laden', '📂')
 
   useEffect(() => {
@@ -58,6 +59,12 @@ export default function LoadEvent() {
     // ToGo events go to /togo route
     if (event.isToGo) {
       navigate('/app/togo')
+      return
+    }
+
+    // Events created without room planning go directly to the event view
+    if (event.noRoom) {
+      navigate(`/app/events/${event.id}`)
       return
     }
     
@@ -155,7 +162,7 @@ export default function LoadEvent() {
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button
-                  onClick={() => { setReservationEventId(event.id); setReservationIsToGo(!!event.isToGo) }}
+                  onClick={() => setReservationEventId(event.id)}
                   style={{ padding: '10px 16px', background: '#f0fdf4', color: '#166534', border: '1.5px solid #bbf7d0', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', transition: 'all 0.2s' }}
                   onMouseOver={e => { e.currentTarget.style.background = '#dcfce7' }}
                   onMouseOut={e => { e.currentTarget.style.background = '#f0fdf4' }}
@@ -195,10 +202,11 @@ export default function LoadEvent() {
       )}
       </div>
 
-      {reservationEventId && (
+      {reservationEventId && reservationEvent && (
         <ReservationConfigPanel
-          eventId={reservationEventId}
-          isToGo={reservationIsToGo}
+          eventId={reservationEvent.id}
+          isToGo={!!reservationEvent.isToGo}
+          token={auth.token ?? undefined}
           onClose={() => setReservationEventId(null)}
         />
       )}

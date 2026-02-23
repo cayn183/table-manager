@@ -5,10 +5,11 @@ import type { ReservationConfig, ReservationMenuItem, ReservationInfo, Reservati
 type Props = {
   eventId: string
   isToGo?: boolean
+  token?: string
   onClose: () => void
 }
 
-export default function ReservationConfigPanel({ eventId, isToGo, onClose }: Props) {
+export default function ReservationConfigPanel({ eventId, isToGo, token, onClose }: Props) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -33,7 +34,7 @@ export default function ReservationConfigPanel({ eventId, isToGo, onClose }: Pro
 
   // ── Load existing config ──────────────────────────────────────────
   useEffect(() => {
-    api.get(`/events/${eventId}/reservation-info`)
+    api.get(`/events/${eventId}/reservation-info`, token)
       .then((data: ReservationInfo) => {
         setIsPublic(data.isPublic)
         setShareToken(data.shareToken)
@@ -50,16 +51,16 @@ export default function ReservationConfigPanel({ eventId, isToGo, onClose }: Pro
       })
       .catch(() => { /* first time — no config yet */ })
       .finally(() => setLoading(false))
-  }, [eventId])
+  }, [eventId, token])
 
   // ── Load reservations when tab switches ───────────────────────────
   const loadReservations = useCallback(() => {
     setLoadingReservations(true)
-    api.get(`/events/${eventId}/reservations`)
+    api.get(`/events/${eventId}/reservations`, token)
       .then((data: Reservation[]) => setReservations(data))
       .catch(() => {})
       .finally(() => setLoadingReservations(false))
-  }, [eventId])
+  }, [eventId, token])
 
   useEffect(() => {
     if (tab === 'reservations') loadReservations()
@@ -79,7 +80,7 @@ export default function ReservationConfigPanel({ eventId, isToGo, onClose }: Pro
         optionalFields: { phone: phoneField, notes: notesField },
         menuItems,
       }
-      const result = await api.post(`/events/${eventId}/publish`, { reservationConfig: config })
+      const result = await api.post(`/events/${eventId}/publish`, { reservationConfig: config }, token)
       setShareToken(result.shareToken)
       setIsPublic(true)
       setSuccess('Reservierungsseite ist jetzt aktiv!')
@@ -95,7 +96,7 @@ export default function ReservationConfigPanel({ eventId, isToGo, onClose }: Pro
     setSuccess(null)
     setSaving(true)
     try {
-      await api.post(`/events/${eventId}/unpublish`)
+      await api.post(`/events/${eventId}/unpublish`, undefined, token)
       setIsPublic(false)
       setSuccess('Reservierungsseite deaktiviert.')
     } catch (e: any) {
@@ -118,7 +119,7 @@ export default function ReservationConfigPanel({ eventId, isToGo, onClose }: Pro
     try {
       const formData = new FormData()
       formData.append('logo', file)
-      const result = await uploadFile(`/events/${eventId}/reservation-logo`, formData)
+      const result = await uploadFile(`/events/${eventId}/reservation-logo`, formData, token)
       setLogoUrl(result.logoUrl)
     } catch (e: any) {
       setError(e?.message || 'Logo-Upload fehlgeschlagen.')
@@ -143,7 +144,7 @@ export default function ReservationConfigPanel({ eventId, isToGo, onClose }: Pro
   // ── Update reservation status ─────────────────────────────────────
   async function updateReservationStatus(reservationId: string, status: 'confirmed' | 'rejected') {
     try {
-      await api.patch(`/events/${eventId}/reservations/${reservationId}`, { status })
+      await api.patch(`/events/${eventId}/reservations/${reservationId}`, { status }, token)
       setReservations(prev => prev.map(r => r.id === reservationId ? { ...r, status } : r))
     } catch (e: any) {
       setError(e?.message || 'Status-Update fehlgeschlagen.')

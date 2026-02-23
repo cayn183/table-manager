@@ -34,6 +34,7 @@ import {
 import { openPrintDocument } from '../utils/printUtils'
 import logger from '../utils/logger'
 import { usePageHeader } from './PageHeaderContext'
+import ReservationConfigPanel from './ReservationConfigPanel'
 
 // ============================================================================
 // MAIN COMPONENT: Room
@@ -74,6 +75,7 @@ export default function Room() {
   // STATE: Modals & UI Controls
   // --------------------------------------------------------------------------
   const [showEventSaveModal, setShowEventSaveModal] = useState(false)
+  const [showReservationPanel, setShowReservationPanel] = useState(false)
   const [eventSaveName, setEventSaveName] = useState('')
   const [isSavingEvent, setIsSavingEvent] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
@@ -600,7 +602,7 @@ export default function Room() {
   useEffect(() => {
     setHeaderContent(
       <div style={{ width: '100%', minHeight: '70px', display: 'flex', alignItems: 'center' }}>
-        <div style={{ flex: '0 1 185px', minWidth: 0, display: 'flex', justifyContent: 'flex-end' }}>
+        <div style={{ flex: '0 1 185px', minWidth: 0, display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
           <Link
             to={roomEditPath}
             state={currentEventId ? { returnToEventId: currentEventId } : undefined}
@@ -619,6 +621,20 @@ export default function Room() {
               boxShadow: '0 10px 30px rgba(0,0,0,0.25)'
             }}
           >Raum bearbeiten</Link>
+          {currentEventId && (
+            <button
+              onClick={() => setShowReservationPanel(true)}
+              title="Reservierungsseite verwalten"
+              style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                padding: '8px 14px', borderRadius: '999px',
+                background: 'linear-gradient(135deg, rgba(255,255,255,0.24), rgba(255,255,255,0.08))',
+                border: '1px solid rgba(255,255,255,0.6)', color: 'white',
+                fontSize: '13px', fontWeight: 700, cursor: 'pointer',
+                boxShadow: '0 10px 30px rgba(0,0,0,0.25)', whiteSpace: 'nowrap'
+              }}
+            >🎟️ Reservierung</button>
+          )}
         </div>
 
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '16px', minHeight: '70px', flexWrap: 'wrap', paddingLeft: '80px' }}>
@@ -695,7 +711,7 @@ export default function Room() {
         </div>
       </div>
     )
-  }, [viewMode, timeInterval, headerStats, setHeaderContent, setViewMode, setTimeInterval, roomEditPath, currentEventId])
+  }, [viewMode, timeInterval, headerStats, setHeaderContent, setViewMode, setTimeInterval, roomEditPath, currentEventId, showReservationPanel])
 
   const computePlacementFromClient = useCallback((coords: { clientX: number; clientY: number }) => {
     if (!draggingGroup || !room) return null
@@ -4497,6 +4513,14 @@ export default function Room() {
         </div>
       )}
       {/* Der separate Drucken-Button am Seitenrand wurde entfernt, da das Druckersymbol verwendet wird */}
+      {showReservationPanel && currentEventId && (
+        <ReservationConfigPanel
+          eventId={currentEventId}
+          isToGo={false}
+          token={auth.token ?? undefined}
+          onClose={() => setShowReservationPanel(false)}
+        />
+      )}
     </div>
   )
 }

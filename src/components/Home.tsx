@@ -23,6 +23,7 @@ type EventItem = {
   eventDate?: string
   isToGo?: boolean
   toGoConfig?: ToGoEventConfig
+  noRoom?: boolean
 }
 
 export default function Home() {
@@ -101,6 +102,7 @@ export default function Home() {
     }
 
     if (useExistingRoom === 'none') {
+      ev.noRoom = true
       await saveAndPublish(`/app/events/${id}`)
       return
     }
