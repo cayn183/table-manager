@@ -57,12 +57,13 @@ function HelpRoom() {
       </Section>
       <Section step="5" title="Tastenbefehle" color="#f5f3ff" borderColor="#ddd6fe" headColor="#5b21b6">
         <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 14px', alignItems: 'center' }}>
-          <kbd style={kbd}>Entf</kbd><span>Ausgewählten Tisch löschen</span>
-          <kbd style={kbd}>Strg + Z</kbd><span>Rückgängig</span>
-          <kbd style={kbd}>Strg + S</kbd><span>Speichern</span>
-          <kbd style={kbd}>Esc</kbd><span>Auswahl aufheben</span>
+          <kbd style={kbd}>Esc</kbd><span>Ziehen abbrechen (Familie zurück)</span>
           <kbd style={kbd}>Klick + Ziehen</kbd><span>Tisch verschieben</span>
-          <kbd style={kbd}>Mausrad</kbd><span>Zoom</span>
+          <kbd style={kbd}>R</kbd><span>Familien drehen</span>
+          <kbd style={kbd}>T</kbd><span>Familien spiegeln</span>
+          <kbd style={kbd}>Strg + Z</kbd><span>Rückgängig (max. 5)</span>
+          <kbd style={kbd}>Strg + S</kbd><span>Speichern</span>
+
         </div>
       </Section>
     </div>
@@ -90,9 +91,9 @@ function HelpRoomEditor() {
       <Section step="5" title="Tastenbefehle" color="#f5f3ff" borderColor="#ddd6fe" headColor="#5b21b6">
         <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 14px', alignItems: 'center' }}>
           <kbd style={kbd}>Entf</kbd><span>Ausgewählten Tisch löschen</span>
-          <kbd style={kbd}>Strg + Z</kbd><span>Rückgängig</span>
-          <kbd style={kbd}>Strg + S</kbd><span>Speichern</span>
-          <kbd style={kbd}>Esc</kbd><span>Auswahl aufheben</span>
+          <kbd style={kbd}>Strg + Z</kbd><span>Rückgängig (max. 5)</span>
+          <kbd style={kbd}>Strg + S</kbd><span>Speicherdialog öffnen</span>
+          <kbd style={kbd}>Esc</kbd><span>Ziehen abbrechen (Tisch zurücksetzen)</span>
           <kbd style={kbd}>Klick + Ziehen</kbd><span>Tisch verschieben</span>
           <kbd style={kbd}>Mausrad</kbd><span>Zoom</span>
           <kbd style={kbd}>Shift + Ziehen</kbd><span>Mehrere Tische auswählen</span>

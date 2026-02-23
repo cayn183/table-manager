@@ -133,6 +133,12 @@ export default function Room() {
   const [uiScale, setUiScale] = useState(1)
   const draggingGroupRef = useRef<{ group: Group; rotation: number } | null>(null)
 
+  // Undo-Stack (max 5 Schritte) + Refs für stabile Keyboard-Handler
+  const undoStackRef = useRef<Array<{ assignedGroups: Record<string, AssignedGroup[]>; groups: Group[] }>>([]);
+  const [undoCount, setUndoCount] = useState(0)
+  const assignedGroupsRef = useRef<Record<string, AssignedGroup[]>>({})
+  const groupsRef = useRef<Group[]>([])
+
   // --------------------------------------------------------------------------
   // HELPER: Find best rotation for optimal gap-filling placement
   // --------------------------------------------------------------------------
@@ -753,6 +759,27 @@ export default function Room() {
     setHeldCursor(null)
   }, [])
 
+  // Undo: aktuellen Zustand vor einer Aktion sichern
+  const pushUndo = useCallback(() => {
+    const entry = { assignedGroups: assignedGroupsRef.current, groups: groupsRef.current }
+    undoStackRef.current = [...undoStackRef.current, entry].slice(-5)
+    setUndoCount(undoStackRef.current.length)
+  }, [])
+
+  const performUndo = useCallback(() => {
+    if (undoStackRef.current.length === 0) return
+    const stack = [...undoStackRef.current]
+    const prev = stack.pop()!
+    undoStackRef.current = stack
+    setUndoCount(stack.length)
+    setAssignedGroups(prev.assignedGroups)
+    setGroups(prev.groups)
+    setIsDirty(true)
+  }, [])
+
+  const cancelDraggingRef = useRef(cancelDragging)
+  const performUndoRef = useRef(performUndo)
+
   const toggleTableLock = useCallback((tableId: string) => {
     if (!room) return
     const target = room.tables.find(t => t.id === tableId)
@@ -806,6 +833,7 @@ export default function Room() {
         return
       }
 
+      pushUndo()
       if (draggingMeta.tableId === table.id) {
         setAssignedGroups({
           ...assignedGroups,
@@ -842,6 +870,7 @@ export default function Room() {
         return
       }
 
+      pushUndo()
       setAssignedGroups({
         ...assignedGroups,
         [table.id]: [...current, { group, rotation, locked: false, x: relX, y: relY, color: PALETTE[0] }]
@@ -853,7 +882,7 @@ export default function Room() {
     }
 
     cancelDragging()
-  }, [draggingGroup, draggingMeta, room, assignedGroups, groups, computePlacementFromClient, cancelDragging])
+  }, [draggingGroup, draggingMeta, room, assignedGroups, groups, computePlacementFromClient, cancelDragging, pushUndo])
 
 
   // Load room definition from localStorage on mount (prefer user-scoped storage)
@@ -964,6 +993,11 @@ export default function Room() {
     draggingGroupRef.current = draggingGroup
   }, [draggingGroup])
 
+  useEffect(() => { assignedGroupsRef.current = assignedGroups }, [assignedGroups])
+  useEffect(() => { groupsRef.current = groups }, [groups])
+  useEffect(() => { cancelDraggingRef.current = cancelDragging }, [cancelDragging])
+  useEffect(() => { performUndoRef.current = performUndo }, [performUndo])
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!draggingGroupRef.current) return
@@ -984,6 +1018,33 @@ export default function Room() {
       }
     }
 
+    window.addEventListener('keydown', handleKeyDown, true)
+    return () => window.removeEventListener('keydown', handleKeyDown, true)
+  }, [])
+
+  // Globale Shortcuts: ESC (Ziehen abbrechen), Ctrl+Z (Rükgängig), Ctrl+S (Speichern)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (draggingGroupRef.current) {
+          e.preventDefault()
+          cancelDraggingRef.current()
+        }
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z') && !e.shiftKey) {
+        const target = e.target as HTMLElement
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+        e.preventDefault()
+        performUndoRef.current()
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault()
+        saveEventSilentlyRef.current()
+        return
+      }
+    }
     window.addEventListener('keydown', handleKeyDown, true)
     return () => window.removeEventListener('keydown', handleKeyDown, true)
   }, [])
@@ -2090,6 +2151,28 @@ export default function Room() {
               >
                 💾 Speichern
               </button>
+
+              <button
+                onClick={performUndo}
+                disabled={undoCount === 0}
+                title="Rükgängig (Strg+Z)"
+                style={{
+                  flex: 1,
+                  padding: '12px 10px',
+                  background: undoCount > 0 ? '#f8fafc' : '#f1f5f9',
+                  color: undoCount > 0 ? '#374151' : '#94a3b8',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '8px',
+                  cursor: undoCount > 0 ? 'pointer' : 'not-allowed',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  transition: 'all 0.2s',
+                  opacity: undoCount > 0 ? 1 : 0.5,
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                ↩ {undoCount > 0 ? `(${undoCount})` : ''}
+              </button>
               
               <button
                 onClick={() => {
@@ -2984,6 +3067,7 @@ export default function Room() {
             <>
               <button
                 onClick={() => {
+                  pushUndo()
                   const ag = assignedGroups[contextMenu.tableId][contextMenu.agIdx]
                   setGroups([...groups, ag.group])
                   setAssignedGroups({

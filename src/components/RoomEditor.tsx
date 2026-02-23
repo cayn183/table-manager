@@ -24,6 +24,10 @@ export default function RoomEditor() {
   const [showHelp, setShowHelp] = useState(true)
   const [draggingTable, setDraggingTable] = useState<Table | null>(null)
   const [dragPreviewPos, setDragPreviewPos] = useState<{ x: number; y: number } | null>(null)
+  // Original-Zustand des aufgenommenen Tisches (für ESC-Abbruch)
+  const origTableStateRef = useRef<Table | null>(null)
+  // Undo-Stack für Tisch-Mutationen (max 5)
+  const [undoStack, setUndoStack] = useState<Table[][]>([])
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tableId: string } | null>(null)
   const [sizeModal, setSizeModal] = useState<{ tableId: string; capacity: string } | null>(null)
@@ -45,6 +49,21 @@ export default function RoomEditor() {
   const gridHeight = 20
   const cellSize = 40
 
+  // Undo-Hilfsfunktionen
+  function pushUndoEditor(currentTables: Table[]) {
+    setUndoStack(prev => [...prev, currentTables].slice(-5))
+  }
+
+  function performUndoEditor() {
+    setUndoStack(prev => {
+      if (prev.length === 0) return prev
+      const stack = [...prev]
+      const restored = stack.pop()!
+      setTables(restored)
+      return stack
+    })
+  }
+
   // Keyboard: rotate selected table with 'R', delete with 'Delete'
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -52,15 +71,21 @@ export default function RoomEditor() {
       if (!selectedTableId) return
       if (e.key === 'r' || e.key === 'R') {
         e.preventDefault()
-        setTables(prev => prev.map(t => {
-          if (t.id === selectedTableId) {
-            return { ...t, rotation: ((t.rotation ?? 0) + 1) % 4 }
-          }
-          return t
-        }))
+        setTables(prev => {
+          pushUndoEditor(prev)
+          return prev.map(t => {
+            if (t.id === selectedTableId) {
+              return { ...t, rotation: ((t.rotation ?? 0) + 1) % 4 }
+            }
+            return t
+          })
+        })
       } else if (e.key === 'Delete') {
         e.preventDefault()
-        setTables(prev => prev.filter(t => t.id !== selectedTableId))
+        setTables(prev => {
+          pushUndoEditor(prev)
+          return prev.filter(t => t.id !== selectedTableId)
+        })
         setSelectedTableId(null)
       }
     }
@@ -143,6 +168,7 @@ export default function RoomEditor() {
       height,
       locked: false
     }
+    pushUndoEditor(tables)
     setTables([...tables, newTable])
     setNextId(nextId + 1)
   }
@@ -150,7 +176,10 @@ export default function RoomEditor() {
   function handleDragStart(e: React.DragEvent, tableId: string) {
     e.dataTransfer.setData('text/plain', tableId)
     const table = tables.find(t => t.id === tableId)
-    if (table) setDraggingTable(table)
+    if (table) {
+      origTableStateRef.current = { ...table }
+      setDraggingTable(table)
+    }
   }
 
   function handleDrop(e: React.DragEvent) {
@@ -173,6 +202,7 @@ export default function RoomEditor() {
 
     // allow moving even if new rect intersects previous rect of same table
 
+    pushUndoEditor(tables)
     setTables(tables.map(t => t.id === tableId ? { ...t, x: clampedX, y: clampedY } : t))
     setDraggingTable(null)
     setDragPreviewPos(null)
@@ -192,6 +222,44 @@ export default function RoomEditor() {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [draggingTable, showSaveModal])
+
+  // Globale Shortcuts: ESC (Ziehen abbrechen + Original wiederherstellen), Ctrl+Z (Rükgängig), Ctrl+S (Speichern-Dialog)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (draggingTable) {
+          e.preventDefault()
+          // Tisch auf Ursprungsposition/-größe zurücksetzen
+          if (origTableStateRef.current) {
+            const orig = origTableStateRef.current
+            setTables(prev => prev.map(t => t.id === orig.id ? { ...orig } : t))
+          }
+          setDraggingTable(null)
+          setDragPreviewPos(null)
+          origTableStateRef.current = null
+        }
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z') && !e.shiftKey) {
+        const target = e.target as HTMLElement
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+        e.preventDefault()
+        performUndoEditor()
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+        if (showSaveModal) return
+        if (tables.length === 0) return
+        e.preventDefault()
+        setSaveRoomError(null)
+        setSaveRoomName(roomName)
+        setShowSaveModal(true)
+        return
+      }
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [draggingTable, showSaveModal, tables, roomName])
 
   function updateDragPreview(e: React.DragEvent | React.MouseEvent) {
     if (!draggingTable || !gridRef.current) return
@@ -410,11 +478,19 @@ export default function RoomEditor() {
               style={{ flex: 1, padding: '10px 12px', background: '#fff', color: '#64748b', border: '2px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}
             >Zurücksetzen</button>
           </div>
-          <button
-            onClick={() => { setSaveRoomError(null); setSaveRoomName(roomName); setShowSaveModal(true); }}
-            disabled={tables.length === 0}
-            style={{ padding: '12px 16px', background: tables.length === 0 ? '#e2e8f0' : '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: tables.length === 0 ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: 700, opacity: tables.length === 0 ? 0.6 : 1 }}
-          >💾 Speichern</button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => { setSaveRoomError(null); setSaveRoomName(roomName); setShowSaveModal(true); }}
+              disabled={tables.length === 0}
+              style={{ flex: 2, padding: '12px 14px', background: tables.length === 0 ? '#e2e8f0' : '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: tables.length === 0 ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: 700, opacity: tables.length === 0 ? 0.6 : 1 }}
+            >💾 Speichern</button>
+            <button
+              onClick={performUndoEditor}
+              disabled={undoStack.length === 0}
+              title="Rückgängig (Strg+Z)"
+              style={{ flex: 1, padding: '12px 10px', background: undoStack.length > 0 ? '#f8fafc' : '#f1f5f9', color: undoStack.length > 0 ? '#374151' : '#94a3b8', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: undoStack.length > 0 ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 600, opacity: undoStack.length > 0 ? 1 : 0.5, whiteSpace: 'nowrap' }}
+            >↩ {undoStack.length > 0 ? `(${undoStack.length})` : ''}</button>
+          </div>
           
           {showHelp && (
             <div style={{
@@ -454,6 +530,9 @@ export default function RoomEditor() {
                 <div><strong>Desktop:</strong></div>
                 <div>• Tisch verschieben: Tisch anklicken zum Aufnehmen, auf Ziel klicken zum Absetzen</div>
                 <div>• Tisch drehen: Taste <strong>R</strong> (während Tisch aufgenommen)</div>
+                <div>• Ziehen abbrechen: <strong>ESC</strong> (setzt Tisch auf Ursprungsposition zurück)</div>
+                <div>• Rückgängig: <strong>Strg+Z</strong> (max. 5 Schritte)</div>
+                <div>• Speichern: <strong>Strg+S</strong></div>
                 <div>• Rechtsklick: Kontextmenü zum <strong>Größe ändern</strong> oder <strong>Löschen</strong></div>
                 {/* Tablet/Phone instructions removed (deprecated) */}
               </div>
@@ -493,9 +572,11 @@ export default function RoomEditor() {
 
               // allow moving even if new rect intersects previous rect of same table
 
+              pushUndoEditor(tables)
               setTables(tables.map(t => t.id === draggingTable.id ? { ...t, x: clampedX, y: clampedY } : t))
               setDraggingTable(null)
               setDragPreviewPos(null)
+              origTableStateRef.current = null
             }}
             style={{
               display: 'grid',
@@ -571,6 +652,7 @@ export default function RoomEditor() {
                   e.stopPropagation()
                   // Click to pick up table (if not already dragging)
                   if (!draggingTable) {
+                    origTableStateRef.current = { ...table }
                     setDraggingTable(table)
                     setDragPreviewPos({ x: table.x, y: table.y })
                     setSelectedTableId(table.id)
@@ -636,7 +718,7 @@ export default function RoomEditor() {
                   style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', background: 'white', border: 'none', cursor: 'pointer', fontSize: 13 }}>
             📏 Größe ändern
           </button>
-          <button onClick={() => { setTables(prev => prev.filter(t => t.id !== contextMenu.tableId)); setContextMenu(null); if (selectedTableId === contextMenu.tableId) setSelectedTableId(null) }}
+          <button onClick={() => { setTables(prev => { pushUndoEditor(prev); return prev.filter(t => t.id !== contextMenu.tableId) }); setContextMenu(null); if (selectedTableId === contextMenu.tableId) setSelectedTableId(null) }}
                   style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', background: 'white', border: 'none', cursor: 'pointer', fontSize: 13, color: '#ef4444' }}>
             🗑️ Tisch löschen
           </button>
@@ -691,6 +773,7 @@ export default function RoomEditor() {
                           const otherOldId = existing.id
                           const otherNewId = candidate
 
+                          pushUndoEditor(tables)
                           setTables(prev => prev.map(t => {
                             if (t.id === otherOldId) return { ...t, id: otherNewId }
                             if (t.id === renameModal.tableId) return { ...t, id: newId }
@@ -704,6 +787,7 @@ export default function RoomEditor() {
                         }
 
                         // No collision: simple rename
+                        pushUndoEditor(tables)
                         setTables(prev => prev.map(t => t.id === renameModal.tableId ? { ...t, id: newId } : t))
                         if (selectedTableId === renameModal.tableId) setSelectedTableId(newId)
                         setRenameModal(null)
@@ -728,6 +812,7 @@ export default function RoomEditor() {
                       style={{ flex: 1, padding: '10px 14px', background: 'white', color: '#64748b', border: '2px solid #e2e8f0', borderRadius: 8, cursor: 'pointer' }}>Abbrechen</button>
               <button onClick={() => {
                         const cap = Math.max(1, parseInt(sizeModal.capacity || '4'))
+                        pushUndoEditor(tables)
                         setTables(prev => prev.map(t => t.id === sizeModal.tableId ? { ...t, capacity: cap, width: Math.ceil(cap / 2), height: 2 } : t))
                         setSizeModal(null)
                       }}
