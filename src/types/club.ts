@@ -52,6 +52,16 @@ export interface ClubEventModules {
   reservation: boolean
 }
 
+export interface ClubRoomData {
+  tables: import('../types/room').Table[]
+  viewFrame?: import('../types/room').ViewFrame | null
+}
+
+export interface ClubToGoConfig {
+  menuItems: import('../types/togo').MenuItem[]
+  orders: import('../types/togo').ToGoOrder[]
+}
+
 export interface ClubEventData {
   eventDate: string         // ISO date string (YYYY-MM-DD)
   timeFrom: string          // "HH:MM"
@@ -59,9 +69,9 @@ export interface ClubEventData {
   template?: ClubEventTemplate | null
   modules: ClubEventModules
   // Room/table data stored by the room editor
-  rooms?: any[]
+  roomData?: ClubRoomData | null
   // ToGo/food config
-  togoConfig?: any
+  togoConfig?: ClubToGoConfig | null
   // Reservation config
   reservationConfig?: any
 }

@@ -1,9 +1,13 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { getClub, getClubEvents, updateClubEvent, deleteClubEvent } from '../api/clubApi'
 import type { Club, ClubEvent, ClubEventData, ClubEventModules } from '../types/club'
 import { TEMPLATE_LABELS } from '../types/club'
+import type { Table, ViewFrame } from '../types/room'
+import type { MenuItem, ToGoOrder } from '../types/togo'
+import ClubRoomEditor from './ClubRoomEditor'
+import ClubToGo from './ClubToGo'
 
 type TabKey = 'overview' | 'room' | 'food' | 'reservation'
 
@@ -58,6 +62,27 @@ export default function ClubEventDetail() {
   const data: ClubEventData | null = event
     ? (typeof event.data === 'string' ? JSON.parse(event.data) : event.data)
     : null
+
+  // ── Save callbacks for module tabs ───────────────────────────
+  const handleRoomSave = useCallback(async (tables: Table[], viewFrame: ViewFrame | null) => {
+    if (!clubId || !eventId || !data) return
+    const updatedData: ClubEventData = {
+      ...data,
+      roomData: { tables, viewFrame },
+    }
+    const updated = await updateClubEvent(clubId, eventId, { data: updatedData as any }, token || undefined)
+    setEvent(updated)
+  }, [clubId, eventId, data, token])
+
+  const handleFoodSave = useCallback(async (menuItems: MenuItem[], orders: ToGoOrder[]) => {
+    if (!clubId || !eventId || !data) return
+    const updatedData: ClubEventData = {
+      ...data,
+      togoConfig: { menuItems, orders },
+    }
+    const updated = await updateClubEvent(clubId, eventId, { data: updatedData as any }, token || undefined)
+    setEvent(updated)
+  }, [clubId, eventId, data, token])
 
   // Compute visible tabs based on active modules
   const visibleTabs = ALL_TABS.filter(t => !t.moduleKey || data?.modules?.[t.moduleKey])
@@ -312,35 +337,29 @@ export default function ClubEventDetail() {
 
       {/* ═══ TAB: Raumplanung ═══ */}
       {activeTab === 'room' && (
-        <div style={cardStyle}>
-          <h3 style={{ margin: '0 0 12px', fontSize: 18, fontWeight: 700, color: '#1e293b' }}>🗺️ Raumplanung</h3>
-          <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-            <div style={{ fontSize: 56, marginBottom: 12 }}>🏗️</div>
-            <p style={{ fontSize: 15, color: '#475569', margin: '0 0 8px', fontWeight: 500 }}>
-              Raumplanung für Vereinsevents
-            </p>
-            <p style={{ fontSize: 13, color: '#94a3b8', margin: 0, maxWidth: 400, marginInline: 'auto' }}>
-              Hier kannst du Räume und Tische für die Veranstaltung „{event.title}" planen.
-              Die Integration des Raum-Editors für Vereinsevents wird in einem kommenden Update verfügbar sein.
-            </p>
-          </div>
+        <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+          <ClubRoomEditor
+            initialTables={data.roomData?.tables ?? []}
+            initialViewFrame={data.roomData?.viewFrame ?? null}
+            onSave={handleRoomSave}
+            readOnly={!isVorstand}
+          />
         </div>
       )}
 
       {/* ═══ TAB: Speiseplanung ═══ */}
       {activeTab === 'food' && (
-        <div style={cardStyle}>
-          <h3 style={{ margin: '0 0 12px', fontSize: 18, fontWeight: 700, color: '#1e293b' }}>🍽️ Speiseplanung</h3>
-          <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-            <div style={{ fontSize: 56, marginBottom: 12 }}>👨‍🍳</div>
-            <p style={{ fontSize: 15, color: '#475569', margin: '0 0 8px', fontWeight: 500 }}>
-              Speiseplanung & ToGo-Bereich
-            </p>
-            <p style={{ fontSize: 13, color: '#94a3b8', margin: 0, maxWidth: 400, marginInline: 'auto' }}>
-              Hier kannst du die Speisekarte und den ToGo-Bereich für „{event.title}" verwalten.
-              Die Integration der Speiseverwaltung für Vereinsevents wird in einem kommenden Update verfügbar sein.
-            </p>
-          </div>
+        <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+          <ClubToGo
+            eventTitle={event.title}
+            eventDate={data.eventDate}
+            timeFrom={data.timeFrom}
+            timeTo={data.timeTo}
+            initialMenuItems={data.togoConfig?.menuItems ?? []}
+            initialOrders={data.togoConfig?.orders ?? []}
+            onSave={handleFoodSave}
+            readOnly={!isVorstand}
+          />
         </div>
       )}
 
