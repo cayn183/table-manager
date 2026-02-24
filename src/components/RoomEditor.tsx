@@ -42,6 +42,7 @@ export default function RoomEditor() {
   const userId = user ? user.id : null
   const pendingEventId: string | null = (location.state as any)?.pendingEventId || null
   const returnToEventId: string | null = (location.state as any)?.returnToEventId || null
+  const returnToClubEvent: { clubId: string; eventId: string } | null = (location.state as any)?.returnToClubEvent || null
   const [existingRoomId, setExistingRoomId] = useState<string | null>(null)
   const [existingCreatedAt, setExistingCreatedAt] = useState<string | null>(null)
 
@@ -347,6 +348,8 @@ export default function RoomEditor() {
       navigate(`/app/events/${pendingEventId}`)
     } else if (returnToEventId) {
       navigate(`/app/events/${returnToEventId}`)
+    } else if (returnToClubEvent) {
+      navigate(`/app/club/${returnToClubEvent.clubId}/events/${returnToClubEvent.eventId}`)
     } else {
       navigate('/app/rooms')
     }
