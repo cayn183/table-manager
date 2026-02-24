@@ -6,6 +6,7 @@ import type { Club, ClubEvent, ClubEventData, ClubEventModules } from '../types/
 import { TEMPLATE_LABELS } from '../types/club'
 import type { Table, ViewFrame } from '../types/room'
 import type { MenuItem, ToGoOrder } from '../types/togo'
+import userStorage from '../utils/userStorage'
 import ClubRoomEditor from './ClubRoomEditor'
 import ClubToGo from './ClubToGo'
 
@@ -18,6 +19,13 @@ interface TabDef {
   icon: string
 }
 
+interface SavedRoom {
+  id: string
+  name: string
+  createdAt?: string
+  data: { tables: Table[]; viewFrame?: ViewFrame | null }
+}
+
 const ALL_TABS: TabDef[] = [
   { key: 'overview', label: 'Übersicht', icon: '📊' },
   { key: 'room', moduleKey: 'room', label: 'Raumplanung', icon: '🗺️' },
@@ -27,7 +35,7 @@ const ALL_TABS: TabDef[] = [
 
 export default function ClubEventDetail() {
   const { clubId, eventId } = useParams<{ clubId: string; eventId: string }>()
-  const { token } = useAuth()
+  const { token, user } = useAuth()
   const navigate = useNavigate()
 
   const [club, setClub] = useState<Club | null>(null)
@@ -35,7 +43,7 @@ export default function ClubEventDetail() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<TabKey>('overview')
 
-  // Edit state
+  // Edit state (inline in header)
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState('')
   const [editDate, setEditDate] = useState('')
@@ -44,7 +52,12 @@ export default function ClubEventDetail() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Room picker
+  const [showRoomPicker, setShowRoomPicker] = useState(false)
+  const [savedRooms, setSavedRooms] = useState<SavedRoom[]>([])
+
   const isVorstand = club?.my_role === 'owner' || club?.my_role === 'vorstand'
+  const userId = user?.id ?? null
 
   useEffect(() => {
     if (!clubId || !eventId) return
@@ -52,10 +65,8 @@ export default function ClubEventDetail() {
       getClub(clubId, token || undefined).then(setClub),
       getClubEvents(clubId, token || undefined).then(evts => {
         const found = evts.find(e => e.id === eventId)
-        if (found) {
-          setEvent(found)
-        }
-      })
+        if (found) setEvent(found)
+      }),
     ]).finally(() => setLoading(false))
   }, [clubId, eventId, token])
 
@@ -63,33 +74,26 @@ export default function ClubEventDetail() {
     ? (typeof event.data === 'string' ? JSON.parse(event.data) : event.data)
     : null
 
-  // ── Save callbacks for module tabs ───────────────────────────
+  // ── Save callbacks ────────────────────────────────────────────
   const handleRoomSave = useCallback(async (tables: Table[], viewFrame: ViewFrame | null) => {
     if (!clubId || !eventId || !data) return
-    const updatedData: ClubEventData = {
-      ...data,
-      roomData: { tables, viewFrame },
-    }
+    const updatedData: ClubEventData = { ...data, roomData: { tables, viewFrame } }
     const updated = await updateClubEvent(clubId, eventId, { data: updatedData as any }, token || undefined)
     setEvent(updated)
   }, [clubId, eventId, data, token])
 
   const handleFoodSave = useCallback(async (menuItems: MenuItem[], orders: ToGoOrder[]) => {
     if (!clubId || !eventId || !data) return
-    const updatedData: ClubEventData = {
-      ...data,
-      togoConfig: { menuItems, orders },
-    }
+    const updatedData: ClubEventData = { ...data, togoConfig: { menuItems, orders } }
     const updated = await updateClubEvent(clubId, eventId, { data: updatedData as any }, token || undefined)
     setEvent(updated)
   }, [clubId, eventId, data, token])
 
-  // Compute visible tabs based on active modules
   const visibleTabs = ALL_TABS.filter(t => !t.moduleKey || data?.modules?.[t.moduleKey])
 
   function startEditing() {
-    if (!data) return
-    setEditTitle(event!.title)
+    if (!data || !event) return
+    setEditTitle(event.title)
     setEditDate(data.eventDate || '')
     setEditFrom(data.timeFrom || '')
     setEditTo(data.timeTo || '')
@@ -100,19 +104,10 @@ export default function ClubEventDetail() {
   async function handleSave() {
     if (!clubId || !eventId || !data) return
     if (!editTitle.trim()) { setError('Name ist erforderlich.'); return }
-    setSaving(true)
-    setError(null)
+    setSaving(true); setError(null)
     try {
-      const updatedData: ClubEventData = {
-        ...data,
-        eventDate: editDate,
-        timeFrom: editFrom,
-        timeTo: editTo,
-      }
-      const updated = await updateClubEvent(clubId, eventId, {
-        title: editTitle.trim(),
-        data: updatedData as any,
-      }, token || undefined)
+      const updatedData: ClubEventData = { ...data, eventDate: editDate, timeFrom: editFrom, timeTo: editTo }
+      const updated = await updateClubEvent(clubId, eventId, { title: editTitle.trim(), data: updatedData as any }, token || undefined)
       setEvent(updated)
       setEditing(false)
     } catch (err: any) {
@@ -133,250 +128,318 @@ export default function ClubEventDetail() {
     }
   }
 
-  // ── Styles ──────────────────────────────────────────────────────
-  const cardStyle: React.CSSProperties = {
-    background: 'white', borderRadius: 12, padding: '20px 24px',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #e2e8f0',
+  // ── Room picker ───────────────────────────────────────────────
+  function openRoomPicker() {
+    const raw = userStorage.getItem('rooms', userId) || localStorage.getItem('rooms')
+    if (raw) {
+      try { setSavedRooms(JSON.parse(raw)) } catch { setSavedRooms([]) }
+    } else {
+      setSavedRooms([])
+    }
+    setShowRoomPicker(true)
   }
+
+  async function applyRoom(room: SavedRoom) {
+    if (!clubId || !eventId || !data) return
+    const updatedData: ClubEventData = {
+      ...data,
+      roomData: { tables: room.data.tables, viewFrame: room.data.viewFrame ?? null },
+    }
+    const updated = await updateClubEvent(clubId, eventId, { data: updatedData as any }, token || undefined)
+    setEvent(updated)
+    setShowRoomPicker(false)
+  }
+
   const inputStyle: React.CSSProperties = {
-    width: '100%', padding: '10px 14px', border: '2px solid #e2e8f0',
-    borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box',
-  }
-  const labelStyle: React.CSSProperties = {
-    display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 4,
+    padding: '6px 10px', border: '1px solid rgba(255,255,255,0.4)', borderRadius: 6,
+    fontSize: 13, background: 'rgba(255,255,255,0.15)', color: 'white', outline: 'none',
   }
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>Laden…</div>
   if (!club) return <div style={{ padding: 40, textAlign: 'center', color: '#991b1b' }}>Verein nicht gefunden.</div>
   if (!event || !data) return <div style={{ padding: 40, textAlign: 'center', color: '#991b1b' }}>Event nicht gefunden.</div>
 
+  const dateLabel = data.eventDate
+    ? new Date(data.eventDate + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
+    : null
+
   return (
-    <div style={{ maxWidth: 960, margin: '0 auto', padding: '24px 16px' }}>
-      {/* Back button */}
-      <button
-        onClick={() => navigate(`/app/club/${clubId}/events`)}
-        style={{ border: 'none', background: 'none', color: '#667eea', cursor: 'pointer', fontSize: 14, fontWeight: 500, marginBottom: 16, padding: 0 }}
-      >
-        ← Zurück zu Vereins-Events
-      </button>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
 
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-            <h2 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: '#1e293b' }}>{event.title}</h2>
-            {data.template && (
-              <span style={{ fontSize: 12, padding: '3px 10px', borderRadius: 12, background: '#f0f0ff', color: '#667eea', fontWeight: 600 }}>
-                {TEMPLATE_LABELS[data.template]}
-              </span>
-            )}
-          </div>
-          <div style={{ fontSize: 13, color: '#64748b' }}>
-            {data.eventDate && new Date(data.eventDate + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
-            {data.timeFrom && data.timeTo && ` · ${data.timeFrom} – ${data.timeTo} Uhr`}
-          </div>
-        </div>
-        {isVorstand && (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              onClick={startEditing}
-              style={{ padding: '8px 16px', background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}
-            >
-              ✏️ Bearbeiten
-            </button>
-            <button
-              onClick={handleDelete}
-              style={{ padding: '8px 16px', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}
-            >
-              🗑️ Löschen
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid #e2e8f0', paddingBottom: 0 }}>
-        {visibleTabs.map(tab => {
-          const active = activeTab === tab.key
-          return (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              style={{
-                padding: '10px 18px',
-                border: 'none',
-                borderBottom: active ? '3px solid #667eea' : '3px solid transparent',
-                background: 'none',
-                color: active ? '#667eea' : '#64748b',
-                fontWeight: active ? 700 : 500,
-                fontSize: 14,
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                marginBottom: -2,
-              }}
-            >
-              {tab.icon} {tab.label}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* ═══ TAB: Übersicht ═══ */}
-      {activeTab === 'overview' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {error && (
-            <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fee2e2', color: '#991b1b', fontSize: 13, fontWeight: 500 }}>{error}</div>
-          )}
+      {/* ── Event Header ─────────────────────────────────────── */}
+      <div style={{
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        padding: '0 24px',
+        flexShrink: 0,
+      }}>
+        {/* Title row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, height: 58, flexWrap: 'wrap' }}>
+          <button
+            onClick={() => navigate(`/app/club/${clubId}/events`)}
+            style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', color: 'white', borderRadius: 6, cursor: 'pointer', fontSize: 12, padding: '4px 10px', fontWeight: 500, flexShrink: 0 }}
+          >
+            ← Zurück
+          </button>
 
           {editing ? (
-            <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#1e293b' }}>Event bearbeiten</h3>
-              <div>
-                <label style={labelStyle}>Name</label>
-                <input type="text" value={editTitle} onChange={e => setEditTitle(e.target.value)} style={inputStyle} />
-              </div>
-              <div>
-                <label style={labelStyle}>Datum</label>
-                <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} style={inputStyle} />
-              </div>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>Von</label>
-                  <input type="time" value={editFrom} onChange={e => setEditFrom(e.target.value)} style={inputStyle} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>Bis</label>
-                  <input type="time" value={editTo} onChange={e => setEditTo(e.target.value)} style={inputStyle} />
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  style={{
-                    padding: '10px 20px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                    color: 'white', border: 'none', borderRadius: 8, cursor: saving ? 'not-allowed' : 'pointer',
-                    fontSize: 13, fontWeight: 600, opacity: saving ? 0.7 : 1,
-                  }}
-                >
-                  {saving ? 'Speichern…' : '✓ Speichern'}
-                </button>
-                <button
-                  onClick={() => { setEditing(false); setError(null) }}
-                  style={{ padding: '10px 20px', background: 'white', color: '#64748b', border: '2px solid #e2e8f0', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
-                >
-                  Abbrechen
-                </button>
-              </div>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
+              <input type="text" value={editTitle} onChange={e => setEditTitle(e.target.value)} placeholder="Event-Name"
+                style={{ ...inputStyle, minWidth: 140, maxWidth: 240 }} />
+              <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} style={{ ...inputStyle, width: 140 }} />
+              <input type="time" value={editFrom} onChange={e => setEditFrom(e.target.value)} style={{ ...inputStyle, width: 100 }} />
+              <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>–</span>
+              <input type="time" value={editTo} onChange={e => setEditTo(e.target.value)} style={{ ...inputStyle, width: 100 }} />
+              {error && <span style={{ color: '#fca5a5', fontSize: 12 }}>{error}</span>}
+              <button onClick={handleSave} disabled={saving}
+                style={{ background: 'white', color: '#667eea', border: 'none', borderRadius: 6, cursor: saving ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 700, padding: '5px 14px', opacity: saving ? 0.7 : 1 }}
+              >{saving ? '…' : '✓'}</button>
+              <button onClick={() => { setEditing(false); setError(null) }}
+                style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', color: 'white', borderRadius: 6, cursor: 'pointer', fontSize: 12, padding: '5px 10px' }}
+              >✕</button>
             </div>
           ) : (
-            <div style={cardStyle}>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 17, fontWeight: 700, color: 'white', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{event.title}</span>
+                  {data.template && (
+                    <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: 'rgba(255,255,255,0.2)', color: 'white', fontWeight: 600, flexShrink: 0 }}>
+                      {TEMPLATE_LABELS[data.template]}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 1 }}>
+                  {dateLabel}{dateLabel && (data.timeFrom || data.timeTo) ? ' · ' : ''}
+                  {data.timeFrom && data.timeTo ? `${data.timeFrom} – ${data.timeTo} Uhr` : data.timeFrom ? `ab ${data.timeFrom} Uhr` : ''}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isVorstand && !editing && (
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+              <button onClick={startEditing}
+                style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', color: 'white', borderRadius: 6, cursor: 'pointer', fontSize: 12, padding: '5px 12px', fontWeight: 500 }}
+              >✏️ Bearbeiten</button>
+              <button onClick={handleDelete}
+                style={{ background: 'rgba(239,68,68,0.3)', border: '1px solid rgba(239,68,68,0.5)', color: 'white', borderRadius: 6, cursor: 'pointer', fontSize: 12, padding: '5px 10px', fontWeight: 500 }}
+              >🗑️</button>
+            </div>
+          )}
+        </div>
+
+        {/* Tabs row */}
+        <div style={{ display: 'flex', gap: 0 }}>
+          {visibleTabs.map(tab => {
+            const active = activeTab === tab.key
+            return (
+              <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+                style={{
+                  padding: '8px 18px', border: 'none',
+                  borderBottom: active ? '3px solid white' : '3px solid transparent',
+                  background: 'none',
+                  color: active ? 'white' : 'rgba(255,255,255,0.6)',
+                  fontWeight: active ? 700 : 500, fontSize: 13, cursor: 'pointer', transition: 'all 0.15s',
+                }}
+              >{tab.icon} {tab.label}</button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ── Tab Content ──────────────────────────────────────── */}
+      <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+
+        {/* ═══ TAB: Übersicht ═══ */}
+        {activeTab === 'overview' && (
+          <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 800 }}>
+            <div style={{ background: 'white', borderRadius: 12, padding: '20px 24px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #e2e8f0' }}>
               <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 700, color: '#1e293b' }}>📋 Eventdetails</h3>
               <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '8px 16px', fontSize: 14 }}>
                 <span style={{ color: '#64748b', fontWeight: 500 }}>Name:</span>
                 <span style={{ color: '#1e293b' }}>{event.title}</span>
-
                 <span style={{ color: '#64748b', fontWeight: 500 }}>Datum:</span>
-                <span style={{ color: '#1e293b' }}>
-                  {data.eventDate
-                    ? new Date(data.eventDate + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
-                    : '—'}
-                </span>
-
+                <span style={{ color: '#1e293b' }}>{dateLabel || '—'}</span>
                 <span style={{ color: '#64748b', fontWeight: 500 }}>Uhrzeit:</span>
                 <span style={{ color: '#1e293b' }}>
                   {data.timeFrom && data.timeTo ? `${data.timeFrom} – ${data.timeTo} Uhr` : '—'}
                 </span>
-
                 {data.template && (
                   <>
                     <span style={{ color: '#64748b', fontWeight: 500 }}>Vorlage:</span>
                     <span style={{ color: '#1e293b' }}>{TEMPLATE_LABELS[data.template]}</span>
                   </>
                 )}
-
                 <span style={{ color: '#64748b', fontWeight: 500 }}>Erstellt:</span>
                 <span style={{ color: '#1e293b' }}>{new Date(event.created_at).toLocaleDateString('de-DE')}</span>
-
                 {event.updated_at && event.updated_at !== event.created_at && (
                   <>
-                    <span style={{ color: '#64748b', fontWeight: 500 }}>Zuletzt geändert:</span>
+                    <span style={{ color: '#64748b', fontWeight: 500 }}>Geändert:</span>
                     <span style={{ color: '#1e293b' }}>{new Date(event.updated_at).toLocaleDateString('de-DE')}</span>
                   </>
                 )}
               </div>
             </div>
-          )}
 
-          {/* Active modules overview */}
-          <div style={cardStyle}>
-            <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 700, color: '#1e293b' }}>🧩 Aktive Module</h3>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-              {data.modules?.room && (
-                <button onClick={() => setActiveTab('room')} style={modulePillStyle(true)}>
-                  🗺️ Raumplanung
-                </button>
-              )}
-              {data.modules?.food && (
-                <button onClick={() => setActiveTab('food')} style={modulePillStyle(true)}>
-                  🍽️ Speiseplanung
-                </button>
-              )}
-              {data.modules?.reservation && (
-                <button onClick={() => setActiveTab('reservation')} style={modulePillStyle(true)}>
-                  📝 Reservierung
-                </button>
-              )}
-              {!data.modules?.room && !data.modules?.food && !data.modules?.reservation && (
-                <span style={{ fontSize: 13, color: '#94a3b8', fontStyle: 'italic' }}>Keine Module aktiviert.</span>
-              )}
+            <div style={{ background: 'white', borderRadius: 12, padding: '20px 24px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #e2e8f0' }}>
+              <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 700, color: '#1e293b' }}>🧩 Aktive Module</h3>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                {data.modules?.room && (
+                  <button onClick={() => setActiveTab('room')} style={modulePillStyle(true)}>🗺️ Raumplanung</button>
+                )}
+                {data.modules?.food && (
+                  <button onClick={() => setActiveTab('food')} style={modulePillStyle(true)}>🍽️ Speiseplanung</button>
+                )}
+                {data.modules?.reservation && (
+                  <button onClick={() => setActiveTab('reservation')} style={modulePillStyle(true)}>📝 Reservierung</button>
+                )}
+                {!data.modules?.room && !data.modules?.food && !data.modules?.reservation && (
+                  <span style={{ fontSize: 13, color: '#94a3b8', fontStyle: 'italic' }}>Keine Module aktiviert.</span>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* ═══ TAB: Raumplanung ═══ */}
-      {activeTab === 'room' && (
-        <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
-          <ClubRoomEditor
-            initialTables={data.roomData?.tables ?? []}
-            initialViewFrame={data.roomData?.viewFrame ?? null}
-            onSave={handleRoomSave}
-            readOnly={!isVorstand}
-          />
-        </div>
-      )}
+        {/* ═══ TAB: Raumplanung ═══ */}
+        {activeTab === 'room' && (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            {data.roomData && (data.roomData.tables?.length ?? 0) > 0 ? (
+              <>
+                {/* Action bar above editor */}
+                <div style={{ padding: '8px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                  <span style={{ fontSize: 13, color: '#64748b' }}>
+                    {data.roomData.tables.length} Tisch{data.roomData.tables.length !== 1 ? 'e' : ''} verknüpft
+                  </span>
+                  <div style={{ flex: 1 }} />
+                  {isVorstand && (
+                    <>
+                      <button onClick={() => navigate('/room')}
+                        style={{ padding: '5px 12px', background: 'white', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer', fontSize: 12, color: '#475569', fontWeight: 500 }}
+                      >🗺️ Raum-Editor öffnen</button>
+                      <button onClick={openRoomPicker}
+                        style={{ padding: '5px 12px', background: 'white', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer', fontSize: 12, color: '#475569', fontWeight: 500 }}
+                      >🔄 Raum wechseln</button>
+                      <button onClick={async () => {
+                        if (!confirm('Raumzuweisung wirklich entfernen?')) return
+                        await handleRoomSave([], null)
+                      }}
+                        style={{ padding: '5px 12px', background: '#fee2e2', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, color: '#dc2626', fontWeight: 500 }}
+                      >✕ Entfernen</button>
+                    </>
+                  )}
+                </div>
+                <div style={{ flex: 1, minHeight: 0 }}>
+                  <ClubRoomEditor
+                    initialTables={data.roomData.tables}
+                    initialViewFrame={data.roomData.viewFrame ?? null}
+                    onSave={handleRoomSave}
+                    readOnly={!isVorstand}
+                  />
+                </div>
+              </>
+            ) : (
+              /* No room linked */
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+                <div style={{ textAlign: 'center', maxWidth: 460 }}>
+                  <div style={{ fontSize: 56, marginBottom: 16 }}>🗺️</div>
+                  <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: '#1e293b' }}>Noch kein Raum verknüpft</h3>
+                  <p style={{ fontSize: 14, color: '#64748b', margin: '0 0 24px', lineHeight: 1.6 }}>
+                    Wähle einen Raum aus deiner Raum-Bibliothek oder öffne den Raum-Editor, um einen neuen Raum zu erstellen.
+                    Danach kannst du ihn hier verknüpfen.
+                  </p>
+                  {isVorstand && (
+                    <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+                      <button onClick={openRoomPicker}
+                        style={{ padding: '10px 20px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600, boxShadow: '0 2px 8px rgba(102,126,234,0.35)' }}
+                      >📂 Aus Bibliothek auswählen</button>
+                      <button onClick={() => navigate('/room')}
+                        style={{ padding: '10px 20px', background: 'white', color: '#667eea', border: '2px solid #c7d2fe', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
+                      >🗺️ Raum-Editor öffnen</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
-      {/* ═══ TAB: Speiseplanung ═══ */}
-      {activeTab === 'food' && (
-        <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
-          <ClubToGo
-            eventTitle={event.title}
-            eventDate={data.eventDate}
-            timeFrom={data.timeFrom}
-            timeTo={data.timeTo}
-            initialMenuItems={data.togoConfig?.menuItems ?? []}
-            initialOrders={data.togoConfig?.orders ?? []}
-            onSave={handleFoodSave}
-            readOnly={!isVorstand}
-          />
-        </div>
-      )}
+        {/* ═══ TAB: Speiseplanung ═══ */}
+        {activeTab === 'food' && (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <ClubToGo
+              eventTitle={event.title}
+              eventDate={data.eventDate}
+              timeFrom={data.timeFrom}
+              timeTo={data.timeTo}
+              initialMenuItems={data.togoConfig?.menuItems ?? []}
+              initialOrders={data.togoConfig?.orders ?? []}
+              onSave={handleFoodSave}
+              readOnly={!isVorstand}
+            />
+          </div>
+        )}
 
-      {/* ═══ TAB: Reservierung ═══ */}
-      {activeTab === 'reservation' && (
-        <div style={cardStyle}>
-          <h3 style={{ margin: '0 0 12px', fontSize: 18, fontWeight: 700, color: '#1e293b' }}>📝 Reservierung</h3>
-          <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-            <div style={{ fontSize: 56, marginBottom: 12 }}>📋</div>
-            <p style={{ fontSize: 15, color: '#475569', margin: '0 0 8px', fontWeight: 500 }}>
-              Öffentliche Reservierungsseite
-            </p>
-            <p style={{ fontSize: 13, color: '#94a3b8', margin: 0, maxWidth: 400, marginInline: 'auto' }}>
-              Hier kannst du eine öffentliche Reservierungsseite für „{event.title}" einrichten.
-              Gäste können sich über einen geteilten Link anmelden.
-              Die Integration der Reservierungsverwaltung für Vereinsevents wird in einem kommenden Update verfügbar sein.
-            </p>
+        {/* ═══ TAB: Reservierung ═══ */}
+        {activeTab === 'reservation' && (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+            <div style={{ textAlign: 'center', maxWidth: 440 }}>
+              <div style={{ fontSize: 56, marginBottom: 16 }}>📋</div>
+              <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: '#1e293b' }}>Öffentliche Reservierungsseite</h3>
+              <p style={{ fontSize: 14, color: '#64748b', margin: 0, lineHeight: 1.6 }}>
+                Richte eine öffentliche Anmeldeseite für „{event.title}" ein,
+                über die Gäste sich per geteiltem Link anmelden können.
+                Kommt in einem kommenden Update.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ═══ Room Picker Modal ═══ */}
+      {showRoomPicker && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'white', borderRadius: 16, padding: 24, width: 540, maxWidth: '90vw', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#1e293b' }}>📂 Raum auswählen</h3>
+              <button onClick={() => setShowRoomPicker(false)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#64748b' }}>×</button>
+            </div>
+
+            {savedRooms.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '30px 0' }}>
+                <p style={{ fontSize: 15, color: '#64748b', marginBottom: 16 }}>
+                  Noch keine gespeicherten Räume gefunden.<br />
+                  Erstelle zuerst Räume im Raum-Editor.
+                </p>
+                <button onClick={() => { setShowRoomPicker(false); navigate('/room') }}
+                  style={{ padding: '10px 20px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}
+                >🗺️ Zum Raum-Editor</button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {savedRooms.map(room => (
+                  <div key={room.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, color: '#1e293b', fontSize: 15 }}>{room.name}</div>
+                      <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                        {room.data?.tables?.length ?? 0} Tisch{(room.data?.tables?.length ?? 0) !== 1 ? 'e' : ''}
+                        {room.createdAt && ` · ${new Date(room.createdAt).toLocaleDateString('de-DE')}`}
+                      </div>
+                    </div>
+                    <button onClick={() => applyRoom(room)}
+                      style={{ padding: '7px 16px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
+                    >Auswählen</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: '#94a3b8' }}>Aus deiner persönlichen Raum-Bibliothek</span>
+              <button onClick={() => { setShowRoomPicker(false); navigate('/room') }}
+                style={{ padding: '6px 12px', background: 'white', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer', fontSize: 12, color: '#475569', fontWeight: 500 }}
+              >🗺️ Raum-Editor öffnen</button>
+            </div>
           </div>
         </div>
       )}
