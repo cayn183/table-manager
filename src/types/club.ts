@@ -44,12 +44,50 @@ export interface ClubActivity {
   created_at: string
 }
 
+export type ClubEventTemplate = 'vereinsfest' | 'mitgliederversammlung' | 'vorstandsitzung' | 'arbeitseinsatz'
+
+export interface ClubEventModules {
+  room: boolean
+  food: boolean
+  reservation: boolean
+}
+
+export interface ClubEventData {
+  eventDate: string         // ISO date string (YYYY-MM-DD)
+  timeFrom: string          // "HH:MM"
+  timeTo: string            // "HH:MM"
+  template?: ClubEventTemplate | null
+  modules: ClubEventModules
+  // Room/table data stored by the room editor
+  rooms?: any[]
+  // ToGo/food config
+  togoConfig?: any
+  // Reservation config
+  reservationConfig?: any
+}
+
 export interface ClubEvent {
   id: string
   title: string
-  data: any
+  data: ClubEventData
   created_at: string
   updated_at: string
+  is_public?: boolean
+  share_token?: string | null
+}
+
+export const TEMPLATE_LABELS: Record<ClubEventTemplate, string> = {
+  vereinsfest: 'Vereinsfest',
+  mitgliederversammlung: 'Mitgliederversammlung',
+  vorstandsitzung: 'Vorstandssitzung',
+  arbeitseinsatz: 'Arbeitseinsatz',
+}
+
+export const TEMPLATE_DEFAULTS: Record<ClubEventTemplate, ClubEventModules> = {
+  vereinsfest: { room: true, food: true, reservation: true },
+  mitgliederversammlung: { room: true, food: false, reservation: false },
+  vorstandsitzung: { room: true, food: false, reservation: false },
+  arbeitseinsatz: { room: false, food: false, reservation: false },
 }
 
 /** Maps activity action keys to human-readable German labels */

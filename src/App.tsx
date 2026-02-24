@@ -25,6 +25,7 @@ import ReservationCancelPage from './components/ReservationCancelPage'
 import ClubMembers from './components/ClubMembers'
 import ClubSettings from './components/ClubSettings'
 import ClubEvents from './components/ClubEvents'
+import ClubEventDetail from './components/ClubEventDetail'
 import { ClubProvider } from './components/ClubContext'
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -75,6 +76,7 @@ export default function App() {
         <Route path="club/:clubId/members" element={<ClubMembers />} />
         <Route path="club/:clubId/settings" element={<ClubSettings />} />
         <Route path="club/:clubId/events" element={<ClubEvents />} />
+        <Route path="club/:clubId/events/:eventId" element={<ClubEventDetail />} />
       </Route>
       
       {/* ═══ ADMIN ROUTE (Special handling) ═══ */}
