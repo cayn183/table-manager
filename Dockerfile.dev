@@ -1,0 +1,33 @@
+# Frontend Development Dockerfile with Vite Dev Server
+# Runs Vite in development mode with hot-reload
+
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Build args for version info
+ARG BUILD_SHA=unknown
+ARG BUILD_VERSION=unknown
+ENV VITE_BUILD_SHA=${BUILD_SHA}
+ENV VITE_BUILD_VERSION=${BUILD_VERSION}
+ENV NODE_ENV=development
+
+# Copy dependencies first
+COPY package*.json ./
+COPY vite.config.ts ./
+COPY tsconfig.json ./
+COPY index.html ./
+
+# Install dependencies
+RUN npm install
+
+# Copy source and public files
+COPY src ./src
+COPY public ./public
+COPY scripts ./scripts
+
+# Expose Vite dev server port
+EXPOSE 5173
+
+# Run Vite dev server
+CMD ["npm", "run", "dev"]

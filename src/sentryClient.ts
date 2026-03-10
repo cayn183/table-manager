@@ -8,11 +8,10 @@ export async function initSentry() {
   if (!dsn || initialized) return
   try {
     const SentryMod = await import('@sentry/react')
-    const Tracing = await import('@sentry/tracing')
     Sentry = SentryMod
     Sentry.init({
       dsn,
-      integrations: [new Tracing.BrowserTracing()],
+      integrations: [new SentryMod.BrowserTracing()],
       tracesSampleRate: Number((import.meta as any).env?.VITE_SENTRY_TRACES_SAMPLE_RATE || 0)
     })
     initialized = true

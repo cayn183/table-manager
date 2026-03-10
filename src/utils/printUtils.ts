@@ -1,9 +1,10 @@
 // ============================================================================
 // Print Utilities - Generiert ein echtes mehrseitiges Druckdokument
 // ============================================================================
-import type { Group } from '../components/Importer'
+import type { Group } from '../components/room/Importer'
 import type { AssignedGroup, Room as RoomType } from '../types/room'
 import { CELL_SIZE, getPositionsForSize, paletteColor, PALETTE, GRID_WIDTH, GRID_HEIGHT } from './roomUtils'
+import { formatDateLong } from './dateFormatting'
 
 // ============================================================================
 // TYPES
@@ -37,23 +38,8 @@ const ITEM_WITH_NOTE_HEIGHT = 46
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
-function formatDateDE(dateStr?: string | null): string | null {
-  if (!dateStr) return null
-  let d: Date | null = null
-  if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
-    d = new Date(dateStr)
-  } else if (/^\d{2}\.\d{2}\.\d{4}/.test(dateStr)) {
-    const [day, month, year] = dateStr.split('.')
-    d = new Date(`${year}-${month}-${day}`)
-  } else {
-    d = new Date(dateStr)
-  }
-  if (!d || isNaN(d.getTime())) return dateStr
-  const dd = String(d.getDate()).padStart(2, '0')
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const yyyy = d.getFullYear()
-  return `${dd}.${mm}.${yyyy}`
-}
+// Use central date formatting function - replaced local implementation
+const formatDateDE = formatDateLong
 
 function compareTimes(timeA: string, timeB: string): number {
   if (!timeA && !timeB) return 0

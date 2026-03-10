@@ -10,5 +10,27 @@
   "esphome.enableLinting": false,
   "github-actions.workflows.pinned.workflows": [
     ".github/workflows/docker-publish.yml"
+  ],
+  "VsCodeTaskButtons.tasks": [
+    {
+      "label": "$(debug-restart) Restart Dev",
+      "task": "Dev: Restart All Services",
+      "tooltip": "Alle Docker Dev-Container neu starten"
+    },
+    {
+      "label": "$(server-process) Backend",
+      "task": "Dev: Restart Backend",
+      "tooltip": "Nur Backend neu starten"
+    },
+    {
+      "label": "$(browser) Frontend",
+      "task": "Dev: Restart Frontend",
+      "tooltip": "Nur Frontend neu starten"
+    },
+    {
+      "label": "$(output) Logs",
+      "task": "Dev: View Logs",
+      "tooltip": "Live-Logs anzeigen"
+    }
   ]
 }

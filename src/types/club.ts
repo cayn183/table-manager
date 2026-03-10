@@ -14,12 +14,52 @@ export interface Club {
 
 export interface ClubMember {
   id: string
-  user_id: string
+  user_id: string | null
   role: ClubRole
   description?: string | null
   joined_at: string
-  name: string
-  email: string
+  // Registered user fields (null for manual members)
+  name: string | null
+  email: string | null
+  // Manual member fields
+  is_manual: boolean
+  first_name?: string | null
+  last_name?: string | null
+  member_since?: string | null
+  display_name: string
+  // Extended profile
+  salutation?: string | null
+  phone?: string | null
+  address?: string | null
+  iban?: string | null
+  bic?: string | null
+  notes?: string | null
+  contact_email?: string | null
+  birth_date?: string | null
+}
+
+export interface ClubMemberProfileInput {
+  first_name?: string
+  last_name?: string
+  salutation?: string
+  role?: ClubRole
+  member_since?: string
+  phone?: string
+  address?: string
+  iban?: string
+  bic?: string
+  notes?: string
+  contact_email?: string
+  birth_date?: string
+}
+
+export interface MergeSuggestion {
+  manual_member_id: string
+  manual_name: string
+  user_id: string
+  user_name: string
+  user_email: string
+  real_member_id: string
 }
 
 export interface ClubInvite {
@@ -50,6 +90,8 @@ export interface ClubEventModules {
   room: boolean
   food: boolean
   reservation: boolean
+  seating: boolean
+  invite: boolean
 }
 
 export interface ClubRoomData {
@@ -62,18 +104,23 @@ export interface ClubToGoConfig {
   orders: import('../types/togo').ToGoOrder[]
 }
 
+export interface ClubSeatingData {
+  groups: import('../components/room/Importer').Group[]
+  assignedGroups: Record<string, import('../types/room').AssignedGroup[]>
+}
+
 export interface ClubEventData {
-  eventDate: string         // ISO date string (YYYY-MM-DD)
-  timeFrom: string          // "HH:MM"
-  timeTo: string            // "HH:MM"
+  eventDate: string
+  timeFrom: string
+  timeTo: string
   template?: ClubEventTemplate | null
   modules: ClubEventModules
-  // Room/table data stored by the room editor
   roomData?: ClubRoomData | null
-  // ToGo/food config
   togoConfig?: ClubToGoConfig | null
-  // Reservation config
+  seatingData?: ClubSeatingData | null
   reservationConfig?: any
+  syncedReservationIds?: string[]
+  invitedMemberIds?: string[]
 }
 
 export interface ClubEvent {
@@ -94,10 +141,10 @@ export const TEMPLATE_LABELS: Record<ClubEventTemplate, string> = {
 }
 
 export const TEMPLATE_DEFAULTS: Record<ClubEventTemplate, ClubEventModules> = {
-  vereinsfest: { room: true, food: true, reservation: true },
-  mitgliederversammlung: { room: true, food: false, reservation: false },
-  vorstandsitzung: { room: true, food: false, reservation: false },
-  arbeitseinsatz: { room: false, food: false, reservation: false },
+  vereinsfest: { room: true, food: true, reservation: true, seating: true, invite: false },
+  mitgliederversammlung: { room: true, food: false, reservation: false, seating: false, invite: false },
+  vorstandsitzung: { room: true, food: false, reservation: false, seating: false, invite: false },
+  arbeitseinsatz: { room: false, food: false, reservation: false, seating: false, invite: false },
 }
 
 /** Maps activity action keys to human-readable German labels */

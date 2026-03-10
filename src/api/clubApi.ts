@@ -1,5 +1,6 @@
 import api from './apiClient'
-import type { Club, ClubMember, ClubInvite, ClubActivity, ClubEvent } from '../types/club'
+import type { Club, ClubMember, ClubInvite, ClubActivity, ClubEvent, ClubMemberProfileInput, MergeSuggestion } from '../types/club'
+import type { ReservationInfo, Reservation } from '../types/reservation'
 
 // ═══ Club CRUD ═════════════════════════════════════════════════════
 export async function createClub(name: string, token?: string): Promise<Club> {
@@ -33,6 +34,26 @@ export async function updateClubMember(clubId: string, userId: string, data: { r
 
 export async function removeClubMember(clubId: string, userId: string, token?: string): Promise<void> {
   return api.del(`/clubs/${clubId}/members/${userId}`, token)
+}
+
+export async function removeClubMemberById(clubId: string, memberId: string, token?: string): Promise<void> {
+  return api.del(`/clubs/${clubId}/members/${memberId}?byMemberId=1`, token)
+}
+
+export async function createManualMember(clubId: string, data: ClubMemberProfileInput & { first_name: string; last_name: string }, token?: string): Promise<ClubMember> {
+  return api.post(`/clubs/${clubId}/members`, data, token)
+}
+
+export async function updateMemberProfile(clubId: string, memberId: string, data: ClubMemberProfileInput, token?: string): Promise<ClubMember> {
+  return api.patch(`/clubs/${clubId}/members/${memberId}/profile`, data, token)
+}
+
+export async function getMergeSuggestions(clubId: string, token?: string): Promise<MergeSuggestion[]> {
+  return api.get(`/clubs/${clubId}/members/merge-suggestions`, token)
+}
+
+export async function mergeMembers(clubId: string, manualMemberId: string, realMemberId: string, token?: string): Promise<void> {
+  return api.post(`/clubs/${clubId}/members/${manualMemberId}/merge/${realMemberId}`, {}, token)
 }
 
 // ═══ Invites ═══════════════════════════════════════════════════════
@@ -81,9 +102,95 @@ export async function unpublishClubEvent(clubId: string, eventId: string, token?
   return api.post(`/clubs/${clubId}/events/${eventId}/unpublish`, {}, token)
 }
 
+export async function getClubEventReservationInfo(clubId: string, eventId: string, token?: string): Promise<ReservationInfo> {
+  return api.get(`/clubs/${clubId}/events/${eventId}/reservation-info`, token)
+}
+
+export async function sendEventInvitations(clubId: string, eventId: string, payload: { memberIds: string[]; subject?: string; header?: string; logoUrl?: string; body: string }, token?: string): Promise<any> {
+  return api.post(`/clubs/${clubId}/events/${eventId}/send-invitations`, payload, token)
+}
+
+export async function downloadEventSerienPdf(clubId: string, eventId: string, payload: { memberIds: string[]; header?: string; logoUrl?: string; body: string }, token?: string) {
+  // Use direct fetch to obtain binary PDF without api.request text parsing
+  const RUNTIME_BASE = typeof window !== 'undefined' && (window as any).__RUNTIME_CONFIG__?.VITE_API_URL
+  const BUILD_BASE = (import.meta as any).env?.VITE_API_URL
+  let BASE = RUNTIME_BASE || BUILD_BASE
+  if (!BASE) {
+    try {
+      if (typeof window !== 'undefined' && window.location) {
+        const proto = window.location.protocol
+        const host = window.location.hostname
+        BASE = `${proto}//${host}:4000`
+      }
+    } catch (e) {
+      BASE = 'http://localhost:4000'
+    }
+  }
+
+  const res = await fetch(`${BASE}/clubs/${clubId}/events/${eventId}/serienpdf`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(payload),
+  })
+  return res
+}
+
+export async function getClubEventReservations(clubId: string, eventId: string, token?: string): Promise<Reservation[]> {
+  return api.get(`/clubs/${clubId}/events/${eventId}/reservations`, token)
+}
+
+export async function updateClubReservationStatus(
+  clubId: string, eventId: string, reservationId: string,
+  status: 'confirmed' | 'rejected', token?: string
+): Promise<{ id: string; status: string }> {
+  return api.patch(`/clubs/${clubId}/events/${eventId}/reservations/${reservationId}`, { status }, token)
+}
+
 // ═══ Activity ══════════════════════════════════════════════════════
 export async function getClubActivity(clubId: string, limit = 20, token?: string): Promise<ClubActivity[]> {
   return api.get(`/clubs/${clubId}/activity?limit=${limit}`, token)
+}
+
+// ═══ Templates ═══════════════════════════════════════════════════
+export async function getClubTemplates(clubId: string, token?: string) {
+  return api.get(`/clubs/${clubId}/templates`, token)
+}
+
+export async function createClubTemplate(clubId: string, data: { name: string; type?: string; content: string }, token?: string) {
+  return api.post(`/clubs/${clubId}/templates`, data, token)
+}
+
+export async function updateClubTemplate(clubId: string, templateId: string, data: { name?: string; content?: string }, token?: string) {
+  return api.patch(`/clubs/${clubId}/templates/${templateId}`, data, token)
+}
+
+export async function deleteClubTemplate(clubId: string, templateId: string, token?: string) {
+  return api.del(`/clubs/${clubId}/templates/${templateId}`, token)
+}
+
+// ═══ Clone system template into a club ═══════════════════════════
+export async function cloneSystemTemplate(clubId: string, systemTemplateId: string, token?: string) {
+  return api.post(`/clubs/${clubId}/templates/clone/${systemTemplateId}`, {}, token)
+}
+
+// ═══ System Templates (read, any authenticated user) ══════════════
+export async function getSystemTemplates(token?: string) {
+  return api.get('/clubs/system-templates', token)
+}
+
+// ═══ Admin: System Templates CRUD ════════════════════════════════
+export async function adminGetSystemTemplates(token?: string) {
+  return api.get('/admin/system-templates', token)
+}
+
+export async function adminCreateSystemTemplate(data: { name: string; type?: string; content: string }, token?: string) {
+  return api.post('/admin/system-templates', data, token)
+}
+
+export async function adminUpdateSystemTemplate(id: string, data: { name?: string; content?: string }, token?: string) {
+  return api.patch(`/admin/system-templates/${id}`, data, token)
+}
+
+export async function adminDeleteSystemTemplate(id: string, token?: string) {
+  return api.del(`/admin/system-templates/${id}`, token)
 }
 
 // ═══ Transfer Ownership ════════════════════════════════════════════
