@@ -2,7 +2,7 @@
 # Repository: Cayn183/table-manager
 
 # Build stage
-FROM node:18-alpine AS build
+FROM node:20-alpine AS build
 WORKDIR /build
 
 # Build args for version info
@@ -25,7 +25,7 @@ COPY scripts ./scripts
 RUN npm run build
 
 # Production stage - minimal image
-FROM node:18-alpine
+FROM node:20-alpine
 WORKDIR /app
 
 # Copy built files and production dependencies
