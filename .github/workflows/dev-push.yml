@@ -45,8 +45,8 @@ jobs:
         run: |
           RELEASE_DATE=$(date +%Y-%m-%d)
           # Set version to 'dev' and update release date
-          sed -i "s/version: '[^']*'/version: 'dev'/" src/components/Footer.tsx
-          sed -i "s/releaseDate: '[^']*'/releaseDate: '$RELEASE_DATE'/" src/components/Footer.tsx
+          sed -i "s/version: '[^']*'/version: 'dev'/" src/components/layout/Footer.tsx
+          sed -i "s/releaseDate: '[^']*'/releaseDate: '$RELEASE_DATE'/" src/components/layout/Footer.tsx
           echo "✓ Updated Frontend Footer.tsx: version='dev', releaseDate='$RELEASE_DATE'"
 
       - name: Commit version changes
@@ -56,7 +56,7 @@ jobs:
           
           # Check if there are changes to commit
           if ! git diff --quiet; then
-            git add package.json package-lock.json src/components/Footer.tsx
+            git add package.json package-lock.json src/components/layout/Footer.tsx
             git commit -m "chore: set dev version [skip ci]"
             git push
             echo "✓ Version changes committed"
