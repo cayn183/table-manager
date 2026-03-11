@@ -7,7 +7,7 @@ import PublicLayoutNoFooter from './components/layout/PublicLayoutNoFooter'
 import AppLayout from './components/layout/AppLayout'
 import LandingPage from './components/landing/LandingPage'
 import ClubLandingPage from './components/landing/ClubLandingPage'
-// import WeddingLandingPage from './components/landing/WeddingLandingPage'
+import WeddingLandingPage from './components/landing/WeddingLandingPage'
 import Home from './components/shared/Home'
 import RoomEditor from './components/room/RoomEditor'
 import Room from './components/room/Room'
@@ -50,7 +50,7 @@ export default function App() {
       {/* ═══ SEO LANDING PAGES (shared PublicLayoutNoFooter with nav, no footer) ═══ */}
       <Route element={<PublicLayoutNoFooter />}>
         <Route path="/sitzplan-verein" element={<ClubLandingPage />} />
-        {/* <Route path="/sitzplan-hochzeit" element={<WeddingLandingPage />} /> */}
+        <Route path="/sitzplan-hochzeit" element={<WeddingLandingPage />} />
       </Route>
       
       {/* ═══ AUTH ROUTES (No nested layout) ═══ */}

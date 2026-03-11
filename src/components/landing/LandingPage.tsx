@@ -56,15 +56,28 @@ export default function LandingPage() {
         </nav>
 
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '3rem 2rem' }}>
+          {/* Beta Banner */}
+          <div style={{
+            marginBottom: '2rem',
+            padding: '1rem 1.5rem',
+            backgroundColor: '#fff3cd',
+            border: '1px solid #ffc107',
+            borderRadius: '6px',
+            color: '#856404',
+            fontSize: '0.95rem',
+            textAlign: 'center'
+          }}>
+            🚀 <strong>PlatzPilot befindet sich in der Entwicklung</strong> – Testen Sie diese Beta-Version kostenlos. Ihre Daten sind sicher und Sie können jederzeit Feedback geben!
+          </div>
           {/* Hero Section */}
           <section style={{ textAlign: 'center', marginBottom: '5rem', paddingTop: '2rem' }}>
             <h1 style={{ fontSize: '2.8rem', marginBottom: '1rem', color: '#2c3e50', fontWeight: '700' }}>
-              Sitzpläne, Gästelisten & ToGo-Bestellungen
+              Sitzpläne und Raumplanung für alle Veranstaltungen
             </h1>
             <p style={{ fontSize: '1.3rem', color: '#666', marginBottom: '2.5rem', lineHeight: '1.6', maxWidth: '800px', margin: '0 auto 2.5rem' }}>
-              PlatzPilot ist das kostenlose Tool für Vereine, Hochzeiten und Events. 
-              Erstellen Sie Sitzpläne per Drag & Drop, importieren Sie Gästelisten und 
-              koordinieren Sie ToGo-Bestellungen – alles in einer App.
+              PlatzPilot ist das Tool für Vereine, Hochzeiten und Events. 
+              Erstellen Sie Sitzpläne per Drag & Drop, importieren Sie Gästelisten und behalten Sie den Überblick – 
+              speziell optimiert für Vereine mit zusätzlichen Verwaltungsfunktionen.
             </p>
             <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginBottom: '1rem' }}>
               {auth.user ? (
@@ -111,6 +124,103 @@ export default function LandingPage() {
             </p>
           </section>
           
+          {/* Two Main Sections: Vereine & Hochzeiten */}
+          <section style={{ marginBottom: '5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '2rem' }}>
+            {/* Vereine Section */}
+            <div style={{ 
+              padding: '3rem',
+              backgroundColor: '#fff',
+              borderRadius: '8px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              border: '2px solid #007bff'
+            }}>
+              <div style={{ fontSize: '3.5rem', marginBottom: '1rem', textAlign: 'center' }}>🏛️</div>
+              <h2 style={{ fontSize: '1.8rem', textAlign: 'center', marginBottom: '1rem', color: '#2c3e50' }}>
+                Für Vereine
+              </h2>
+              <p style={{ color: '#666', lineHeight: '1.6', marginBottom: '1.5rem', textAlign: 'center' }}>
+                Vereinsverwaltung, Mitgliederverwaltung, Rollen-System, Intelligente Sitzpläne und ToGo-Bestellungen – 
+                alles speziell für Sportvereine, Kulturvereine und Freizeitvereine optimiert.
+              </p>
+              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                <Link to="/sitzplan-verein" style={{
+                  textDecoration: 'none',
+                  padding: '0.75rem 1.5rem',
+                  backgroundColor: '#007bff',
+                  color: '#fff',
+                  borderRadius: '6px',
+                  fontSize: '1rem',
+                  fontWeight: 'bold',
+                  textAlign: 'center'
+                }}>
+                  Mehr erfahren
+                </Link>
+                {!auth.user && (
+                  <Link to="/register" style={{
+                    textDecoration: 'none',
+                    padding: '0.75rem 1.5rem',
+                    backgroundColor: '#e9ecef',
+                    color: '#007bff',
+                    borderRadius: '6px',
+                    fontSize: '1rem',
+                    fontWeight: 'bold',
+                    textAlign: 'center',
+                    border: '1px solid #007bff'
+                  }}>
+                    Kostenlos starten
+                  </Link>
+                )}
+              </div>
+            </div>
+
+            {/* Hochzeiten & Events Section */}
+            <div style={{ 
+              padding: '3rem',
+              backgroundColor: '#fff',
+              borderRadius: '8px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              border: '2px solid #e91e63'
+            }}>
+              <div style={{ fontSize: '3.5rem', marginBottom: '1rem', textAlign: 'center' }}>💐</div>
+              <h2 style={{ fontSize: '1.8rem', textAlign: 'center', marginBottom: '1rem', color: '#2c3e50' }}>
+                Für Hochzeiten & Events
+              </h2>
+              <p style={{ color: '#666', lineHeight: '1.6', marginBottom: '1.5rem', textAlign: 'center' }}>
+                Der perfekte Sitzplan für Hochzeiten, Jubiläen, Geburtstage und Firmenfeiern. 
+                Visuelle Planung, Gästeverwaltung und PDF-Export – stressfrei und benutzerfreundlich.
+              </p>
+              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                <Link to="/sitzplan-hochzeit" style={{
+                  textDecoration: 'none',
+                  padding: '0.75rem 1.5rem',
+                  backgroundColor: '#e91e63',
+                  color: '#fff',
+                  borderRadius: '6px',
+                  fontSize: '1rem',
+                  fontWeight: 'bold',
+                  textAlign: 'center'
+                }}>
+                  Mehr erfahren
+                </Link>
+                {!auth.user && (
+                  <Link to="/register" style={{
+                    textDecoration: 'none',
+                    padding: '0.75rem 1.5rem',
+                    backgroundColor: '#ffe0f0',
+                    color: '#e91e63',
+                    borderRadius: '6px',
+                    fontSize: '1rem',
+                    fontWeight: 'bold',
+                    textAlign: 'center',
+                    border: '1px solid #e91e63'
+                  }}>
+                    Kostenlos starten
+                  </Link>
+                )}
+              </div>
+            </div>
+          </section>
+
           {/* Features Section */}
           <section style={{ marginBottom: '5rem' }}>
             <h2 style={{ fontSize: '2.2rem', textAlign: 'center', marginBottom: '3rem', color: '#2c3e50' }}>
@@ -137,10 +247,10 @@ export default function LandingPage() {
               
               <div style={{ padding: '2rem', backgroundColor: '#fff', borderRadius: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
                 <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🍔</div>
-                <h3 style={{ fontSize: '1.4rem', marginBottom: '1rem', color: '#2c3e50' }}>ToGo-Bestellungen</h3>
+                <h3 style={{ fontSize: '1.4rem', marginBottom: '1rem', color: '#2c3e50' }}>ToGo-Bestellungen <span style={{ fontSize: '0.8rem', backgroundColor: '#e8f5e9', color: '#2e7d32', padding: '0.3rem 0.6rem', borderRadius: '12px', fontWeight: 'bold' }}>Vereine</span></h3>
                 <p style={{ color: '#666', lineHeight: '1.6' }}>
-                  Verwalten Sie Abholbestellungen für Vereinsfeste oder Caterings. 
-                  Speisekarte anlegen, Bestellungen erfassen und Statusverfolgung inklusive.
+                  Verwalten Sie Abholbestellungen für Vereinsfeste oder Events. 
+                  Speisekarte anlegen, Bestellungen erfassen und Statusverfolgung – nur für Vereine verfügbar.
                 </p>
               </div>
               
@@ -201,7 +311,8 @@ export default function LandingPage() {
                 <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🎪</div>
                 <h3 style={{ fontSize: '1.3rem', marginBottom: '0.5rem', color: '#2c3e50' }}>Große Events</h3>
                 <p style={{ color: '#666', lineHeight: '1.6' }}>
-                  Auch für größere Veranstaltungen geeignet. 
+                  Skalierbar für größere Veranstaltungen mit hunderten Gästen. 
+                  Unterstützung für komplexe Raumaufteilungen und mehrfache Ereignisse.
                 </p>
               </div>
             </div>
@@ -210,10 +321,10 @@ export default function LandingPage() {
           {/* Pricing Section */}
           <section style={{ marginBottom: '5rem', padding: '3rem', backgroundColor: '#f1f3f5', borderRadius: '8px', textAlign: 'center' }}>
             <h2 style={{ fontSize: '2.2rem', marginBottom: '1rem', color: '#2c3e50' }}>
-              Komplett kostenlos
+              Dauerhaft kostenlos in der Beta
             </h2>
             <p style={{ fontSize: '1.2rem', color: '#666', marginBottom: '2rem' }}>
-              PlatzPilot ist aktuell vollständig kostenlos nutzbar – ohne versteckte Kosten, ohne Einschränkungen.
+              PlatzPilot ist aktuell vollständig kostenlos nutzbar – während der Betaphase ohne Nutzungsbeschränkungen und ohne versteckte Kosten.
             </p>
             <div style={{ 
               maxWidth: '500px', 
@@ -227,17 +338,17 @@ export default function LandingPage() {
               <div style={{ 
                 display: 'inline-block',
                 padding: '0.5rem 1rem',
-                backgroundColor: '#28a745',
-                color: '#fff',
+                backgroundColor: '#ffc107',
+                color: '#000',
                 borderRadius: '20px',
                 fontSize: '0.9rem',
                 fontWeight: 'bold',
                 marginBottom: '1rem'
               }}>
-                Aktuell kostenlos
+                Beta – Kostenlos testen
               </div>
               <h3 style={{ fontSize: '1.8rem', marginBottom: '0.5rem', color: '#2c3e50' }}>Alle Features</h3>
-              <p style={{ color: '#666', marginBottom: '1.5rem' }}>Für Vereine, Teams & Privatpersonen</p>
+              <p style={{ color: '#666', marginBottom: '1.5rem' }}>Für Vereine, Hochzeiten & private Events</p>
               <ul style={{ 
                 listStyle: 'none', 
                 padding: 0, 
@@ -248,11 +359,10 @@ export default function LandingPage() {
               }}>
                 <li>✓ Unbegrenzte Events & Räume</li>
                 <li>✓ CSV-Import & PDF-Export</li>
-                <li>✓ ToGo-Bestellverwaltung</li>
+                <li>✓ Automatische Platzierung</li>
                 <li>✓ Timeline-Ansicht</li>
-                <li>✓ Auto-Platzierung</li>
                 <li>✓ Gäste- & Gruppenverwaltung</li>
-                <li>✓ Feedback & Support</li>
+                <li>✓ <strong>Für Vereine:</strong> Mitgliederverwaltung, Rollen-System, ToGo-Bestellungen</li>
               </ul>
             </div>
           </section>
