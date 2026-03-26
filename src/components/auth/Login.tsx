@@ -40,7 +40,7 @@ export default function Login({ initialMode }: LoginProps) {
     setError(null)
 
     if (!emailValid && email) {
-      setError('Bitte gib eine gueltige E-Mail-Adresse ein.')
+      setError('Bitte gib eine gültige E-Mail-Adresse ein.')
       return
     }
 
@@ -119,11 +119,11 @@ export default function Login({ initialMode }: LoginProps) {
           <div style={{ marginBottom: 12 }}>
             <input value={email} onChange={e => setEmail(e.target.value)} placeholder="E-Mail" type="email" style={{ width: '100%', padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
             {mode === 'register' && email && !emailValid && (
-              <div style={{ fontSize: 12, marginTop: 6, color: '#f59e0b' }}>Bitte gib eine gueltige E-Mail-Adresse ein.</div>
+              <div style={{ fontSize: 12, marginTop: 6, color: '#f59e0b' }}>Bitte gib eine gültige E-Mail-Adresse ein.</div>
             )}
             {mode === 'register' && emailValid && (
               <div style={{ fontSize: 12, marginTop: 6 }}>
-                {checkingEmail ? <span>Pruefe E&#8209;Mail…</span> : emailExists === true ? <span style={{ color: 'crimson' }}>E&#8209;Mail bereits vergeben</span> : emailExists === false ? <span style={{ color: 'green' }}>E&#8209;Mail verfuegbar</span> : null}
+                {checkingEmail ? <span>Prüfe E&#8209;Mail…</span> : emailExists === true ? <span style={{ color: 'crimson' }}>E&#8209;Mail bereits vergeben</span> : emailExists === false ? <span style={{ color: 'green' }}>E&#8209;Mail verfügbar</span> : null}
               </div>
             )}
           </div>

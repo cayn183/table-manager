@@ -6,36 +6,17 @@ import api from '../../api/apiClient'
 import { syncUserData } from '../../utils/sync'
 import { hydrateUserData } from '../../utils/sync'
 import { useSetPageHeader } from '../layout/PageHeaderContext'
-import ReservationConfigPanel from '../reservation/ReservationConfigPanel'
-
-type EventItem = {
-  id: string
-  name: string
-  from?: string
-  to?: string
-  roomId?: string
-  createdAt?: string
-  lastModified?: string
-  eventDate?: string
-  assignedGroups?: any
-  groups?: any
-  isToGo?: boolean
-  toGoConfig?: any
-  noRoom?: boolean
-}
+import { formatDateShort, formatDateTimeShortDE } from '../../utils/dateFormatting'
+import type { PrivateEventItem } from '../../types/event'
+import { migratePrivateEvent } from '../../types/event'
 
 const EVENTS_KEY = 'events'
-const CURRENT_EVENT_KEY = 'currentEvent'
-const STORAGE_KEY = 'currentRoom'
-const ROOMS_KEY = 'rooms'
 
 export default function LoadEvent() {
   const navigate = useNavigate()
   const auth = useAuth()
   const userId = auth.user ? auth.user.id : null
-  const [events, setEvents] = useState<EventItem[]>([])
-  const [reservationEventId, setReservationEventId] = useState<string | null>(null)
-  const reservationEvent = events.find(e => e.id === reservationEventId)
+  const [events, setEvents] = useState<PrivateEventItem[]>([])
   useSetPageHeader('Erstelltes Event laden', '📂')
 
   useEffect(() => {
@@ -45,47 +26,15 @@ export default function LoadEvent() {
         await hydrateUserData(auth.token, userId)
       }
       if (!mounted) return
-      // Prefer user-scoped storage, fall back to legacy global keys if needed.
       const raw = userStorage.getItem(EVENTS_KEY, userId) || localStorage.getItem(EVENTS_KEY) || '[]'
-      const list = JSON.parse(raw as string) as EventItem[]
+      const list = (JSON.parse(raw as string) as any[]).map(migratePrivateEvent)
       setEvents(list)
     })()
     return () => { mounted = false }
   }, [userId, auth.token])
 
-  function loadEvent(event: EventItem) {
-    userStorage.setItem(CURRENT_EVENT_KEY, JSON.stringify(event), userId)
-    
-    // ToGo events go to /togo route
-    if (event.isToGo) {
-      navigate('/app/togo')
-      return
-    }
-
-    // Events created without room planning go directly to the event view
-    if (event.noRoom) {
-      navigate(`/app/events/${event.id}`)
-      return
-    }
-    
-    let hasUsableRoom = false
-    if (event.roomId) {
-      const raw = userStorage.getItem(ROOMS_KEY, userId) || localStorage.getItem(ROOMS_KEY) || '[]'
-      const rooms = JSON.parse(raw as string)
-      const room = rooms.find((r: any) => r.id === event.roomId)
-      if (room) {
-        userStorage.setItem(STORAGE_KEY, JSON.stringify(room.data), userId)
-        hasUsableRoom = true
-      }
-    }
-
-    if (!event.roomId || !hasUsableRoom) {
-      userStorage.removeItem(STORAGE_KEY, userId)
-      localStorage.removeItem(STORAGE_KEY)
-      navigate('/app/rooms/new', { state: { pendingEventId: event.id } })
-      return
-    }
-
+  function loadEvent(event: PrivateEventItem) {
+    // All events now use the module-based detail view
     navigate(`/app/events/${event.id}`)
   }
 
@@ -95,14 +44,30 @@ export default function LoadEvent() {
     setEvents(updated)
     ;(async () => {
       try {
-        // Try delete on server (ignore errors)
         try { await api.del(`/events/${id}`, auth.token ?? undefined) } catch (e) {}
-        // After deletion, sync remaining local data to server
         if (userId) await syncUserData(auth.token, userId)
       } catch (err) {
         // ignore
       }
     })()
+  }
+
+  /** Build module badge list for an event */
+  function moduleIcons(event: PrivateEventItem): string[] {
+    const icons: string[] = []
+    if (event.modules?.room) icons.push('🏠')
+    if (event.modules?.seating) icons.push('🪑')
+    if (event.modules?.menu) icons.push('🍽️')
+    if (event.modules?.guestInvite) icons.push('💌')
+    if (event.modules?.dashboard) icons.push('📱')
+    if (event.modules?.checklist) icons.push('✅')
+    if (event.modules?.budget) icons.push('💰')
+    if (event.modules?.timeline) icons.push('⏱️')
+    // Legacy fallback
+    if (event.modules?.food) icons.push('🍽️')
+    if (event.modules?.reservation) icons.push('📝')
+    if (!event.modules && event.isToGo) icons.push('🍽️')
+    return icons
   }
 
   return (
@@ -136,11 +101,9 @@ export default function LoadEvent() {
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                   <h3 style={{ margin: '0', fontSize: '20px', fontWeight: '600', color: '#1e293b' }}>{event.name}</h3>
-                  {event.isToGo && (
-                    <span style={{ padding: '3px 10px', background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', color: 'white', borderRadius: '12px', fontSize: '11px', fontWeight: '600' }}>
-                      🥡 ToGo
-                    </span>
-                  )}
+                  {moduleIcons(event).map((icon, i) => (
+                    <span key={i} style={{ fontSize: '16px' }} title="Aktives Modul">{icon}</span>
+                  ))}
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '8px' }}>
                   <span style={{ padding: '4px 12px', background: '#e0e7ff', color: '#667eea', borderRadius: '6px', fontSize: '13px', fontWeight: '500' }}>
@@ -149,11 +112,6 @@ export default function LoadEvent() {
                   {event.from && <span style={{ padding: '4px 12px', background: '#dbeafe', color: '#3b82f6', borderRadius: '6px', fontSize: '13px', fontWeight: '500' }}>
                     {event.from}{event.to ? ` - ${event.to}` : ''}
                   </span>}
-                  {event.isToGo && event.toGoConfig && (
-                    <span style={{ padding: '4px 12px', background: '#fef3c7', color: '#d97706', borderRadius: '6px', fontSize: '13px', fontWeight: '500' }}>
-                      {event.toGoConfig.orders?.length || 0} Bestellungen
-                    </span>
-                  )}
                 </div>
                 <p style={{ margin: '4px 0', fontSize: '12px', color: '#94a3b8' }}>
                   Erstellt: {formatDateTimeShortDE(event.createdAt) || event.createdAt || 'unbekannt'}
@@ -161,34 +119,23 @@ export default function LoadEvent() {
                 {event.lastModified && <p style={{ margin: '4px 0', fontSize: '12px', color: '#94a3b8' }}>Geändert: {event.lastModified}</p>}
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button
-                  onClick={() => setReservationEventId(event.id)}
-                  style={{ padding: '10px 16px', background: '#f0fdf4', color: '#166534', border: '1.5px solid #bbf7d0', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', transition: 'all 0.2s' }}
-                  onMouseOver={e => { e.currentTarget.style.background = '#dcfce7' }}
-                  onMouseOut={e => { e.currentTarget.style.background = '#f0fdf4' }}
-                  title="Reservierungsseite verwalten"
-                >🎟️</button>
                 <button 
                   onClick={() => loadEvent(event)}
                   style={{ 
                     padding: '10px 20px', 
-                    background: event.isToGo 
-                      ? 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' 
-                      : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
                     color: 'white', 
                     border: 'none', 
                     borderRadius: '8px', 
                     cursor: 'pointer', 
                     fontSize: '14px', 
                     fontWeight: '600', 
-                    boxShadow: event.isToGo 
-                      ? '0 2px 8px rgba(249,115,22,0.3)' 
-                      : '0 2px 8px rgba(102,126,234,0.3)', 
+                    boxShadow: '0 2px 8px rgba(102,126,234,0.3)', 
                     transition: 'all 0.2s' 
                   }}
                   onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'}
                   onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
-                >Laden</button>
+                >Öffnen</button>
                 <button 
                   onClick={() => deleteEvent(event.id)} 
                   style={{ padding: '10px 20px', background: 'white', color: '#ef4444', border: '2px solid #ef4444', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', transition: 'all 0.2s' }}
@@ -202,14 +149,6 @@ export default function LoadEvent() {
       )}
       </div>
 
-      {reservationEventId && reservationEvent && (
-        <ReservationConfigPanel
-          eventId={reservationEvent.id}
-          isToGo={!!reservationEvent.isToGo}
-          token={auth.token ?? undefined}
-          onClose={() => setReservationEventId(null)}
-        />
-      )}
     </div>
   )
 }

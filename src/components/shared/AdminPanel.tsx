@@ -552,7 +552,7 @@ export default function AdminPanel() {
                   <div style={{ width: 12, height: 12, borderRadius: 6, background: backendInfo?.db?.ok ? '#16a34a' : '#dc2626' }} />
                   <div>{backendInfo ? (backendInfo.db?.ok ? 'Backend & DB erreichbar' : `Backend erreichbar, DB Fehler: ${backendInfo.db?.error || 'unknown'}`) : 'Backend nicht erreichbar'}</div>
                 </div>
-                <div style={{ marginTop: 8, color: '#475569' }}>Letzter Check: {lastCheck ? formatDateTimeShortDE(lastCheck) : '—'}</div>
+                <div style={{ marginTop: 8, color: '#475569' }}>Letzter Check: {lastCheck ? formatDateTimeShortDE(new Date(lastCheck).toISOString()) : '—'}</div>
                 <div style={{ marginTop: 8, color: '#475569' }}>DB size: {backendInfo?.dbSize?.pretty || '—'}</div>
                 <div style={{ marginTop: 6, color: '#475569' }}>Pool: total {backendInfo?.pool?.totalCount ?? '—'}, idle {backendInfo?.pool?.idleCount ?? '—'}, waiting {backendInfo?.pool?.waitingCount ?? '—'}</div>
               </div>

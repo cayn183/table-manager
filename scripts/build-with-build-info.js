@@ -26,4 +26,14 @@ console.log(`Building with VITE_BUILD_VERSION=${process.env.VITE_BUILD_VERSION} 
 const cmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 const args = ['vite', 'build'];
 const res = spawnSync(cmd, args, { stdio: 'inherit', env: process.env });
-process.exit(res.status);
+if (res.status !== 0) {
+  process.exit(res.status);
+}
+
+// Inject route-specific SEO metadata into dist/
+console.log('Running SEO meta injection...');
+const seo = spawnSync('node', [path.join(__dirname, 'prerender.js')], {
+  stdio: 'inherit',
+  env: process.env,
+});
+process.exit(seo.status);

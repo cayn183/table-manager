@@ -3,6 +3,7 @@ import { useAuth } from '../../auth/AuthContext'
 import userStorage from '../../utils/userStorage'
 import { useNavigate } from 'react-router-dom'
 import api from '../../api/apiClient'
+import { formatDateShort } from '../../utils/dateFormatting'
 
 export default function Profile() {
   const { user, token, logout } = useAuth()

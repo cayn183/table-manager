@@ -36,6 +36,7 @@ export interface ClubMember {
   notes?: string | null
   contact_email?: string | null
   birth_date?: string | null
+  custom_role?: string | null
 }
 
 export interface ClubMemberProfileInput {
@@ -84,40 +85,24 @@ export interface ClubActivity {
   created_at: string
 }
 
+// Re-export shared module types from event.ts
+export type { ClubEventModules, EventRoomData, EventToGoConfig, EventSeatingData } from './event'
+// Keep local aliases for backward compatibility
+export type ClubRoomData = import('./event').EventRoomData
+export type ClubToGoConfig = import('./event').EventToGoConfig
+export type ClubSeatingData = import('./event').EventSeatingData
+
 export type ClubEventTemplate = 'vereinsfest' | 'mitgliederversammlung' | 'vorstandsitzung' | 'arbeitseinsatz'
-
-export interface ClubEventModules {
-  room: boolean
-  food: boolean
-  reservation: boolean
-  seating: boolean
-  invite: boolean
-}
-
-export interface ClubRoomData {
-  tables: import('../types/room').Table[]
-  viewFrame?: import('../types/room').ViewFrame | null
-}
-
-export interface ClubToGoConfig {
-  menuItems: import('../types/togo').MenuItem[]
-  orders: import('../types/togo').ToGoOrder[]
-}
-
-export interface ClubSeatingData {
-  groups: import('../components/room/Importer').Group[]
-  assignedGroups: Record<string, import('../types/room').AssignedGroup[]>
-}
 
 export interface ClubEventData {
   eventDate: string
   timeFrom: string
   timeTo: string
   template?: ClubEventTemplate | null
-  modules: ClubEventModules
-  roomData?: ClubRoomData | null
-  togoConfig?: ClubToGoConfig | null
-  seatingData?: ClubSeatingData | null
+  modules: import('./event').ClubEventModules
+  roomData?: import('./event').EventRoomData | null
+  togoConfig?: import('./event').EventToGoConfig | null
+  seatingData?: import('./event').EventSeatingData | null
   reservationConfig?: any
   syncedReservationIds?: string[]
   invitedMemberIds?: string[]
@@ -140,7 +125,7 @@ export const TEMPLATE_LABELS: Record<ClubEventTemplate, string> = {
   arbeitseinsatz: 'Arbeitseinsatz',
 }
 
-export const TEMPLATE_DEFAULTS: Record<ClubEventTemplate, ClubEventModules> = {
+export const TEMPLATE_DEFAULTS: Record<ClubEventTemplate, import('./event').ClubEventModules> = {
   vereinsfest: { room: true, food: true, reservation: true, seating: true, invite: false },
   mitgliederversammlung: { room: true, food: false, reservation: false, seating: false, invite: false },
   vorstandsitzung: { room: true, food: false, reservation: false, seating: false, invite: false },

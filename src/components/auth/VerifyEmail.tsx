@@ -38,9 +38,9 @@ export default function VerifyEmail() {
     try {
       const res = await api.post('/auth/resend-verification')
       if (res?.already_verified) {
-        setResendMsg('Deine E-Mail ist bereits bestaetigt.')
+        setResendMsg('Deine E-Mail ist bereits bestätigt.')
       } else {
-        setResendMsg('Neue Bestaetigungs-E-Mail wurde gesendet!')
+        setResendMsg('Neue Bestätigungs-E-Mail wurde gesendet!')
       }
     } catch (err: any) {
       setResendMsg(err?.message || 'Fehler beim erneuten Senden.')
@@ -94,32 +94,32 @@ export default function VerifyEmail() {
           {status === 'error' && (
             <>
               <p style={{ color: 'crimson', fontWeight: 600, fontSize: 18, marginBottom: 8 }}>Verifizierung fehlgeschlagen</p>
-              <p style={{ color: '#64748b' }}>{error || 'Der Link ist ungueltig oder abgelaufen.'}</p>
+              <p style={{ color: '#64748b' }}>{error || 'Der Link ist ungültig oder abgelaufen.'}</p>
               {verificationType !== 'change' && auth.user && (
                 <div style={{ marginTop: 16 }}>
                   <button onClick={resendVerification} disabled={resending} style={{ padding: '10px 16px', background: '#2b6cb0', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
-                    {resending ? 'Sende…' : 'Neue Bestaetigungs-E-Mail senden'}
+                    {resending ? 'Sende…' : 'Neue Bestätigungs-E-Mail senden'}
                   </button>
                   {resendMsg && <p style={{ marginTop: 8, fontSize: 14, color: '#64748b' }}>{resendMsg}</p>}
                 </div>
               )}
-              <button onClick={() => nav('/login')} style={{ marginTop: 12, padding: '10px 16px', borderRadius: 8, background: '#eef2ff', border: '1px solid #e6e6ff', cursor: 'pointer' }}>Zurueck zum Login</button>
+              <button onClick={() => nav('/login')} style={{ marginTop: 12, padding: '10px 16px', borderRadius: 8, background: '#eef2ff', border: '1px solid #e6e6ff', cursor: 'pointer' }}>Zurück zum Login</button>
             </>
           )}
 
           {status === 'no-token' && (
             <>
               <p style={{ color: '#f59e0b', fontWeight: 600, fontSize: 18, marginBottom: 8 }}>Kein Token vorhanden</p>
-              <p style={{ color: '#64748b' }}>Bitte verwende den Link aus deiner Bestaetigungs-E-Mail.</p>
+              <p style={{ color: '#64748b' }}>Bitte verwende den Link aus deiner Bestätigungs-E-Mail.</p>
               {verificationType !== 'change' && auth.user && (
                 <div style={{ marginTop: 16 }}>
                   <button onClick={resendVerification} disabled={resending} style={{ padding: '10px 16px', background: '#2b6cb0', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer' }}>
-                    {resending ? 'Sende…' : 'Neue Bestaetigungs-E-Mail senden'}
+                    {resending ? 'Sende…' : 'Neue Bestätigungs-E-Mail senden'}
                   </button>
                   {resendMsg && <p style={{ marginTop: 8, fontSize: 14, color: '#64748b' }}>{resendMsg}</p>}
                 </div>
               )}
-              <button onClick={() => nav('/login')} style={{ marginTop: 12, padding: '10px 16px', borderRadius: 8, background: '#eef2ff', border: '1px solid #e6e6ff', cursor: 'pointer' }}>Zurueck zum Login</button>
+              <button onClick={() => nav('/login')} style={{ marginTop: 12, padding: '10px 16px', borderRadius: 8, background: '#eef2ff', border: '1px solid #e6e6ff', cursor: 'pointer' }}>Zurück zum Login</button>
             </>
           )}
         </div>

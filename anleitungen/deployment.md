@@ -37,11 +37,11 @@ Für Unraid-spezifische Konfiguration verwende `docker-compose.unraid.yml`.
 - `MIGRATE_ON_START`: `true` für automatische Migrationen beim Start
 - `LOG_FILE`: Pfad zur Log-Datei (Standard `/app/data/backend.log`)
 - `SENTRY_DSN`, `SENTRY_TRACES_SAMPLE_RATE`: optional für Fehler-Monitoring
-- `APP_BASE_URL`: Oeffentliche App-URL fuer Links in E-Mails
-- `PASSWORD_RESET_PATH`: Pfad fuer Passwort-Reset Links (Default `/reset-password`)
-- `PASSWORD_RESET_TTL_MINUTES`: Gueltigkeit des Reset-Tokens (Default `30`)
-- `PASSWORD_RESET_TOKEN_SECRET`: Optionaler Secret fuer Reset-Token (Default `JWT_SECRET`)
-- `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_FROM`: Mailgun Settings fuer E-Mail Versand
+- `APP_BASE_URL`: Öffentliche App-URL für Links in E-Mails
+- `PASSWORD_RESET_PATH`: Pfad für Passwort-Reset Links (Default `/reset-password`)
+- `PASSWORD_RESET_TTL_MINUTES`: Gültigkeit des Reset-Tokens (Default `30`)
+- `PASSWORD_RESET_TOKEN_SECRET`: Optionaler Secret für Reset-Token (Default `JWT_SECRET`)
+- `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_FROM`: Mailgun Settings für E-Mail Versand
 - `MAILGUN_API_URL`: Mailgun API Base (EU: `https://api.eu.mailgun.net`)
 - `MAILGUN_REPLY_TO`: Optionaler Reply-To Header
 

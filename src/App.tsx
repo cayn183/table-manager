@@ -8,6 +8,7 @@ import AppLayout from './components/layout/AppLayout'
 import LandingPage from './components/landing/LandingPage'
 import ClubLandingPage from './components/landing/ClubLandingPage'
 import WeddingLandingPage from './components/landing/WeddingLandingPage'
+import GuestListLandingPage from './components/landing/GuestListLandingPage'
 import Home from './components/shared/Home'
 import RoomEditor from './components/room/RoomEditor'
 import Room from './components/room/Room'
@@ -22,10 +23,14 @@ import AdminPanel from './components/shared/AdminPanel'
 import ToGo from './components/togo/ToGo'
 import ReservationPage from './components/reservation/ReservationPage'
 import ReservationCancelPage from './components/reservation/ReservationCancelPage'
+import EventInvitePage from './components/reservation/EventInvitePage'
+import EventOpenInvitePage from './components/reservation/EventOpenInvitePage'
 import ClubMembers from './components/club/ClubMembers'
 import ClubSettings from './components/club/ClubSettings'
 import ClubEvents from './components/club/ClubEvents'
 import ClubEventDetail from './components/club/ClubEventDetail'
+import PrivateEventDetail from './components/shared/PrivateEventDetail'
+import NotFound from './components/shared/NotFound'
 import { ClubProvider } from './components/club/ClubContext'
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -51,6 +56,7 @@ export default function App() {
       <Route element={<PublicLayoutNoFooter />}>
         <Route path="/sitzplan-verein" element={<ClubLandingPage />} />
         <Route path="/sitzplan-hochzeit" element={<WeddingLandingPage />} />
+        <Route path="/gaesteliste" element={<GuestListLandingPage />} />
       </Route>
       
       {/* ═══ AUTH ROUTES (No nested layout) ═══ */}
@@ -64,12 +70,16 @@ export default function App() {
       <Route path="/e/:shareToken" element={<ReservationPage />} />
       <Route path="/e/cancel/:cancelToken" element={<ReservationCancelPage />} />
       
+      {/* ═══ PUBLIC GUEST INVITE ROUTES (No login required) ═══ */}
+      <Route path="/invite/:token" element={<EventInvitePage />} />
+      <Route path="/event/:shareToken" element={<EventOpenInvitePage />} />
+      
       {/* ═══ APP ROUTES (Protected, User must be logged in) ═══ */}
       <Route path="/app" element={<RequireAuth><ClubProvider><AppLayout /></ClubProvider></RequireAuth>}>
         <Route index element={<Home />} />
         <Route path="profile" element={<Profile />} />
         <Route path="events" element={<LoadEvent />} />
-        <Route path="events/:eventId" element={<Room />} />
+        <Route path="events/:eventId" element={<PrivateEventDetail />} />
         <Route path="rooms" element={<LoadRoom />} />
         <Route path="rooms/:roomId" element={<RoomEditor />} />
         <Route path="togo" element={<ToGo />} />
@@ -94,7 +104,7 @@ export default function App() {
       <Route path="/togo" element={<Navigate to="/app/togo" replace />} />
       
       {/* ═══ FALLBACK ═══ */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   )
 }

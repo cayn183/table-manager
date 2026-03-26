@@ -5,6 +5,7 @@ User-agent: *
 Allow: /
 Allow: /sitzplan-verein
 Allow: /sitzplan-hochzeit
+Allow: /gaesteliste
 
 # Block app and admin areas from being indexed
 Disallow: /app/

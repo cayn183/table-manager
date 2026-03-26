@@ -22,6 +22,7 @@ export default function PublicLayoutNoFooter() {
         <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
           <Link to="/sitzplan-verein" style={{ textDecoration: 'none', color: '#666' }}>Für Vereine</Link>
           <Link to="/sitzplan-hochzeit" style={{ textDecoration: 'none', color: '#666' }}>Für Hochzeiten</Link>
+          <Link to="/gaesteliste" style={{ textDecoration: 'none', color: '#666' }}>Gästeliste</Link>
           {auth.user ? (
             <Link to="/app" style={{
               textDecoration: 'none',

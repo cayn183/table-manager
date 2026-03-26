@@ -10,9 +10,14 @@ export default function ClubLandingPage() {
     <>
       <Helmet>
         <title>Vereinsverwaltung & Sitzpläne für Vereine - PlatzPilot</title>
-        <meta name="description" content="PlatzPilot hilft Vereinen bei der Organisation: Verwaltung von Mitgliedern, Erstellen Sie Sitzpläne, verwalten Sie Reservierungen und koordinieren Sie ToGo-Bestellungen - alles mit Rollen-System für Vorstand." />
+        <meta name="description" content="Sitzpläne, Mitgliederverwaltung & ToGo-Bestellungen für Vereine. PlatzPilot bietet Rollensystem, CSV-Import und PDF-Export – kostenlos." />
         <meta name="keywords" content="Sitzplan Verein, Tischplan Verein, ToGo Bestellungen, Vereinsveranstaltung planen, Vereinsverwaltung, Mitgliederverwaltung" />
         <link rel="canonical" href="https://platzpilot.de/sitzplan-verein" />
+        <meta property="og:title" content="Vereinsverwaltung & Sitzpläne für Vereine - PlatzPilot" />
+        <meta property="og:description" content="Sitzpläne, Mitgliederverwaltung & ToGo-Bestellungen für Vereine. PlatzPilot bietet Rollensystem, CSV-Import und PDF-Export – kostenlos." />
+        <meta property="og:url" content="https://platzpilot.de/sitzplan-verein" />
+        <meta name="twitter:title" content="Vereinsverwaltung & Sitzpläne für Vereine - PlatzPilot" />
+        <meta name="twitter:description" content="Sitzpläne, Mitgliederverwaltung & ToGo-Bestellungen für Vereine. PlatzPilot bietet Rollensystem, CSV-Import und PDF-Export – kostenlos." />
       </Helmet>
       
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '3rem 2rem' }}>
@@ -156,6 +161,15 @@ export default function ClubLandingPage() {
             <li><strong>🎪 Karnevalsvereine:</strong> Sitzungen, Galas, große Veranstaltungen mit komplexer Tischordnung</li>
             <li><strong>🎉 Freizeitvereine:</strong> Jahreshauptversammlungen, Sommerfeste, Weihnachtsfeiern</li>
           </ul>
+        </section>
+
+        {/* Cross-Link */}
+        <section style={{ textAlign: 'center', padding: '2rem', marginBottom: '2rem' }}>
+          <p style={{ color: '#666', fontSize: '1rem' }}>
+            <Link to="/gaesteliste" style={{ color: '#007bff', textDecoration: 'underline' }}>Gästeliste online erstellen</Link>
+            {' \u00b7 '}
+            Sie planen eine Hochzeit oder private Feier? <Link to="/sitzplan-hochzeit" style={{ color: '#e91e63', textDecoration: 'underline' }}>PlatzPilot für Hochzeiten entdecken →</Link>
+          </p>
         </section>
 
       </div>

@@ -572,7 +572,7 @@ export default function ToGo() {
           alert('Es wurden keine Speisen gefunden. Bitte zuerst Speisen anlegen oder CSV-Spalten passend benennen.')
         }
         if (parsed.length === 0) {
-          alert('Keine gueltigen Bestellungen in der CSV gefunden. Pruefe Semikolon-Trennung und ob die Speisen-Spalten exakt den Speisenamen entsprechen.')
+          alert('Keine gültigen Bestellungen in der CSV gefunden. Prüfe Semikolon-Trennung und ob die Speisen-Spalten exakt den Speisenamen entsprechen.')
         }
         setCsvPreview(parsed)
       },
@@ -649,7 +649,7 @@ export default function ToGo() {
       .filter(o => o.familyName && o.items.length > 0)
 
     if (!sanitized.length) {
-      alert('Keine gueltigen Bestellungen gefunden')
+      alert('Keine gültigen Bestellungen gefunden')
       return
     }
 

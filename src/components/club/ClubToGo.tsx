@@ -433,7 +433,7 @@ export default function ClubToGo({
     const sanitized = csvPreview
       .map(o => ({ ...o, id: o.id || generateToGoId('o'), familyName: o.familyName.trim(), items: (o.items || []).filter(i => i.quantity > 0) }))
       .filter(o => o.familyName && o.items.length > 0)
-    if (!sanitized.length) { alert('Keine gueltigen Bestellungen gefunden'); return }
+    if (!sanitized.length) { alert('Keine gültigen Bestellungen gefunden'); return }
     setOrders(prev => [...prev, ...sanitized])
     setIsDirty(true)
     setShowCsvImportModal(false); setCsvFile(null); setCsvFileEncoding(null); setCsvPreview([])

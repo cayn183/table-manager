@@ -140,7 +140,7 @@ export default function ClubSettings() {
             >
               <option value="">— Mitglied wählen —</option>
               {members.filter(m => m.user_id !== user?.id).map(m => (
-                <option key={m.user_id} value={m.user_id}>{m.name} ({m.email})</option>
+                <option key={m.user_id} value={m.user_id ?? ''}>{m.name} ({m.email})</option>
               ))}
             </select>
             <button

@@ -1,31 +1,26 @@
 import React, { useState } from 'react'
 import { useAuth } from '../../auth/AuthContext'
-import { createClubEvent } from '../../api/clubApi'
-import type { ClubEventTemplate, ClubEventModules, ClubEventData } from '../../types/club'
-import { TEMPLATE_LABELS, TEMPLATE_DEFAULTS } from '../../types/club'
+import userStorage from '../../utils/userStorage'
+import { syncUserData } from '../../utils/sync'
+import api from '../../api/apiClient'
+import type { EventModules, PrivateEventItem, PrivateEventTemplate } from '../../types/event'
+import { PRIVATE_TEMPLATE_LABELS, PRIVATE_TEMPLATE_DEFAULTS, PRIVATE_MODULE_OPTIONS } from '../../types/event'
 
 interface Props {
-  clubId: string
   onClose: () => void
-  onCreated: (eventId: string) => void
+  onCreated: (event: PrivateEventItem) => void
 }
 
-const TEMPLATES: { key: ClubEventTemplate; icon: string }[] = [
-  { key: 'vereinsfest', icon: '🎉' },
-  { key: 'mitgliederversammlung', icon: '📋' },
-  { key: 'vorstandsitzung', icon: '💼' },
-  { key: 'arbeitseinsatz', icon: '🛠️' },
+const TEMPLATES: { key: PrivateEventTemplate; icon: string }[] = [
+  { key: 'hochzeit', icon: '💒' },
+  { key: 'geburtstag', icon: '🎂' },
+  { key: 'jubilaeum', icon: '🎉' },
+  { key: 'firmenfeier', icon: '🏢' },
 ]
 
-const MODULE_OPTIONS: { key: keyof ClubEventModules; label: string; icon: string; description: string }[] = [
-  { key: 'seating', label: 'Gästeplanung', icon: '🪑', description: 'Sitzplätze Gästen zuweisen' },
-  { key: 'food', label: 'Speiseplanung', icon: '🍽️', description: 'Speisekarte und ToGo-Bereich verwalten' },
-  { key: 'reservation', label: 'Reservierungsseite', icon: '📅', description: 'Öffentliche Reservierungsseite für Gäste' },
-  { key: 'invite', label: 'Mitglieder einladen', icon: '📨', description: 'Club-Mitglieder direkt zur Veranstaltung einladen' },
-]
-
-export default function ClubEventWizardModal({ clubId, onClose, onCreated }: Props) {
-  const { token } = useAuth()
+export default function PrivateEventWizardModal({ onClose, onCreated }: Props) {
+  const { token, user } = useAuth()
+  const userId = user?.id ?? null
   const [step, setStep] = useState<1 | 2>(1)
 
   // Step 1 fields
@@ -33,10 +28,10 @@ export default function ClubEventWizardModal({ clubId, onClose, onCreated }: Pro
   const [eventDate, setEventDate] = useState('')
   const [timeFrom, setTimeFrom] = useState('')
   const [timeTo, setTimeTo] = useState('')
-  const [template, setTemplate] = useState<ClubEventTemplate | null>(null)
+  const [template, setTemplate] = useState<PrivateEventTemplate | null>(null)
 
   // Step 2 fields
-  const [modules, setModules] = useState<ClubEventModules>({ room: false, food: false, reservation: false, seating: false, invite: false })
+  const [modules, setModules] = useState<EventModules>({ room: false, food: false, reservation: false, seating: false, checklist: false, budget: false, timeline: false, menu: false, guestInvite: false, dashboard: false })
   const [modulesInitialized, setModulesInitialized] = useState(false)
 
   const [loading, setLoading] = useState(false)
@@ -48,12 +43,11 @@ export default function ClubEventWizardModal({ clubId, onClose, onCreated }: Pro
     if (!timeFrom || !timeTo) { setError('Bitte gib die Uhrzeit von/bis ein.'); return }
     setError(null)
 
-    // Pre-fill modules from template when entering step 2 for the first time
     if (!modulesInitialized) {
       if (template) {
-        setModules((() => { const d = { ...TEMPLATE_DEFAULTS[template] }; d.room = d.seating; return d })())
+        setModules({ ...PRIVATE_TEMPLATE_DEFAULTS[template] })
       } else {
-        setModules({ room: false, food: false, reservation: false, seating: false, invite: false })
+        setModules({ room: false, food: false, reservation: false, seating: false, checklist: false, budget: false, timeline: false, menu: false, guestInvite: false, dashboard: false })
       }
       setModulesInitialized(true)
     }
@@ -65,11 +59,14 @@ export default function ClubEventWizardModal({ clubId, onClose, onCreated }: Pro
     setStep(1)
   }
 
-  function toggleModule(key: keyof ClubEventModules) {
+  function toggleModule(key: keyof EventModules) {
     setModules(prev => {
       const newVal = !prev[key]
-      const next: ClubEventModules = { ...prev, [key]: newVal }
-      if (key === 'seating') next.room = newVal
+      const next: EventModules = { ...prev, [key]: newVal }
+      // Seating requires room
+      if (key === 'seating' && newVal) next.room = true
+      // Disabling room also disables seating
+      if (key === 'room' && !newVal) next.seating = false
       return next
     })
   }
@@ -78,15 +75,48 @@ export default function ClubEventWizardModal({ clubId, onClose, onCreated }: Pro
     setLoading(true)
     setError(null)
     try {
-      const data: ClubEventData = {
+      const id = `e-${Date.now()}`
+      const now = new Date()
+      const event: PrivateEventItem = {
+        id,
+        name: title.trim(),
         eventDate,
-        timeFrom,
-        timeTo,
-        template,
+        from: timeFrom,
+        to: timeTo,
         modules,
+        roomData: modules.room ? { tables: [], viewFrame: null } : null,
+        togoConfig: null,
+        seatingData: modules.seating ? { groups: [], assignedGroups: {} } : null,
+        checklistData: modules.checklist ? { items: [] } : null,
+        budgetData: modules.budget ? { items: [], currency: 'EUR' } : null,
+        timelineData: modules.timeline ? { entries: [] } : null,
+        menuData: modules.menu ? { courses: [] } : null,
+        guestInviteData: modules.guestInvite ? { shareToken: Math.random().toString(36).slice(2) + Date.now().toString(36), shareMode: 'open' as const, invitations: [], categories: [] } : null,
+        dashboardConfig: modules.dashboard ? { showTimeline: false, showMenu: false, showSeating: false, showLocation: true } : null,
+        createdAt: now.toLocaleDateString(),
       }
-      const ev = await createClubEvent(clubId, { title: title.trim(), data: data as any }, token || undefined)
-      onCreated(ev.id)
+
+      // Save to localStorage
+      const rawEvents = userStorage.getItem('events', userId) || localStorage.getItem('events') || '[]'
+      const all = JSON.parse(rawEvents as string) as PrivateEventItem[]
+      userStorage.setItem('events', JSON.stringify([...all, event]), userId)
+      userStorage.setItem('currentEvent', JSON.stringify(event), userId)
+
+      // Sync to backend
+      if (userId) {
+        await syncUserData(token, userId)
+      }
+
+      // Publish reservation page if module is enabled (legacy support)
+      if (modules.reservation) {
+        try {
+          await api.post(`/events/${id}/publish`, { reservationConfig: {} }, token ?? undefined)
+        } catch {
+          // Non-fatal
+        }
+      }
+
+      onCreated(event)
     } catch (err: any) {
       setError(err?.message || 'Fehler beim Erstellen.')
     } finally {
@@ -94,7 +124,7 @@ export default function ClubEventWizardModal({ clubId, onClose, onCreated }: Pro
     }
   }
 
-  // -- Styles ------------------------------------------------------
+  // -- Styles --
   const overlayStyle: React.CSSProperties = {
     position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.6)',
     display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000,
@@ -128,10 +158,10 @@ export default function ClubEventWizardModal({ clubId, onClose, onCreated }: Pro
       <div onClick={e => e.stopPropagation()} style={cardStyle}>
         {/* Header */}
         <h3 style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 700, color: '#1e293b' }}>
-          ?? Neue Vereinsveranstaltung planen
+          ✨ Neues Event planen
         </h3>
         <p style={{ margin: '0 0 8px', fontSize: 13, color: '#64748b' }}>
-          Schritt {step} von 2 � {step === 1 ? 'Basisinfo & Vorlage' : 'Module ausw�hlen'}
+          Schritt {step} von 2 — {step === 1 ? 'Basisinfo & Vorlage' : 'Module auswählen'}
         </p>
 
         {/* Step indicator */}
@@ -150,10 +180,10 @@ export default function ClubEventWizardModal({ clubId, onClose, onCreated }: Pro
         {step === 1 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
-              <label style={labelStyle}>Veranstaltungsname *</label>
+              <label style={labelStyle}>Eventname *</label>
               <input
                 type="text"
-                placeholder="z.B. Sommerfest 2026"
+                placeholder="z.B. Hochzeit Max & Lisa"
                 value={title}
                 onChange={e => setTitle(e.target.value)}
                 autoFocus
@@ -212,7 +242,6 @@ export default function ClubEventWizardModal({ clubId, onClose, onCreated }: Pro
                       type="button"
                       onClick={() => {
                         setTemplate(selected ? null : t.key)
-                        // Reset modules init so template defaults apply when entering step 2
                         setModulesInitialized(false)
                       }}
                       style={{
@@ -227,7 +256,7 @@ export default function ClubEventWizardModal({ clubId, onClose, onCreated }: Pro
                     >
                       <div style={{ fontSize: 20, marginBottom: 4 }}>{t.icon}</div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: selected ? '#667eea' : '#374151' }}>
-                        {TEMPLATE_LABELS[t.key]}
+                        {PRIVATE_TEMPLATE_LABELS[t.key]}
                       </div>
                     </button>
                   )
@@ -238,7 +267,7 @@ export default function ClubEventWizardModal({ clubId, onClose, onCreated }: Pro
             {/* Nav buttons */}
             <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
               <button type="button" onClick={handleNext} style={primaryBtn}>
-                Weiter ?
+                Weiter →
               </button>
               <button type="button" onClick={onClose} style={secondaryBtn}>
                 Abbrechen
@@ -247,19 +276,19 @@ export default function ClubEventWizardModal({ clubId, onClose, onCreated }: Pro
           </div>
         )}
 
-        {/* --- STEP 2: Module ausw�hlen --- */}
+        {/* --- STEP 2: Module auswählen --- */}
         {step === 2 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <p style={{ margin: 0, fontSize: 14, color: '#475569' }}>
-              W�hle die Module, die du f�r <strong>{title}</strong> aktivieren m�chtest.
+              Wähle die Module, die du für <strong>{title}</strong> aktivieren möchtest.
               {template && (
                 <span style={{ fontSize: 12, color: '#667eea', marginLeft: 6 }}>
-                  (Vorlage: {TEMPLATE_LABELS[template]})
+                  (Vorlage: {PRIVATE_TEMPLATE_LABELS[template]})
                 </span>
               )}
             </p>
 
-            {MODULE_OPTIONS.map(mod => {
+            {PRIVATE_MODULE_OPTIONS.map(mod => {
               const active = modules[mod.key]
               return (
                 <button
@@ -274,7 +303,6 @@ export default function ClubEventWizardModal({ clubId, onClose, onCreated }: Pro
                     cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s',
                   }}
                 >
-                  {/* Checkbox indicator */}
                   <div style={{
                     width: 24, height: 24, borderRadius: 6, flexShrink: 0,
                     border: active ? '2px solid #667eea' : '2px solid #cbd5e1',
@@ -282,7 +310,7 @@ export default function ClubEventWizardModal({ clubId, onClose, onCreated }: Pro
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     transition: 'all 0.2s',
                   }}>
-                    {active && <span style={{ color: 'white', fontSize: 14, lineHeight: 1 }}>?</span>}
+                    {active && <span style={{ color: 'white', fontSize: 14, lineHeight: 1 }}>✓</span>}
                   </div>
 
                   <div style={{ fontSize: 22, flexShrink: 0 }}>{mod.icon}</div>
@@ -306,10 +334,10 @@ export default function ClubEventWizardModal({ clubId, onClose, onCreated }: Pro
                 disabled={loading}
                 style={{ ...primaryBtn, background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
               >
-                {loading ? 'Wird erstellt�' : '? Event anlegen'}
+                {loading ? 'Wird erstellt…' : '✓ Event anlegen'}
               </button>
               <button type="button" onClick={handleBack} style={secondaryBtn}>
-                ? Zur�ck
+                ← Zurück
               </button>
             </div>
           </div>

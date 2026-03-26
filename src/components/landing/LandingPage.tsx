@@ -9,15 +9,20 @@ export default function LandingPage() {
   return (
     <>
       <Helmet>
-        <title>PlatzPilot - Sitzpläne und Event-Management leicht gemacht</title>
-        <meta name="description" content="PlatzPilot hilft bei der Planung von Events, Hochzeiten und Vereinsveranstaltungen. Erstellen Sie Sitzpläne, verwalten Sie Gästelisten und koordinieren Sie ToGo-Bestellungen." />
-        <meta name="keywords" content="Sitzplan, Tischplan, Event-Management, Hochzeitsplanung, Vereinsveranstaltung" />
+        <title>PlatzPilot – Kostenlose Sitzplan- & Eventplanung</title>
+        <meta name="description" content="Kostenlose Sitzpläne per Drag & Drop für Vereine, Hochzeiten und Events. Gästelisten importieren, ToGo-Bestellungen verwalten und als PDF exportieren." />
+        <meta name="keywords" content="Sitzplan, Tischplan, Event-Management, Hochzeitsplanung, Vereinsveranstaltung, Gästeliste, Gästelistenmanagement, Gästeliste online, kostenlos, Drag and Drop, PDF Export, CSV Import" />
         <link rel="canonical" href="https://platzpilot.de/" />
+        <meta property="og:title" content="PlatzPilot – Kostenlose Sitzplan- & Eventplanung" />
+        <meta property="og:description" content="Kostenlose Sitzpläne per Drag & Drop für Vereine, Hochzeiten und Events. Gästelisten importieren, ToGo-Bestellungen verwalten und als PDF exportieren." />
+        <meta property="og:url" content="https://platzpilot.de/" />
+        <meta name="twitter:title" content="PlatzPilot – Kostenlose Sitzplan- & Eventplanung" />
+        <meta name="twitter:description" content="Kostenlose Sitzpläne per Drag & Drop für Vereine, Hochzeiten und Events. Gästelisten importieren, ToGo-Bestellungen verwalten und als PDF exportieren." />
       </Helmet>
       
       <div style={{ minHeight: '100vh', backgroundColor: '#f8f9fa' }}>
         {/* Navigation */}
-        <nav style={{
+        <nav aria-label="Hauptnavigation" style={{
           padding: '1rem 2rem',
           borderBottom: '1px solid #e0e0e0',
           display: 'flex',
@@ -31,6 +36,7 @@ export default function LandingPage() {
           <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
             <Link to="/sitzplan-verein" style={{ textDecoration: 'none', color: '#666' }}>Für Vereine</Link>
             <Link to="/sitzplan-hochzeit" style={{ textDecoration: 'none', color: '#666' }}>Für Hochzeiten</Link>
+            <Link to="/gaesteliste" style={{ textDecoration: 'none', color: '#666' }}>Gästeliste</Link>
             {auth.user ? (
               <Link to="/app" style={{
                 textDecoration: 'none',
@@ -491,6 +497,7 @@ export default function LandingPage() {
             <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', fontSize: '0.9rem' }}>
               <Link to="/sitzplan-verein" style={{ textDecoration: 'none', color: '#666' }}>Für Vereine</Link>
               <Link to="/sitzplan-hochzeit" style={{ textDecoration: 'none', color: '#666' }}>Für Hochzeiten</Link>
+              <Link to="/gaesteliste" style={{ textDecoration: 'none', color: '#666' }}>Gästeliste</Link>
               <Link to="/login" style={{ textDecoration: 'none', color: '#666' }}>Login</Link>
             </div>
           </div>
