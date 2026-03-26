@@ -978,4 +978,37 @@ body{font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);margin:0;p
   }
 }
 
+/* ── Tiptap / ProseMirror Editor ─────────────────────────────── */
+.tiptap-editor-content {
+  min-height: 200px;
+  padding: 12px 14px;
+  outline: none;
+  font-family: Georgia, serif;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #1e293b;
+}
+.tiptap-editor-content p { margin: 0 0 8px 0; }
+.tiptap-editor-content h1 { font-size: 20px; font-weight: 700; margin: 12px 0 6px; }
+.tiptap-editor-content h2 { font-size: 17px; font-weight: 600; margin: 10px 0 5px; }
+.tiptap-editor-content h3 { font-size: 15px; font-weight: 600; margin: 8px 0 4px; }
+.tiptap-editor-content ul,
+.tiptap-editor-content ol { padding-left: 24px; margin: 6px 0; }
+.tiptap-editor-content li { margin: 2px 0; }
+.tiptap-editor-content blockquote {
+  border-left: 3px solid #e2e8f0;
+  padding-left: 12px;
+  color: #64748b;
+  margin: 8px 0;
+}
+.tiptap-editor-content a { color: #667eea; text-decoration: underline; }
+/* Placeholder */
+.tiptap-editor-content p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+  pointer-events: none;
+  float: left;
+  height: 0;
+}
+
 

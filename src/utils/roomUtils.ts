@@ -1,4 +1,4 @@
-import type { Group } from '../components/Importer'
+import type { Group } from '../components/room/Importer'
 import type { Table, Room, AssignedGroup } from '../types/room'
 import { generateOptimalSeating, getPerpendicularOrientation, canFit, getLayoutByRotation } from './layoutUtils'
 import logger from './logger'

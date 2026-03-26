@@ -1,5 +1,5 @@
 // Types for room planning
-import type { Group } from '../components/Importer'
+import type { Group } from '../components/room/Importer'
 
 export type Table = {
   id: string

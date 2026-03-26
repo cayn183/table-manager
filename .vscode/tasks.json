@@ -47,8 +47,64 @@
 		},
 		{
 			"label": "Dev: Build & Run Full Stack",
-			"dependsOn": ["Dev: Build & Run Backend Docker", "Dev: Build & Run Frontend Docker"],
+			"dependsOn": [
+				"Dev: Build & Run Backend Docker",
+				"Dev: Build & Run Frontend Docker"
+			],
 			"dependsOrder": "sequence",
+			"problemMatcher": []
+		},
+		{
+			"label": "Dev: Restart All Services",
+			"type": "shell",
+			"command": "docker-compose -f docker-compose.dev.yml restart",
+			"options": {
+				"cwd": "C:\\Users\\aaron\\Documents\\GitHub"
+			},
+			"presentation": {
+				"reveal": "always",
+				"panel": "new"
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Dev: Restart Backend",
+			"type": "shell",
+			"command": "docker-compose -f docker-compose.dev.yml restart backend",
+			"options": {
+				"cwd": "C:\\Users\\aaron\\Documents\\GitHub"
+			},
+			"presentation": {
+				"reveal": "always",
+				"panel": "new"
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Dev: Restart Frontend",
+			"type": "shell",
+			"command": "docker-compose -f docker-compose.dev.yml restart frontend",
+			"options": {
+				"cwd": "C:\\Users\\aaron\\Documents\\GitHub"
+			},
+			"presentation": {
+				"reveal": "always",
+				"panel": "new"
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "Dev: View Logs",
+			"type": "shell",
+			"command": "docker-compose -f docker-compose.dev.yml logs -f",
+			"options": {
+				"cwd": "C:\\Users\\aaron\\Documents\\GitHub"
+			},
+			"isBackground": true,
+			"presentation": {
+				"reveal": "always",
+				"panel": "new"
+			},
 			"problemMatcher": []
 		}
 	]

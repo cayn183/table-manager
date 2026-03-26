@@ -25,9 +25,9 @@ Docker, Deployments, Postgres-Umgebungen, Build-Args und Wartungshinweise sind i
 - `JWT_SECRET` muss gesetzt sein (Backend startet sonst nicht).
 - `CORS_ORIGIN` setzen, wenn Frontend und Backend unterschiedliche Origins haben (Komma-separiert).
 - `METRICS_TOKEN` setzen, um `/metrics` per `Authorization: Bearer <token>` freizuschalten.
-- Optional: `AUTH_COOKIE_NAME`, `COOKIE_SAMESITE`, `COOKIE_SECURE`, `COOKIE_DOMAIN` fuer Cookie-Auth.
+- Optional: `AUTH_COOKIE_NAME`, `COOKIE_SAMESITE`, `COOKIE_SECURE`, `COOKIE_DOMAIN` für Cookie-Auth.
 
-## Naechste Schritte
+## Nächste Schritte
 
 - Backend starten: im Ordner [backend](backend) `npm install` und `npm run dev`.
 - Frontend starten: im Repo-Root `npm install` und `npm run dev`.
@@ -36,7 +36,7 @@ Docker, Deployments, Postgres-Umgebungen, Build-Args und Wartungshinweise sind i
 ## Landing Page & App
 
 - Die Marketing-Startseite liegt auf `/` und funktioniert ohne Frontdomain direkt..
-- Der eigentliche Planner ist unter `/app` erreichbar; Login/Register laufen ueber `/login` bzw. `/register`.
+- Der eigentliche Planner ist unter `/app` erreichbar; Login/Register laufen über `/login` bzw. `/register`.
 
 ## Sonstiges
 
