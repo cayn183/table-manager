@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useDeviceType } from '../../utils/useDeviceType'
 import TiptapEditor from '../shared/TiptapEditor'
 import { getClubMembers, sendEventInvitations, updateClubEvent, getClubTemplates, createClubTemplate, deleteClubTemplate, updateClubTemplate, getSystemTemplates, cloneSystemTemplate } from '../../api/clubApi'
 import { uploadFile } from '../../api/apiClient'
@@ -15,26 +16,28 @@ interface Props {
 }
 
 const EDITOR_STYLE = {
-  container: { display: 'flex', flexDirection: 'column' as const, gap: 16, padding: 16, background: '#f8fafc', borderRadius: 8 },
-  section: { background: 'white', borderRadius: 8, padding: 16, border: '1px solid #e2e8f0' },
-  sectionTitle: { fontSize: 14, fontWeight: 600, marginBottom: 12, color: '#1e293b' },
+  container: { display: 'flex', flexDirection: 'column' as const, gap: 16, padding: 16, background: '#f8fafc', borderRadius: 12 },
+  section: { background: 'white', borderRadius: 12, padding: 16, border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' },
+  sectionTitle: { fontSize: 14, fontWeight: 700, marginBottom: 12, color: '#1e293b' },
   grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 },
-  textarea: { width: '100%', padding: 12, borderRadius: 6, border: '1px solid #e2e8f0', fontFamily: 'Arial, sans-serif', fontSize: 13, lineHeight: 1.5 },
+  textarea: { width: '100%', padding: 12, borderRadius: 8, border: '1px solid #e2e8f0', fontFamily: 'Arial, sans-serif', fontSize: 13, lineHeight: 1.5 },
   button: (variant: 'primary' | 'secondary' | 'danger' = 'secondary') => ({
-    padding: '8px 12px', borderRadius: 6, border: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-    background: variant === 'primary' ? '#667eea' : variant === 'danger' ? '#ef4444' : '#e2e8f0',
+    padding: '8px 12px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+    background: variant === 'primary' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : variant === 'danger' ? '#ef4444' : '#e2e8f0',
     color: variant === 'primary' ? 'white' : variant === 'danger' ? 'white' : '#1e293b',
     transition: 'opacity 0.2s',
   }),
-  input: { padding: '8px 12px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 13, width: '100%' },
-  label: { display: 'block', fontSize: 12, color: '#64748b', marginBottom: 6, fontWeight: 500 },
+  input: { padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, width: '100%' },
+  label: { display: 'block', fontSize: 12, color: '#374151', marginBottom: 4, fontWeight: 600 },
   spinner: { display: 'inline-block', width: 14, height: 14, border: '2px solid #ccc', borderTop: '2px solid #667eea', borderRadius: '50%', animation: 'spin 1s linear infinite' },
   dialogOverlay: { position: 'fixed' as const, top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  dialogBox: { background: 'white', borderRadius: 8, padding: 24, maxWidth: 600, maxHeight: '80vh', overflowY: 'auto' as const, boxShadow: '0 20px 25px rgba(0,0,0,0.15)' },
-  letterPreview: { background: 'white', padding: 24, borderRadius: 6, border: '1px solid #e2e8f0', fontFamily: 'Georgia, serif', fontSize: 13, lineHeight: 1.8, color: '#1e293b', minHeight: 300 },
+  dialogBox: { background: 'white', borderRadius: 12, padding: 24, maxWidth: 600, maxHeight: '80vh', overflowY: 'auto' as const, boxShadow: '0 20px 25px rgba(0,0,0,0.15)' },
+  letterPreview: { background: 'white', padding: 24, borderRadius: 8, border: '1px solid #e2e8f0', fontFamily: 'Georgia, serif', fontSize: 13, lineHeight: 1.8, color: '#1e293b', minHeight: 300 },
 }
 
 export default function InviteMembers({ clubId, eventId, token, initialSelected, readOnly, onSave }: Props) {
+  const deviceType = useDeviceType()
+  const isMobile = deviceType === 'mobile'
   const [members, setMembers] = useState<ClubMember[]>([])
   const [selected, setSelected] = useState<string[]>(initialSelected || [])
   const [loading, setLoading] = useState(true)
@@ -199,7 +202,7 @@ export default function InviteMembers({ clubId, eventId, token, initialSelected,
     <div style={EDITOR_STYLE.container}>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
-      {error && <div style={{ padding: 12, background: '#fee2e2', borderRadius: 6, border: '1px solid #fca5a5', color: '#991b1b' }}>{error}</div>}
+      {error && <div style={{ padding: 12, background: '#fee2e2', borderRadius: 8, border: '1px solid #fca5a5', color: '#991b1b' }}>{error}</div>}
 
       {/* Members Selection */}
       <div style={EDITOR_STYLE.section}>
@@ -212,7 +215,7 @@ export default function InviteMembers({ clubId, eventId, token, initialSelected,
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8, maxHeight: 200, overflowY: 'auto' }}>
               {members.map(m => (
-                <label key={m.id} style={{ display: 'flex', alignItems: 'center', padding: 8, background: selected.includes(m.id) ? '#ede9fe' : 'transparent', borderRadius: 6, cursor: 'pointer' }}>
+                <label key={m.id} style={{ display: 'flex', alignItems: 'center', padding: 8, background: selected.includes(m.id) ? '#ede9fe' : 'transparent', borderRadius: 8, cursor: 'pointer' }}>
                   <input type="checkbox" checked={selected.includes(m.id)} onChange={() => toggle(m.id)} disabled={readOnly} style={{ marginRight: 8 }} />
                   <span style={{ fontSize: 13, color: '#1e293b' }}>{m.display_name}</span>
                 </label>
@@ -223,12 +226,12 @@ export default function InviteMembers({ clubId, eventId, token, initialSelected,
       </div>
 
       {/* Editor & Preview Grid */}
-      <div style={EDITOR_STYLE.grid}>
+      <div style={{ ...EDITOR_STYLE.grid, gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr' }}>
         {/* Editor */}
         <div style={EDITOR_STYLE.section}>
           <div style={EDITOR_STYLE.sectionTitle}>Einladungstext</div>
           {/* Logo Upload */}
-          <div style={{ marginBottom: 12, padding: 12, background: '#f8fafc', borderRadius: 6, border: '1px solid #e2e8f0' }}>
+          <div style={{ marginBottom: 12, padding: 12, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
             <label style={EDITOR_STYLE.label}>Logo</label>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
               <label style={{ ...EDITOR_STYLE.button('primary'), cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -310,7 +313,7 @@ export default function InviteMembers({ clubId, eventId, token, initialSelected,
       </div>
 
       {/* Actions */}
-      <div style={{ ...EDITOR_STYLE.section, display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ ...EDITOR_STYLE.section, display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             onClick={handleDownloadSerienPdf}
@@ -352,9 +355,9 @@ export default function InviteMembers({ clubId, eventId, token, initialSelected,
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {templates.map(t => (
-                  <div key={t.id} style={{ padding: 12, background: '#f1f5f9', borderRadius: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div key={t.id} style={{ padding: 12, background: '#f1f5f9', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 500, color: '#1e293b' }}>{t.name}</div>
+                      <div style={{ fontWeight: 700, color: '#1e293b' }}>{t.name}</div>
                       <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{(t.content || '').substring(0, 60)}...</div>
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>

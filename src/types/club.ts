@@ -106,6 +106,7 @@ export interface ClubEventData {
   reservationConfig?: any
   syncedReservationIds?: string[]
   invitedMemberIds?: string[]
+  completedModules?: string[]
 }
 
 export interface ClubEvent {
@@ -132,6 +133,21 @@ export const TEMPLATE_DEFAULTS: Record<ClubEventTemplate, import('./event').Club
   arbeitseinsatz: { room: false, food: false, reservation: false, seating: false, invite: false },
 }
 
+export interface ClubModuleOption {
+  key: keyof import('./event').ClubEventModules
+  label: string
+  icon: string
+  description: string
+}
+
+export const CLUB_MODULE_OPTIONS: ClubModuleOption[] = [
+  { key: 'room', label: 'Sitzplanung', icon: '🪑', description: 'Raumplan & Tische platzieren' },
+  { key: 'food', label: 'Speiseplanung', icon: '🍽️', description: 'Menü & Bestellungen verwalten' },
+  { key: 'seating', label: 'Gästeplanung', icon: '👥', description: 'Gästegruppen den Tischen zuweisen' },
+  { key: 'reservation', label: 'Reservierung', icon: '📝', description: 'Öffentliche Reservierungsseite' },
+  { key: 'invite', label: 'Mitgliedereinladung', icon: '📨', description: 'Vereinsmitglieder zum Event einladen' },
+]
+
 /** Maps activity action keys to human-readable German labels */
 export const ACTIVITY_LABELS: Record<string, string> = {
   club_created: 'Verein erstellt',
@@ -140,12 +156,35 @@ export const ACTIVITY_LABELS: Record<string, string> = {
   member_left: 'Mitglied ausgetreten',
   member_removed: 'Mitglied entfernt',
   member_updated: 'Mitglied bearbeitet',
+  manual_member_created: 'Manuelles Mitglied erstellt',
+  manual_member_removed: 'Manuelles Mitglied entfernt',
+  members_merged: 'Mitglieder zusammengeführt',
   invite_created: 'Einladung erstellt',
   invite_revoked: 'Einladung widerrufen',
   event_created: 'Event erstellt',
   event_updated: 'Event bearbeitet',
   event_deleted: 'Event gelöscht',
+  event_invitations_sent: 'Einladungen versendet',
   ownership_transferred: 'Eigentümer gewechselt',
+}
+
+export const ACTIVITY_ICONS: Record<string, string> = {
+  club_created: '🏠',
+  club_updated: '✏️',
+  member_joined: '👋',
+  member_left: '🚪',
+  member_removed: '❌',
+  member_updated: '👤',
+  manual_member_created: '➕',
+  manual_member_removed: '➖',
+  members_merged: '🔗',
+  invite_created: '📨',
+  invite_revoked: '🚫',
+  event_created: '📅',
+  event_updated: '📝',
+  event_deleted: '🗑️',
+  event_invitations_sent: '✉️',
+  ownership_transferred: '🔄',
 }
 
 export const ROLE_LABELS: Record<ClubRole, string> = {

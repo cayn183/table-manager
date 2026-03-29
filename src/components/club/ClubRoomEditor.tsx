@@ -3,6 +3,7 @@
 // Derived from RoomEditor.tsx, but uses props + callback instead of localStorage.
 // ============================================================================
 import React, { useState, useRef, useEffect, useCallback } from 'react'
+import { useDeviceType } from '../../utils/useDeviceType'
 import type { Table, ViewFrame } from '../../types/room'
 
 // ── Props ──────────────────────────────────────────────────────────
@@ -18,6 +19,8 @@ export interface ClubRoomEditorProps {
 }
 
 export default function ClubRoomEditor({ initialTables, initialViewFrame, onSave, readOnly }: ClubRoomEditorProps) {
+  const deviceType = useDeviceType()
+  const isMobile = deviceType === 'mobile'
   const [tables, setTables] = useState<Table[]>(initialTables)
   const [nextId, setNextId] = useState(() => {
     const maxId = Math.max(0, ...initialTables.map(t => parseInt(t.id.replace(/\D/g, ''), 10) || 0))
@@ -274,16 +277,38 @@ export default function ClubRoomEditor({ initialTables, initialViewFrame, onSave
   // ── Render ───────────────────────────────────────────────────────
   return (
     <div style={{ height: '100%', background: '#f8fafc', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* Sidebar */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', overflow: 'hidden' }}>
+        {/* Sidebar / Mobile Toolbar */}
         <div style={{
-          flex: '0 0 320px', maxWidth: '360px', background: 'white',
-          boxShadow: '2px 0 12px rgba(0,0,0,0.05)', padding: '20px',
-          display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto',
+          ...(isMobile
+            ? { background: 'white', borderBottom: '1px solid #e2e8f0', padding: '12px 14px' }
+            : { flex: '0 0 320px', maxWidth: '360px', background: 'white', boxShadow: '2px 0 12px rgba(0,0,0,0.05)', padding: '20px', overflowY: 'auto' }),
+          display: 'flex', flexDirection: 'column', gap: isMobile ? '8px' : '12px',
         }}>
           {!readOnly && (
             <>
-              <label style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>Personenzahl pro Tisch</label>
+              {isMobile ? (
+                /* Mobile: compact single-row toolbar */
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input type="number" value={capacityInput} onChange={e => setCapacityInput(e.target.value)} placeholder="4"
+                    style={{ width: 50, padding: '8px 10px', border: '2px solid #e2e8f0', borderRadius: 8, fontSize: 14, fontWeight: 500, outline: 'none', textAlign: 'center' }} />
+                  <button onClick={addTable}
+                    style={{ padding: '8px 14px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+                    + Tisch
+                  </button>
+                  <div style={{ flex: 1 }} />
+                  <button onClick={handleSaveClick} disabled={tables.length === 0 || isSaving}
+                    style={{ padding: '8px 14px', background: tables.length === 0 ? '#e2e8f0' : '#10b981', color: 'white', border: 'none', borderRadius: 8, cursor: tables.length === 0 || isSaving ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 700, opacity: tables.length === 0 ? 0.6 : 1 }}>
+                    {isSaving ? '💾…' : '💾'}
+                  </button>
+                  <button onClick={performUndo} disabled={undoStack.length === 0}
+                    style={{ padding: '8px 10px', background: undoStack.length > 0 ? '#f8fafc' : '#f1f5f9', color: undoStack.length > 0 ? '#374151' : '#94a3b8', border: '2px solid #e2e8f0', borderRadius: 8, cursor: undoStack.length > 0 ? 'pointer' : 'not-allowed', fontSize: 13, opacity: undoStack.length > 0 ? 1 : 0.5 }}>
+                    ↩
+                  </button>
+                </div>
+              ) : (
+                /* Desktop: full sidebar controls */
+                <>
               <input
                 type="number"
                 value={capacityInput}
@@ -319,14 +344,16 @@ export default function ClubRoomEditor({ initialTables, initialViewFrame, onSave
                   style={{ flex: 1, padding: '12px 10px', background: undoStack.length > 0 ? '#f8fafc' : '#f1f5f9', color: undoStack.length > 0 ? '#374151' : '#94a3b8', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: undoStack.length > 0 ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 600, opacity: undoStack.length > 0 ? 1 : 0.5, whiteSpace: 'nowrap' }}
                 >↩ {undoStack.length > 0 ? `(${undoStack.length})` : ''}</button>
               </div>
-            </>
+              </>
+            )}
+          </>
           )}
 
           {saveError && (
             <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fee2e2', color: '#991b1b', fontSize: 13 }}>{saveError}</div>
           )}
 
-          {showHelp && !readOnly && (
+          {showHelp && !readOnly && !isMobile && (
             <div style={{
               background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '8px',
               padding: '12px', fontSize: '12px', color: '#0c4a6e', position: 'relative',
@@ -349,23 +376,27 @@ export default function ClubRoomEditor({ initialTables, initialViewFrame, onSave
             </div>
           )}
 
-          {viewFrame && (
+          {viewFrame && !isMobile && (
             <div style={{ marginTop: 8, fontSize: 12, color: '#64748b' }}>
               Aktueller Rahmen: x:{viewFrame.x}, y:{viewFrame.y}, w:{viewFrame.width}, h:{viewFrame.height}
             </div>
           )}
 
-          {/* Table list */}
-          <div style={{ marginTop: 8, fontSize: 13, color: '#64748b', fontWeight: 600 }}>
-            🪑 Tische ({tables.length})
-          </div>
-          {tables.length === 0 && (
-            <div style={{ fontSize: 13, color: '#94a3b8', fontStyle: 'italic' }}>Noch keine Tische vorhanden.</div>
+          {/* Table list — hidden on mobile */}
+          {!isMobile && (
+            <>
+              <div style={{ marginTop: 8, fontSize: 13, color: '#64748b', fontWeight: 600 }}>
+                🪑 Tische ({tables.length})
+              </div>
+              {tables.length === 0 && (
+                <div style={{ fontSize: 13, color: '#94a3b8', fontStyle: 'italic' }}>Noch keine Tische vorhanden.</div>
+              )}
+            </>
           )}
         </div>
 
         {/* Grid */}
-        <div style={{ flex: 1, padding: '24px', overflow: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
+        <div style={{ flex: 1, padding: isMobile ? '8px' : '24px', overflow: 'auto', display: 'flex', justifyContent: isMobile ? 'flex-start' : 'center', alignItems: 'flex-start', WebkitOverflowScrolling: 'touch' }}>
           <div
             className="grid"
             ref={gridRef}
@@ -490,7 +521,7 @@ export default function ClubRoomEditor({ initialTables, initialViewFrame, onSave
       {contextMenu && !readOnly && (
         <div style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, background: 'white', border: '1px solid #cbd5e1', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', borderRadius: 8, zIndex: 2000, minWidth: 180 }}
              onMouseLeave={() => setContextMenu(null)}>
-          <div style={{ padding: '8px 12px', fontWeight: 700, fontSize: 13, color: '#0f172a', borderBottom: '1px solid #e2e8f0' }}>🪑 {contextMenu.tableId}</div>
+          <div style={{ padding: '8px 12px', fontWeight: 700, fontSize: 13, color: '#1e293b', borderBottom: '1px solid #e2e8f0' }}>🪑 {contextMenu.tableId}</div>
           <button onClick={() => {
             const id = contextMenu.tableId
             const num = (id.match(/(\d+)$/) || [])[1] || ''
@@ -514,7 +545,7 @@ export default function ClubRoomEditor({ initialTables, initialViewFrame, onSave
       {renameModal && !readOnly && (
         <div className="modal" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2150 }} onClick={() => setRenameModal(null)}>
           <div style={{ background: 'white', borderRadius: 12, padding: 20, minWidth: 360, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ margin: 0, marginBottom: 12, fontSize: 18, fontWeight: 700, color: '#0f172a' }}>✏️ Tischnummer ändern – {renameModal.tableId}</h3>
+            <h3 style={{ margin: 0, marginBottom: 12, fontSize: 18, fontWeight: 700, color: '#1e293b' }}>✏️ Tischnummer ändern – {renameModal.tableId}</h3>
             <label style={{ display: 'block', fontSize: 13, color: '#334155', fontWeight: 600, marginBottom: 6 }}>Neue Tischnummer</label>
             <input type="text" value={renameModal.newId} onChange={e => {
               const val = e.target.value
@@ -576,7 +607,7 @@ export default function ClubRoomEditor({ initialTables, initialViewFrame, onSave
       {sizeModal && !readOnly && (
         <div className="modal" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2100 }} onClick={() => setSizeModal(null)}>
           <div style={{ background: 'white', borderRadius: 12, padding: 20, minWidth: 360, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ margin: 0, marginBottom: 12, fontSize: 18, fontWeight: 700, color: '#0f172a' }}>📏 Größe ändern – {sizeModal.tableId}</h3>
+            <h3 style={{ margin: 0, marginBottom: 12, fontSize: 18, fontWeight: 700, color: '#1e293b' }}>📏 Größe ändern – {sizeModal.tableId}</h3>
             <label style={{ display: 'block', fontSize: 13, color: '#334155', fontWeight: 600, marginBottom: 6 }}>Personenzahl</label>
             <input type="number" value={sizeModal.capacity} onChange={e => setSizeModal({ ...sizeModal, capacity: e.target.value })}
               style={{ width: '100%', padding: '10px 12px', border: '2px solid #e2e8f0', borderRadius: 8, fontSize: 14 }} />
