@@ -98,6 +98,7 @@ jobs:
           git add -A
           if ! git diff --staged --quiet; then
             git commit -m "chore: release v${{ steps.version.outputs.version }} [skip ci]"
+            git pull --rebase origin main
             git push
             echo "✓ Version changes committed"
           else
