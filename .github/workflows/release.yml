@@ -59,16 +59,6 @@ jobs:
           echo "short=$SHORT_SHA" >> $GITHUB_OUTPUT
           echo "✓ Short SHA: $SHORT_SHA"
 
-      - name: Update Frontend version (Footer.tsx)
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          RELEASE_DATE=$(date +%Y-%m-%d)
-          
-          # Set version to release version and update release date
-          sed -i "s/version: '[^']*'/version: '$VERSION'/" src/components/Footer.tsx
-          sed -i "s/releaseDate: '[^']*'/releaseDate: '$RELEASE_DATE'/" src/components/Footer.tsx
-          echo "✓ Updated Frontend Footer.tsx: version='$VERSION', releaseDate='$RELEASE_DATE'"
-
       - name: Update Frontend package.json version
         run: |
           VERSION="${{ steps.version.outputs.version }}"
