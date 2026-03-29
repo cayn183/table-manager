@@ -8,6 +8,8 @@ import ErrorBoundary from './components/shared/ErrorBoundary'
 import UTF8Provider from './components/shared/UTF8Provider'
 import './styles.css'
 import './styles/footer.css'
+import './styles/tablet.css'
+import './styles/mobile.css'
 import sentry from './sentryClient'
 
 createRoot(document.getElementById('root')!).render(

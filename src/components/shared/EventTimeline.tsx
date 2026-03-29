@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react'
+import { useDeviceType } from '../../utils/useDeviceType'
 import type { TimelineEntry, EventTimelineData } from '../../types/event'
 
 interface Props {
@@ -13,9 +14,9 @@ const ICONS = ['🎉', '🍽️', '🎵', '💍', '📸', '🎤', '🥂', '🎂'
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '10px 14px', border: '2px solid #e2e8f0', borderRadius: 8,
-  fontSize: 13, outline: 'none', boxSizing: 'border-box', marginTop: 4,
+  fontSize: 14, outline: 'none', boxSizing: 'border-box',
 }
-const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#475569' }
+const labelStyle: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4 }
 
 function genId() { return `tl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` }
 
@@ -32,6 +33,8 @@ function durationStr(from: string, to: string): string {
 }
 
 export default function EventTimeline({ data, eventDate, timeFrom, timeTo, onSave }: Props) {
+  const deviceType = useDeviceType()
+  const isMobile = deviceType === 'mobile'
   const [list, setList] = useState<TimelineEntry[]>([...(data.entries ?? [])].sort((a, b) => a.time.localeCompare(b.time)))
   const [timelineTitle, setTimelineTitle] = useState(data.title ?? '')
   const [showForm, setShowForm] = useState(false)
@@ -155,7 +158,7 @@ export default function EventTimeline({ data, eventDate, timeFrom, timeTo, onSav
   return (
     <div style={{ padding: 24, maxWidth: 700, margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
         <div>
           {editTitle ? (
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -178,7 +181,7 @@ export default function EventTimeline({ data, eventDate, timeFrom, timeTo, onSav
         </div>
         {list.length > 0 && (
           <button onClick={() => setPreviewMode(true)}
-            style={{ padding: '6px 14px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>
+            style={{ padding: '8px 16px', background: 'linear-gradient(135deg, #667eea, #764ba2)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
             👁️ Vorschau
           </button>
         )}
@@ -205,7 +208,7 @@ export default function EventTimeline({ data, eventDate, timeFrom, timeTo, onSav
           <h4 style={{ margin: '0 0 14px', fontSize: 14, fontWeight: 700, color: '#1e293b' }}>
             {editId ? '✏️ Programmpunkt bearbeiten' : '+ Neuer Programmpunkt'}
           </h4>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 2fr', gap: 12 }}>
             <div>
               <label style={labelStyle}>Von *</label>
               <input type="time" value={time} onChange={e => setTime(e.target.value)} style={inputStyle} />
@@ -219,7 +222,7 @@ export default function EventTimeline({ data, eventDate, timeFrom, timeTo, onSav
               <input type="text" value={title} onChange={e => setTitle(e.target.value)} style={inputStyle} placeholder="z.B. Empfang" autoFocus />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginTop: 12 }}>
             <div>
               <label style={labelStyle}>Ort</label>
               <input type="text" value={location} onChange={e => setLocation(e.target.value)} style={inputStyle} placeholder="z.B. Festsaal" />

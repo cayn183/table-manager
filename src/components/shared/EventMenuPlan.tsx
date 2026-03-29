@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useDeviceType } from '../../utils/useDeviceType'
 import type { MenuCourse, MenuChoice, EventMenuData } from '../../types/event'
 
 interface Props {
@@ -13,6 +14,8 @@ const COURSE_PRESETS = ['Vorspeise', 'Suppe', 'Zwischengang', 'Hauptgang', 'Dess
 function genId() { return `mc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` }
 
 export default function EventMenuPlan({ data, onSave }: Props) {
+  const deviceType = useDeviceType()
+  const isMobile = deviceType === 'mobile'
   const [menuTitle, setMenuTitle] = useState(data.title ?? '')
   const [notes, setNotes] = useState(data.notes ?? '')
   const [courses, setCourses] = useState<MenuCourse[]>(data.courses ?? [])
@@ -170,15 +173,15 @@ export default function EventMenuPlan({ data, onSave }: Props) {
       </div>
 
       {/* Menu title & notes */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-        <div style={{ flex: 2 }}>
+      <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexDirection: isMobile ? 'column' : 'row' }}>
+        <div style={{ flex: isMobile ? undefined : 2 }}>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4 }}>Menütitel</label>
           <input type="text" value={menuTitle} onChange={e => setMenuTitle(e.target.value)} onBlur={handleTitleBlur}
             placeholder="z.B. Hochzeitsmenü"
             style={{ width: '100%', padding: '10px 14px', border: '2px solid #e2e8f0', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
             onFocus={e => e.target.style.borderColor = '#667eea'} />
         </div>
-        <div style={{ flex: 3 }}>
+        <div style={{ flex: isMobile ? undefined : 3 }}>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4 }}>Hinweis</label>
           <input type="text" value={notes} onChange={e => setNotes(e.target.value)} onBlur={handleNotesBlur}
             placeholder="z.B. Bitte Allergien bei der Einladung angeben"

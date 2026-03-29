@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react'
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
 import userStorage from '../../utils/userStorage'
@@ -10,6 +10,8 @@ import { migratePrivateEvent, PRIVATE_MODULE_OPTIONS } from '../../types/event'
 import type { Table, ViewFrame, AssignedGroup } from '../../types/room'
 import type { Group } from '../room/Importer'
 import { usePageHeader } from '../layout/PageHeaderContext'
+import { useEventTabs } from '../layout/EventTabContext'
+import { useDeviceType } from '../../utils/useDeviceType'
 import ClubRoomEditor from '../club/ClubRoomEditor'
 import Room from '../room/Room'
 import EventChecklist from './EventChecklist'
@@ -68,6 +70,7 @@ export default function PrivateEventDetail() {
   const [showRoomPicker, setShowRoomPicker] = useState(false)
   const [savedRooms, setSavedRooms] = useState<SavedRoom[]>([])
   const [moduleEditing, setModuleEditing] = useState(false)
+  const [confirmDisable, setConfirmDisable] = useState<keyof EventModules | null>(null)
 
   // Load event from localStorage
   useEffect(() => {
@@ -163,6 +166,34 @@ export default function PrivateEventDetail() {
     if (!event) return
     const newModules = { ...event.modules }
     const newVal = !newModules[key]
+
+    // If deactivating a module that has data, ask for confirmation first
+    if (!newVal && moduleHasData(event, key)) {
+      setConfirmDisable(key)
+      return
+    }
+
+    applyModuleToggle(key)
+  }
+
+  function moduleHasData(ev: PrivateEventItem, key: keyof EventModules): boolean {
+    switch (key) {
+      case 'room': return (ev.roomData?.tables?.length ?? 0) > 0
+      case 'seating': return (ev.seatingData?.groups?.length ?? 0) > 0
+      case 'checklist': return (ev.checklistData?.items?.length ?? 0) > 0
+      case 'budget': return (ev.budgetData?.items?.length ?? 0) > 0
+      case 'timeline': return (ev.timelineData?.entries?.length ?? 0) > 0
+      case 'menu': return (ev.menuData?.courses?.length ?? 0) > 0
+      case 'guestInvite': return (ev.guestInviteData?.invitations?.length ?? 0) > 0
+      case 'dashboard': return !!ev.dashboardConfig
+      default: return false
+    }
+  }
+
+  async function applyModuleToggle(key: keyof EventModules) {
+    if (!event) return
+    const newModules = { ...event.modules }
+    const newVal = !newModules[key]
     newModules[key] = newVal
     // Seating requires room
     if (key === 'seating' && newVal) newModules.room = true
@@ -170,6 +201,10 @@ export default function PrivateEventDetail() {
     if (key === 'room' && !newVal) newModules.seating = false
 
     const updated: PrivateEventItem = { ...event, modules: newModules }
+    // Clear completed flag when toggling a module
+    if (updated.completedModules?.includes(key)) {
+      updated.completedModules = updated.completedModules.filter(k => k !== key)
+    }
     // Initialize data for newly enabled modules
     if (newVal) {
       if (key === 'room' && !updated.roomData) updated.roomData = { tables: [], viewFrame: null }
@@ -182,9 +217,61 @@ export default function PrivateEventDetail() {
       if (key === 'dashboard' && !updated.dashboardConfig) updated.dashboardConfig = { showTimeline: false, showMenu: false, showSeating: false, showLocation: true }
     }
     await persistEvent(updated)
+    setConfirmDisable(null)
   }
 
-  const visibleTabs = ALL_TABS.filter(t => !t.moduleKey || event?.modules?.[t.moduleKey])
+  async function toggleModuleCompleted(key: string) {
+    if (!event) return
+    const completed = new Set(event.completedModules ?? [])
+    if (completed.has(key)) completed.delete(key)
+    else {
+      completed.add(key)
+      // If the completed tab is currently active, switch to overview
+      if (activeTab === key) setActiveTab('overview')
+    }
+    await persistEvent({ ...event, completedModules: [...completed] })
+  }
+
+  const completedSet = new Set(event?.completedModules ?? [])
+  const visibleTabs = ALL_TABS.filter(t => !t.moduleKey || (event?.modules?.[t.moduleKey] && !completedSet.has(t.key)))
+
+  const device = useDeviceType()
+  const isMobile = device === 'mobile'
+  const { setEventTabs, clearEventTabs } = useEventTabs()
+  const tabBarRef = useRef<HTMLDivElement>(null)
+
+  // Scroll active tab into view when it changes
+  useEffect(() => {
+    const activeEl = tabBarRef.current?.querySelector('[data-active="true"]') as HTMLElement
+    if (activeEl) {
+      activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+    }
+  }, [activeTab])
+
+  // Broadcast visible tabs to BottomTabBar on mobile
+  useEffect(() => {
+    if (!isMobile || !event) return
+    setEventTabs(
+      visibleTabs.map(t => ({ key: t.key, label: t.label, icon: t.icon })),
+      activeTab,
+      (key: string) => setActiveTab(key as TabKey),
+    )
+  }, [isMobile, visibleTabs.length, event?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep context activeTab in sync when local activeTab changes
+  useEffect(() => {
+    if (!isMobile || !event) return
+    setEventTabs(
+      visibleTabs.map(t => ({ key: t.key, label: t.label, icon: t.icon })),
+      activeTab,
+      (key: string) => setActiveTab(key as TabKey),
+    )
+  }, [activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clear event tabs on unmount
+  useEffect(() => {
+    return () => { clearEventTabs() }
+  }, [clearEventTabs])
 
   // Merge accepted RSVP guests into seating groups
   const seatingGroups = useMemo(() => {
@@ -287,19 +374,21 @@ export default function PrivateEventDetail() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
 
-      {/* ── Tab bar ── */}
-      <div style={{ background: 'white', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 0, padding: '0 16px', flexShrink: 0 }}>
+      {/* ── Tab bar (desktop/tablet only when mobile uses bottom tabs) ── */}
+      {!isMobile && (
+      <div ref={tabBarRef} className="scrollable-tabs" style={{ background: 'white', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 0, padding: '0 16px', flexShrink: 0 }}>
         <button
           onClick={() => navigate('/app/events')}
           style={{ background: 'none', border: 'none', color: '#667eea', cursor: 'pointer', fontSize: 13, padding: '10px 8px 10px 0', fontWeight: 500, flexShrink: 0, marginRight: 8 }}
         >← Zurück</button>
 
-        <div style={{ width: 1, height: 20, background: '#e2e8f0', marginRight: 8 }} />
+        <div style={{ width: 1, height: 20, background: '#e2e8f0', marginRight: 8, flexShrink: 0 }} />
 
         {visibleTabs.map(tab => {
           const active = activeTab === tab.key
           return (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+              data-active={active ? 'true' : undefined}
               style={{
                 padding: '10px 16px', border: 'none',
                 borderBottom: active ? '2px solid #667eea' : '2px solid transparent',
@@ -307,11 +396,13 @@ export default function PrivateEventDetail() {
                 color: active ? '#667eea' : '#64748b',
                 fontWeight: active ? 700 : 500,
                 fontSize: 13, cursor: 'pointer', transition: 'all 0.15s', marginBottom: -1,
+                whiteSpace: 'nowrap', flexShrink: 0,
               }}
             >{tab.icon} {tab.label}</button>
           )
         })}
       </div>
+      )}
 
       {/* ── Tab Content ── */}
       <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
@@ -501,20 +592,48 @@ export default function PrivateEventDetail() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 15 }}>🧩</span>
                   <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>Module verwalten</span>
-                  <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>
-                    {PRIVATE_MODULE_OPTIONS.filter(m => !!event.modules[m.key]).length}/{PRIVATE_MODULE_OPTIONS.length} aktiv
-                  </span>
+                  {(() => {
+                    const active = PRIVATE_MODULE_OPTIONS.filter(m => !!event.modules[m.key])
+                    const done = active.filter(m => completedSet.has(m.key)).length
+                    return (
+                      <span style={{ fontSize: 11, color: done > 0 ? '#16a34a' : '#94a3b8', fontWeight: 500 }}>
+                        {done}/{active.length} erledigt
+                      </span>
+                    )
+                  })()}
                 </div>
-                <span style={{ fontSize: 12, color: '#64748b' }}>{moduleEditing ? '▲ Einklappen' : '▼ Anpassen'}</span>
+                <span style={{ fontSize: 12, color: '#64748b' }}>{moduleEditing ? '▲ Fertig' : '▼ Module ändern'}</span>
               </button>
 
               {!moduleEditing && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-                  {PRIVATE_MODULE_OPTIONS.filter(m => !!event.modules[m.key]).map(m => (
-                    <button key={m.key} onClick={() => setActiveTab(m.key as TabKey)}
-                      style={{ padding: '6px 14px', borderRadius: 20, border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}
-                    >{m.icon} {m.label}</button>
-                  ))}
+                  {PRIVATE_MODULE_OPTIONS.filter(m => !!event.modules[m.key]).map(m => {
+                    const done = completedSet.has(m.key)
+                    return (
+                      <div key={m.key} style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+                        <button onClick={() => done ? toggleModuleCompleted(m.key) : setActiveTab(m.key as TabKey)}
+                          style={{
+                            padding: '6px 10px 6px 14px', borderRadius: '20px 0 0 20px',
+                            border: '1px solid ' + (done ? '#bbf7d0' : '#e2e8f0'), borderRight: 'none',
+                            background: done ? '#f0fdf4' : '#f8fafc', cursor: 'pointer',
+                            fontSize: 12, fontWeight: 600,
+                            color: done ? '#16a34a' : '#475569',
+                          }}
+                        >{done ? '✅' : m.icon} {m.label}</button>
+                        <button
+                          onClick={() => toggleModuleCompleted(m.key)}
+                          title={done ? 'Modul wieder öffnen' : 'Als erledigt markieren'}
+                          style={{
+                            padding: '6px 10px', borderRadius: '0 20px 20px 0',
+                            border: '1px solid ' + (done ? '#bbf7d0' : '#e2e8f0'),
+                            background: done ? '#16a34a' : '#f8fafc', cursor: 'pointer',
+                            fontSize: 12, lineHeight: 1, color: done ? '#fff' : '#94a3b8',
+                            display: 'flex', alignItems: 'center',
+                          }}
+                        >{done ? '↺' : '✓'}</button>
+                      </div>
+                    )
+                  })}
                   {!PRIVATE_MODULE_OPTIONS.some(m => !!event.modules[m.key]) && (
                     <span style={{ fontSize: 12, color: '#94a3b8', fontStyle: 'italic' }}>Keine Module aktiviert. Klicke auf „Anpassen".</span>
                   )}
@@ -553,6 +672,37 @@ export default function PrivateEventDetail() {
                 </div>
               )}
             </div>
+
+            {/* ── Confirm deactivate module dialog ── */}
+            {confirmDisable && (() => {
+              const mod = PRIVATE_MODULE_OPTIONS.find(m => m.key === confirmDisable)
+              if (!mod) return null
+              return (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+                  onClick={() => setConfirmDisable(null)}>
+                  <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: 16, padding: '24px', maxWidth: 400, width: '100%', boxShadow: '0 8px 30px rgba(0,0,0,0.15)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                      <span style={{ fontSize: 24 }}>⚠️</span>
+                      <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#1e293b' }}>Modul deaktivieren?</h3>
+                    </div>
+                    <p style={{ margin: '0 0 8px', fontSize: 14, color: '#475569', lineHeight: 1.5 }}>
+                      <strong>{mod.icon} {mod.label}</strong> enthält bereits Daten.
+                    </p>
+                    <p style={{ margin: '0 0 20px', fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
+                      Das Modul wird ausgeblendet, aber deine Daten bleiben erhalten. Wenn du es später wieder aktivierst, ist alles noch da.
+                    </p>
+                    <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                      <button onClick={() => setConfirmDisable(null)}
+                        style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#64748b' }}
+                      >Abbrechen</button>
+                      <button onClick={() => applyModuleToggle(confirmDisable)}
+                        style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#ef4444', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'white' }}
+                      >Deaktivieren</button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* ── Meta-Info ── */}
             {(event.createdAt || event.lastModified) && (

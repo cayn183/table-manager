@@ -2,6 +2,7 @@ import React from 'react'
 import type { ReactNode } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './auth/AuthContext'
+import { useDeviceType } from './utils/useDeviceType'
 import PublicLayout from './components/layout/PublicLayout'
 import PublicLayoutNoFooter from './components/layout/PublicLayoutNoFooter'
 import AppLayout from './components/layout/AppLayout'
@@ -11,6 +12,7 @@ import WeddingLandingPage from './components/landing/WeddingLandingPage'
 import GuestListLandingPage from './components/landing/GuestListLandingPage'
 import Home from './components/shared/Home'
 import RoomEditor from './components/room/RoomEditor'
+import RoomEditorMobile from './components/room/RoomEditorMobile'
 import Room from './components/room/Room'
 import LoadRoom from './components/room/LoadRoom'
 import LoadEvent from './components/room/LoadEvent'
@@ -41,6 +43,11 @@ function RequireAuth({ children }: { children: ReactNode }) {
     return <Navigate to={`/login?redirect=${redirect}`} replace />
   }
   return <>{children}</>
+}
+
+function ResponsiveRoomEditor() {
+  const device = useDeviceType()
+  return device === 'mobile' ? <RoomEditorMobile /> : <RoomEditor />
 }
 
 export default function App() {
@@ -81,7 +88,7 @@ export default function App() {
         <Route path="events" element={<LoadEvent />} />
         <Route path="events/:eventId" element={<PrivateEventDetail />} />
         <Route path="rooms" element={<LoadRoom />} />
-        <Route path="rooms/:roomId" element={<RoomEditor />} />
+        <Route path="rooms/:roomId" element={<ResponsiveRoomEditor />} />
         <Route path="togo" element={<ToGo />} />
         <Route path="club/:clubId/members" element={<ClubMembers />} />
         <Route path="club/:clubId/settings" element={<ClubSettings />} />

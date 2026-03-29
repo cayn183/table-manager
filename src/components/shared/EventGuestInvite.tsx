@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import type { GuestInvitation, EventGuestInviteData, EventMenuData, EventTimelineData } from '../../types/event'
+import { useDeviceType } from '../../utils/useDeviceType'
 
 interface Props {
   data: EventGuestInviteData
@@ -69,6 +70,12 @@ export default function EventGuestInvite({ data, eventName, eventDate, eventFrom
   // Category manager
   const [showCategoryManager, setShowCategoryManager] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
+
+  // Mobile
+  const device = useDeviceType()
+  const isMobile = device === 'mobile'
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const [showMobileActions, setShowMobileActions] = useState(false)
 
   // CSV import
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -441,24 +448,40 @@ export default function EventGuestInvite({ data, eventName, eventDate, eventFrom
       </div>
 
       {/* ── Stats bar ── */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        {[
-          { label: 'Eingeladen', value: stats.total, color: '#667eea', bg: '#e0e7ff' },
-          { label: 'Zugesagt', value: stats.accepted, color: '#059669', bg: '#d1fae5' },
-          { label: 'Abgesagt', value: stats.declined, color: '#dc2626', bg: '#fee2e2' },
-          { label: 'Offen', value: stats.pending, color: '#d97706', bg: '#fef3c7' },
-          { label: 'Erwachsene', value: stats.totalAdults, color: '#7c3aed', bg: '#ede9fe' },
-          { label: 'Kinder', value: stats.totalChildren, color: '#ec4899', bg: '#fce7f3' },
-        ].map(s => (
-          <div key={s.label} style={{ padding: '7px 12px', borderRadius: 10, background: s.bg, flex: '1 1 80px', textAlign: 'center' }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: s.color }}>{s.value}</div>
-            <div style={{ fontSize: 9, fontWeight: 600, color: s.color, opacity: 0.8 }}>{s.label}</div>
-          </div>
-        ))}
-      </div>
+      {isMobile ? (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+          {[
+            { label: 'Eingeladen', value: stats.total, color: '#667eea', bg: '#e0e7ff' },
+            { label: 'Zugesagt', value: stats.accepted, color: '#059669', bg: '#d1fae5' },
+            { label: 'Abgesagt', value: stats.declined, color: '#dc2626', bg: '#fee2e2' },
+            { label: 'Offen', value: stats.pending, color: '#d97706', bg: '#fef3c7' },
+          ].map(s => (
+            <div key={s.label} style={{ padding: '6px 0', borderRadius: 8, background: s.bg, flex: 1, textAlign: 'center' }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: s.color }}>{s.value}</div>
+              <div style={{ fontSize: 8, fontWeight: 600, color: s.color, opacity: 0.8 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+          {[
+            { label: 'Eingeladen', value: stats.total, color: '#667eea', bg: '#e0e7ff' },
+            { label: 'Zugesagt', value: stats.accepted, color: '#059669', bg: '#d1fae5' },
+            { label: 'Abgesagt', value: stats.declined, color: '#dc2626', bg: '#fee2e2' },
+            { label: 'Offen', value: stats.pending, color: '#d97706', bg: '#fef3c7' },
+            { label: 'Erwachsene', value: stats.totalAdults, color: '#7c3aed', bg: '#ede9fe' },
+            { label: 'Kinder', value: stats.totalChildren, color: '#ec4899', bg: '#fce7f3' },
+          ].map(s => (
+            <div key={s.label} style={{ padding: '7px 12px', borderRadius: 10, background: s.bg, flex: '1 1 80px', textAlign: 'center' }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: s.color }}>{s.value}</div>
+              <div style={{ fontSize: 9, fontWeight: 600, color: s.color, opacity: 0.8 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
 
-      {/* Category breakdown */}
-      {Object.keys(stats.byCategory).length > 1 && (
+      {/* Category breakdown (desktop only) */}
+      {!isMobile && Object.keys(stats.byCategory).length > 1 && (
         <div style={{ ...cardStyle, padding: '10px 16px', marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           <span style={{ fontSize: 11, fontWeight: 600, color: '#64748b' }}>Kategorien:</span>
           {Object.entries(stats.byCategory).map(([cat, c]) => (
@@ -473,10 +496,10 @@ export default function EventGuestInvite({ data, eventName, eventDate, eventFrom
       )}
 
       {/* Section tabs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        {sectionBtn('guests', '👥', `Gästeliste (${stats.total})`)}
-        {sectionBtn('share', '🔗', 'Teilen & Einladen')}
-        {sectionBtn('settings', '⚙️', 'Einstellungen')}
+      <div style={{ display: 'flex', gap: isMobile ? 6 : 8, marginBottom: isMobile ? 12 : 20, flexWrap: 'wrap' }}>
+        {sectionBtn('guests', '👥', isMobile ? `Gäste (${stats.total})` : `Gästeliste (${stats.total})`)}
+        {sectionBtn('share', '🔗', isMobile ? 'Teilen' : 'Teilen & Einladen')}
+        {sectionBtn('settings', '⚙️', isMobile ? 'Optionen' : 'Einstellungen')}
       </div>
 
       {/* ═══════════════════════════════════════════ */}
@@ -485,10 +508,13 @@ export default function EventGuestInvite({ data, eventName, eventDate, eventFrom
       {activeSection === 'guests' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
 
+          {/* Hidden file input for CSV import */}
+          <input ref={fileInputRef} type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={handleCSVImport} />
+
           {/* Toolbar: search, filter, actions */}
-          <div style={{ ...cardStyle, padding: '12px 16px' }}>
-            {/* Row 1: Search + action buttons */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+          <div style={{ ...cardStyle, padding: isMobile ? '10px 12px' : '12px 16px' }}>
+            {/* Row 1: Search + Add Guest + Desktop action buttons */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: isMobile && !showMobileFilters && !showMobileActions ? 0 : 10, flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 200px', position: 'relative' }}>
                 <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
                   placeholder="🔍 Gäste suchen..." style={{ ...inputStyle, padding: '8px 12px', fontSize: 13 }} />
@@ -496,55 +522,99 @@ export default function EventGuestInvite({ data, eventName, eventDate, eventFrom
               <button onClick={() => setShowAddGuest(!showAddGuest)}
                 style={{ padding: '8px 14px', background: 'linear-gradient(135deg, #667eea, #764ba2)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}
               >+ Gast</button>
-              <button onClick={() => fileInputRef.current?.click()}
-                style={{ padding: '8px 14px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}
-              >📥 CSV Import</button>
-              <input ref={fileInputRef} type="file" accept=".csv,.txt" style={{ display: 'none' }} onChange={handleCSVImport} />
-              <button onClick={exportCSV} disabled={invitations.length === 0}
-                style={{ padding: '8px 14px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: invitations.length ? '#475569' : '#cbd5e1', whiteSpace: 'nowrap' }}
-              >📤 Export</button>
-              <button onClick={() => setPrintMode(true)} disabled={invitations.length === 0}
-                style={{ padding: '8px 14px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: invitations.length ? '#475569' : '#cbd5e1', whiteSpace: 'nowrap' }}
-              >🖨️</button>
+              {!isMobile && (
+                <>
+                  <button onClick={() => fileInputRef.current?.click()}
+                    style={{ padding: '8px 14px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}
+                  >📥 CSV Import</button>
+                  <button onClick={exportCSV} disabled={invitations.length === 0}
+                    style={{ padding: '8px 14px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: invitations.length ? '#475569' : '#cbd5e1', whiteSpace: 'nowrap' }}
+                  >📤 Export</button>
+                  <button onClick={() => setPrintMode(true)} disabled={invitations.length === 0}
+                    style={{ padding: '8px 14px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: invitations.length ? '#475569' : '#cbd5e1', whiteSpace: 'nowrap' }}
+                  >🖨️</button>
+                </>
+              )}
             </div>
 
-            {/* Row 2: Filter pills */}
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', marginRight: 2 }}>Status:</span>
-              {[
-                { key: 'all', label: 'Alle' },
-                { key: 'pending', label: '⏳ Offen' },
-                { key: 'accepted', label: '✓ Zugesagt' },
-                { key: 'declined', label: '✕ Abgesagt' },
-              ].map(f => (
-                <button key={f.key} onClick={() => setFilterStatus(f.key)} style={pillBtn(filterStatus === f.key)}>{f.label}</button>
-              ))}
+            {/* Mobile: compact toggle buttons for filters/actions */}
+            {isMobile && (
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                <button onClick={() => { setShowMobileFilters(!showMobileFilters); setShowMobileActions(false) }}
+                  style={{
+                    flex: 1, padding: '6px 0', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                    border: '1px solid ' + (showMobileFilters ? '#667eea' : '#e2e8f0'),
+                    background: showMobileFilters ? '#e0e7ff' : '#f8fafc',
+                    color: showMobileFilters ? '#667eea' : '#64748b',
+                  }}
+                >
+                  🔽 Filter {filterStatus !== 'all' || filterCategory !== 'all' ? '●' : ''}
+                </button>
+                <button onClick={() => { setShowMobileActions(!showMobileActions); setShowMobileFilters(false) }}
+                  style={{
+                    flex: 1, padding: '6px 0', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                    border: '1px solid ' + (showMobileActions ? '#667eea' : '#e2e8f0'),
+                    background: showMobileActions ? '#e0e7ff' : '#f8fafc',
+                    color: showMobileActions ? '#667eea' : '#64748b',
+                  }}
+                >⚡ Aktionen</button>
+              </div>
+            )}
 
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', margin: '0 4px 0 10px' }}>Kategorie:</span>
-              <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}
-                style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 11, color: '#475569', background: 'white' }}
-              >
-                <option value="all">Alle</option>
-                <option value="_none">Ohne Kategorie</option>
-                {categories.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+            {/* Filters — always visible on desktop, collapsible on mobile */}
+            {(!isMobile || showMobileFilters) && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', ...(isMobile ? { marginTop: 10 } : {}) }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', marginRight: 2 }}>Status:</span>
+                {[
+                  { key: 'all', label: 'Alle' },
+                  { key: 'pending', label: '⏳ Offen' },
+                  { key: 'accepted', label: '✓ Zugesagt' },
+                  { key: 'declined', label: '✕ Abgesagt' },
+                ].map(f => (
+                  <button key={f.key} onClick={() => setFilterStatus(f.key)} style={pillBtn(filterStatus === f.key)}>{f.label}</button>
+                ))}
 
-              <button onClick={() => setShowCategoryManager(!showCategoryManager)}
-                style={{ marginLeft: 'auto', padding: '4px 8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer', fontSize: 10, fontWeight: 600, color: '#64748b' }}
-              >🏷️ Kategorien</button>
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', margin: '0 4px 0 10px' }}>Kategorie:</span>
+                <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}
+                  style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 11, color: '#475569', background: 'white' }}
+                >
+                  <option value="all">Alle</option>
+                  <option value="_none">Ohne Kategorie</option>
+                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
 
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', margin: '0 4px 0 8px' }}>Sort:</span>
-              {[
-                { key: 'name' as SortKey, label: 'Name' },
-                { key: 'status' as SortKey, label: 'Status' },
-                { key: 'category' as SortKey, label: 'Kategorie' },
-                { key: 'groupSize' as SortKey, label: 'Größe' },
-              ].map(s => (
-                <button key={s.key} onClick={() => toggleSort(s.key)}
-                  style={{ ...pillBtn(sortKey === s.key), fontSize: 10 }}
-                >{s.label} {sortKey === s.key ? (sortDir === 'asc' ? '↑' : '↓') : ''}</button>
-              ))}
-            </div>
+                <button onClick={() => setShowCategoryManager(!showCategoryManager)}
+                  style={{ marginLeft: isMobile ? 0 : 'auto', padding: '4px 8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer', fontSize: 10, fontWeight: 600, color: '#64748b' }}
+                >🏷️ Kategorien</button>
+
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', margin: '0 4px 0 8px' }}>Sort:</span>
+                {[
+                  { key: 'name' as SortKey, label: 'Name' },
+                  { key: 'status' as SortKey, label: 'Status' },
+                  { key: 'category' as SortKey, label: 'Kategorie' },
+                  { key: 'groupSize' as SortKey, label: 'Größe' },
+                ].map(s => (
+                  <button key={s.key} onClick={() => toggleSort(s.key)}
+                    style={{ ...pillBtn(sortKey === s.key), fontSize: 10 }}
+                  >{s.label} {sortKey === s.key ? (sortDir === 'asc' ? '↑' : '↓') : ''}</button>
+                ))}
+              </div>
+            )}
+
+            {/* Mobile actions — collapsible */}
+            {isMobile && showMobileActions && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+                <button onClick={() => fileInputRef.current?.click()}
+                  style={{ flex: 1, padding: '8px 14px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}
+                >📥 CSV Import</button>
+                <button onClick={exportCSV} disabled={invitations.length === 0}
+                  style={{ flex: 1, padding: '8px 14px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: invitations.length ? '#475569' : '#cbd5e1', whiteSpace: 'nowrap' }}
+                >📤 Export</button>
+                <button onClick={() => setPrintMode(true)} disabled={invitations.length === 0}
+                  style={{ padding: '8px 14px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: invitations.length ? '#475569' : '#cbd5e1', whiteSpace: 'nowrap' }}
+                >🖨️ Drucken</button>
+              </div>
+            )}
           </div>
 
           {/* Category manager */}

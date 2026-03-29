@@ -1,15 +1,16 @@
 import React from 'react'
 import { useHelp } from './HelpContext'
 import type { HelpTab } from './HelpContext'
+import { useDeviceType } from '../../utils/useDeviceType'
 
 const TABS: { key: HelpTab; label: string; icon: string }[] = [
-  { key: 'home',       label: 'Startseite',        icon: '🏠' },
-  { key: 'room',       label: 'Tischplaner',        icon: '🪑' },
-  { key: 'roomeditor', label: 'Raum bearbeiten',    icon: '✏️' },
-  { key: 'events',     label: 'Events laden',       icon: '📂' },
-  { key: 'rooms',      label: 'Räume laden',        icon: '🗂️' },
-  { key: 'togo',       label: 'ToGo-Bestellungen',  icon: '🥡' },
-  { key: 'profile',    label: 'Profil',             icon: '👤' },
+  { key: 'home',          label: 'Startseite',        icon: '🏠' },
+  { key: 'privateEvents', label: 'Private Events',    icon: '🎉' },
+  { key: 'clubModules',   label: 'Vereinsmodule',     icon: '🏆' },
+  { key: 'room',          label: 'Tischplaner',       icon: '🪑' },
+  { key: 'roomeditor',    label: 'Raum bearbeiten',   icon: '✏️' },
+  { key: 'togo',          label: 'ToGo-Bestellungen', icon: '🥡' },
+  { key: 'profile',       label: 'Profil',            icon: '👤' },
 ]
 
 // ─── Per-tab help content ───────────────────────────────────────────────────
@@ -18,19 +19,192 @@ function HelpHome() {
   return (
     <div style={{ display: 'grid', gap: 14 }}>
       <Section step="1" title="Willkommen bei PlatzPilot" color="#eff6ff" borderColor="#bfdbfe" headColor="#1e3a8a">
-        PlatzPilot hilft dir dabei, Sitzpläne zu erstellen, Gäste zu verwalten und ToGo-Bestellungen zu koordinieren.
-        Wähle auf der Startseite eine der Kacheln, um loszulegen.
+        PlatzPilot hilft dir dabei, Events zu planen – ob privat oder im Verein.
+        Erstelle Sitzpläne, verwalte Gästelisten, plane Menüs und koordiniere den gesamten Ablauf.
       </Section>
-      <Section step="2" title="Veranstaltung erstellen oder laden">
-        Eine <strong>Veranstaltung</strong> enthält deinen Sitzplan mit Tischen und Gästen.
-        Erstelle eine neue Veranstaltung oder lade eine gespeicherte über <strong>📂 Events laden</strong>.
+      <Section step="2" title="Private Events">
+        Unter <strong>🎉 Private Events</strong> planst du persönliche Veranstaltungen wie Hochzeiten,
+        Geburtstage, Jubiläen oder Firmenfeiern. Du wählst aus verschiedenen Modulen (Raumplanung,
+        Menü, Budget, Checkliste u.v.m.) genau die Funktionen, die du brauchst.
       </Section>
-      <Section step="3" title="Raum verwalten">
-        Ein <strong>Raum</strong> enthält das Grundlayout (Tischpositionen ohne Gäste).
-        Lade oder erstelle einen Raum über <strong>🏠 Räume laden</strong>.
+      <Section step="3" title="Vereinsmodule">
+        Unter <strong>🏆 Vereinsmodule</strong> verwaltest du Vereine mit Mitgliedern, Rollen und
+        Vereins-Events. Lade Mitglieder per Einladungscode ein, plane Vereinsfeste oder Versammlungen
+        und nutze Sitzplanung, Speiseplanung und Reservierungen.
       </Section>
-      <Section step="4" title="ToGo-Bestellungen">
-        Unter <strong>🥡 ToGo-Bestellungen</strong> koordinierst du Essensbestellungen mit Zeitfenstern, Menükarte und CSV-Import.
+      <Section step="4" title="Weitere Funktionen">
+        <strong>🪑 Tischplaner</strong> – Gäste per Drag &amp; Drop den Tischen zuweisen.<br />
+        <strong>✏️ Raum bearbeiten</strong> – Tisch-Layouts erstellen und als Vorlage speichern.<br />
+        <strong>🥡 ToGo-Bestellungen</strong> – Außer-Haus-Bestellungen mit Zeitfenstern verwalten.<br />
+        <strong>👤 Profil</strong> – Konto, Passwort und E-Mail verwalten.
+      </Section>
+    </div>
+  )
+}
+
+/* ─── Private Events Module ──────────────────────────────────────────────── */
+
+function HelpPrivateEvents() {
+  return (
+    <div style={{ display: 'grid', gap: 14 }}>
+      <Section step="1" title="Event erstellen" color="#eff6ff" borderColor="#bfdbfe" headColor="#1e3a8a">
+        Auf der Startseite über <strong>✨ Neues Event anlegen</strong> startest du den Assistenten.
+        Im ersten Schritt gibst du Titel, Datum und Uhrzeit ein und wählst eine Vorlage:<br />
+        💒 <strong>Hochzeit</strong> · 🎂 <strong>Geburtstag</strong> · 🎉 <strong>Jubiläum</strong> · 🏢 <strong>Firmenfeier</strong><br />
+        Die Vorlage aktiviert automatisch passende Module, die du im zweiten Schritt anpassen kannst.
+      </Section>
+
+      <Section step="2" title="📊 Übersicht">
+        Die Übersicht zeigt alle wichtigen Infos auf einen Blick: Titel, Datum, Uhrzeit und
+        Schnellzugriff-Karten für alle aktivierten Module. Klicke auf eine Karte, um direkt
+        zum jeweiligen Modul zu springen. Hier kannst du auch Module nachträglich aktivieren oder deaktivieren.
+      </Section>
+
+      <Section step="3" title="🏠 Raumplanung">
+        Erstelle das Grundlayout deiner Veranstaltung: Platziere Tische auf einer Zeichenfläche,
+        bestimme Form, Größe und Position. Das Layout dient als Basis für die Tischplanung.
+        Du kannst auch einen gespeicherten Raum als Vorlage laden.
+      </Section>
+
+      <Section step="4" title="🪑 Tischplanung">
+        Weise Gäste und Gruppen den Tischen zu. Per Drag &amp; Drop ziehst du Familien aus der
+        Gästeliste auf freie Plätze. Gäste können auch per CSV importiert werden
+        (Spalten: Name, optional Tisch, Platz, Notiz). Über die Schnellzuweisung werden Gruppen
+        automatisch auf freie Tische verteilt.
+        <br /><em>Hinweis: Dieses Modul benötigt die Raumplanung.</em>
+      </Section>
+
+      <Section step="5" title="🍽️ Menüplanung">
+        Gestalte dein Menü mit mehreren Gängen (Vorspeise, Hauptgang, Dessert usw.).
+        Pro Gang kannst du mehrere Gerichte mit Beschreibung und Diät-Tags hinzufügen
+        (vegetarisch, vegan, glutenfrei etc.). Gäste sehen das Menü auf der Gäste-Info-Seite.
+      </Section>
+
+      <Section step="6" title="💌 Einladungen">
+        Verwalte deine komplette Gästeliste mit Kategorien (Familie Braut/Bräutigam, Freunde,
+        Arbeitskollegen usw.). Für jeden Gast erfasst du Name, E-Mail, Gruppengröße, Kinder
+        und besondere Wünsche. Versende Einladungen über verschiedene Kanäle:<br />
+        🔗 <strong>Link kopieren</strong> · 📧 <strong>E-Mail</strong> · 💬 <strong>WhatsApp</strong> · 📱 <strong>QR-Code</strong><br />
+        Du kannst zwischen offenem (jeder kann sich anmelden) und eingeschränktem Modus
+        (nur per individuellem Einladungslink) wählen. Der RSVP-Status (ausstehend / zugesagt / abgesagt)
+        wird automatisch getrackt.
+      </Section>
+
+      <Section step="7" title="📱 Gäste-Info">
+        Eine öffentliche Infoseite für deine Gäste. Du konfigurierst, welche Informationen
+        angezeigt werden: Countdown, Veranstaltungsort (mit Google-Maps-Link), Ablaufplan,
+        Menükarte, Dresscode, Kontaktdaten und Geschenke-Hinweise.
+        Eine Vorschau zeigt dir, wie die Seite für Gäste aussieht.
+      </Section>
+
+      <Section step="8" title="✅ Checkliste">
+        Aufgabenliste für die Eventplanung. Jede Aufgabe hat Titel, Kategorie (Location, Deko,
+        Musik usw.), Priorität (hoch / mittel / niedrig) und optionales Fälligkeitsdatum.
+        Je nach gewählter Vorlage werden passende Standard-Aufgaben vorausgefüllt.
+      </Section>
+
+      <Section step="9" title="💰 Budget">
+        Plane und verfolge alle Kosten. Erstelle Posten mit Kategorie (Location, Essen,
+        Dekoration, Musik usw.), geplantem und tatsächlichem Betrag sowie Bezahlstatus.
+        Die Übersicht zeigt dir jederzeit die Gesamtkosten im Vergleich zum geplanten Budget.
+      </Section>
+
+      <Section step="10" title="⏱️ Ablaufplan">
+        Erstelle den zeitlichen Ablauf deines Events. Jeder Programmpunkt hat Uhrzeit, Titel,
+        Dauer, Ort, verantwortliche Person und optionale Beschreibung. Die Einträge werden
+        chronologisch sortiert angezeigt und sind auch auf der Gäste-Info-Seite sichtbar.
+      </Section>
+
+      <Section step="11" title="Events verwalten" color="#f0fdf4" borderColor="#bbf7d0" headColor="#065f46">
+        Unter <strong>📂 Events laden</strong> siehst du alle gespeicherten Events.
+        Klicke auf ein Event, um es zu öffnen und weiterzubearbeiten.
+        Über das 🗑️-Icon kann ein Event dauerhaft gelöscht werden.
+      </Section>
+    </div>
+  )
+}
+
+/* ─── Club / Vereinsmodule ───────────────────────────────────────────────── */
+
+function HelpClubModules() {
+  return (
+    <div style={{ display: 'grid', gap: 14 }}>
+      <Section step="1" title="Verein erstellen oder beitreten" color="#eff6ff" borderColor="#bfdbfe" headColor="#1e3a8a">
+        Auf der Startseite kannst du über <strong>🏆 Verein erstellen</strong> einen neuen Verein
+        gründen oder über <strong>🤝 Verein beitreten</strong> per Einladungscode einem bestehenden
+        Verein beitreten. Der Ersteller wird automatisch <strong>Owner</strong> des Vereins.
+      </Section>
+
+      <Section step="2" title="Rollen im Verein">
+        Jeder Verein hat drei Rollen:<br />
+        👑 <strong>Owner</strong> – Volle Kontrolle: Mitglieder verwalten, Vereinsdaten ändern,
+        Eigentümerschaft übertragen, Verein löschen.<br />
+        📋 <strong>Vorstand</strong> – Events erstellen und verwalten, Mitglieder einladen und bearbeiten,
+        Vereinseinstellungen ändern.<br />
+        👤 <strong>Mitglied</strong> – Lesezugriff auf Vereins-Infos, Events einsehen und an Veranstaltungen teilnehmen.
+      </Section>
+
+      <Section step="3" title="Vereins-Dashboard">
+        Das Dashboard zeigt Vereinsname, Beschreibung und Mitgliederanzahl.
+        Je nach Rolle siehst du Schnellaktionen: Events erstellen, Mitglieder verwalten,
+        Einstellungen öffnen. Der Aktivitätslog zeigt die letzten Aktionen im Verein
+        (z.B. „Event erstellt", „Mitglied hinzugefügt").
+      </Section>
+
+      <Section step="4" title="👥 Mitgliederverwaltung">
+        <strong>Einladen:</strong> Generiere zeitlich begrenzte Einladungscodes (Standard: 72 Stunden gültig)
+        mit optionalem Nutzungslimit. Den Code kannst du teilen – neue Mitglieder treten damit bei.<br />
+        <strong>Manuelle Mitglieder:</strong> Erstelle Mitgliedereinträge für Personen ohne Account
+        (z.B. für eine Mitgliederliste). Diese können später mit registrierten Nutzern zusammengeführt werden.<br />
+        <strong>Profildaten:</strong> Anrede, Vor-/Nachname, Telefon, Adresse, E-Mail, Geburtsdatum,
+        IBAN/BIC, Mitglied seit, Notizen und individuelle Rolle.<br />
+        <strong>Ansicht:</strong> Karten- oder Tabellenansicht mit Suche und Rollenfilter.
+      </Section>
+
+      <Section step="5" title="⚙️ Vereinseinstellungen">
+        Name und Beschreibung des Vereins bearbeiten. Der Owner kann die Eigentümerschaft
+        an einen Vorstand übertragen oder den Verein dauerhaft löschen.
+      </Section>
+
+      <Section step="6" title="Vereins-Events erstellen" color="#faf5ff" borderColor="#e9d5ff" headColor="#6b21a8">
+        Über <strong>✨ Neue Vereinsveranstaltung planen</strong> (nur Vorstand/Owner) öffnet sich
+        der Assistent. Im ersten Schritt wählst du Titel, Datum, Uhrzeit und eine Vorlage:<br />
+        🎉 <strong>Vereinsfest</strong> · 📋 <strong>Mitgliederversammlung</strong> · 💼 <strong>Vorstandssitzung</strong> · 🛠️ <strong>Arbeitseinsatz</strong><br />
+        Im zweiten Schritt aktivierst du die gewünschten Module.
+      </Section>
+
+      <Section step="7" title="🪑 Sitzplanung (Vereins-Event)">
+        Erstelle ein Raumlayout mit Tischen für dein Vereins-Event – identisch mit der
+        Raumplanung bei privaten Events. Tische können frei platziert, gedreht und benannt werden.
+      </Section>
+
+      <Section step="8" title="🍽️ Speiseplanung (Vereins-Event)">
+        Verwalte eine Speisekarte mit Speisen, Preisen und Kategorien.
+        Bestellungen können manuell erfasst oder per CSV importiert werden.
+        Ideal für Vereinsfeste mit Essensausgabe.
+      </Section>
+
+      <Section step="9" title="👥 Gästeplanung (Vereins-Event)">
+        Weise Vereinsmitglieder und Gäste den Tischen zu.
+        Funktioniert wie der Tischplaner – Gruppen werden per Drag &amp; Drop auf freie Plätze verteilt.
+      </Section>
+
+      <Section step="10" title="📝 Reservierung (Vereins-Event)">
+        Erstelle eine öffentliche Reservierungsseite, über die sich Gäste anmelden können.
+        Konfigurierbar: maximale Kapazität, automatische Bestätigung oder manuelle Freigabe,
+        optionale Felder (Telefon, Bemerkungen), Menüauswahl und eigenes Logo.
+        Gäste erhalten einen individuellen Absage-Link. Der Status jeder Reservierung
+        (ausstehend / bestätigt / abgelehnt) wird in der Übersicht angezeigt.
+      </Section>
+
+      <Section step="11" title="📨 Mitgliedereinladung (Vereins-Event)">
+        Lade Vereinsmitglieder direkt zur Veranstaltung ein.
+        Mitglieder erhalten eine Benachrichtigung und können ihre Teilnahme zusagen oder absagen.
+      </Section>
+
+      <Section step="12" title="Vereins-Events verwalten" color="#f0fdf4" borderColor="#bbf7d0" headColor="#065f46">
+        Die Event-Liste zeigt alle Vereins-Events mit Vorlagenbadge, Datum und aktiven Modulen.
+        Vorstand und Owner können Events löschen. Klicke auf ein Event, um es zu öffnen und die einzelnen Module zu bearbeiten.
       </Section>
     </div>
   )
@@ -115,47 +289,6 @@ const kbd: React.CSSProperties = {
   whiteSpace: 'nowrap',
 }
 
-function HelpEvents() {
-  return (
-    <div style={{ display: 'grid', gap: 14 }}>
-      <Section step="1" title="Veranstaltung laden">
-        Alle gespeicherten Veranstaltungen werden in der Liste aufgeführt.
-        Klicke auf einen Eintrag, um ihn zu laden und direkt in den Tischplaner zu wechseln.
-      </Section>
-      <Section step="2" title="Veranstaltung löschen">
-        Über das <strong>🗑️</strong>-Icon neben einem Eintrag kann die Veranstaltung dauerhaft gelöscht werden.
-        Diese Aktion ist unwiderruflich.
-      </Section>
-      <Section step="3" title="Neue Veranstaltung">
-        Auf der Startseite unter <strong>Neues Event erstellen</strong> legst du eine neue Veranstaltung an,
-        gibst ihr einen Namen, ein Datum und optionale Uhrzeit.
-        Anschließend kannst du einen vorhandenen Raum als Basis laden.
-      </Section>
-    </div>
-  )
-}
-
-function HelpRooms() {
-  return (
-    <div style={{ display: 'grid', gap: 14 }}>
-      <Section step="1" title="Raum laden">
-        Alle gespeicherten Raum-Layouts werden in der Liste angezeigt.
-        Klicke auf einen Raum, um ihn in den Raumeditor zu laden.
-      </Section>
-      <Section step="2" title="Raum als Vorlage für Veranstaltungen">
-        Ein Raum-Layout enthält die Tischpositionen ohne Gästezuweisungen.
-        Beim Anlegen einer neuen Veranstaltung kannst du einen gespeicherten Raum als Vorlage auswählen.
-      </Section>
-      <Section step="3" title="Raum löschen">
-        Über das <strong>🗑️</strong>-Icon neben einem Eintrag kann der Raum dauerhaft gelöscht werden.
-      </Section>
-      <Section step="4" title="Neuen Raum erstellen">
-        Über <strong>Neuen Raum erstellen</strong> auf der Startseite startest du mit einem leeren Tischplan-Layout.
-      </Section>
-    </div>
-  )
-}
-
 function HelpToGo() {
   return (
     <div style={{ display: 'grid', gap: 14 }}>
@@ -234,17 +367,19 @@ function Section({ step, title, color = '#f8fafc', borderColor = '#e2e8f0', head
 
 export default function HelpModal() {
   const { isOpen, activeTab, closeHelp, openHelp } = useHelp()
+  const device = useDeviceType()
+  const isMobile = device === 'mobile'
 
   if (!isOpen) return null
 
   const tabContent: Record<HelpTab, React.ReactNode> = {
-    home:       <HelpHome />,
-    room:       <HelpRoom />,
-    roomeditor: <HelpRoomEditor />,
-    events:     <HelpEvents />,
-    rooms:      <HelpRooms />,
-    togo:       <HelpToGo />,
-    profile:    <HelpProfile />,
+    home:          <HelpHome />,
+    privateEvents: <HelpPrivateEvents />,
+    clubModules:   <HelpClubModules />,
+    room:          <HelpRoom />,
+    roomeditor:    <HelpRoomEditor />,
+    togo:          <HelpToGo />,
+    profile:       <HelpProfile />,
   }
 
   return (
@@ -261,37 +396,82 @@ export default function HelpModal() {
         onClick={e => e.stopPropagation()}
         style={{
           background: 'white',
-          borderRadius: 16,
-          width: 820,
-          maxWidth: '95vw',
-          maxHeight: '88vh',
+          borderRadius: isMobile ? 0 : 16,
+          width: isMobile ? '100vw' : 820,
+          maxWidth: isMobile ? '100vw' : '95vw',
+          height: isMobile ? '100dvh' : undefined,
+          maxHeight: isMobile ? '100dvh' : '88vh',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          boxShadow: isMobile ? 'none' : '0 20px 60px rgba(0,0,0,0.3)',
           overflow: 'hidden',
         }}
       >
         {/* Header */}
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '16px 22px',
+          padding: isMobile ? '12px 16px' : '16px 22px',
           borderBottom: '1px solid #e2e8f0',
           flexShrink: 0,
         }}>
-          <h3 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#1e293b' }}>
+          <h3 style={{ margin: 0, fontSize: isMobile ? 17 : 20, fontWeight: 700, color: '#1e293b' }}>
             📖 Anleitung
           </h3>
           <button
             onClick={closeHelp}
-            style={{ background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#64748b', lineHeight: 1 }}
+            style={{ background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#64748b', lineHeight: 1, padding: '4px 8px' }}
             aria-label="Schließen"
           >×</button>
         </div>
 
-        {/* Body: sidebar + content */}
+        {/* Mobile: horizontal scrollable tab bar */}
+        {isMobile && (
+          <div style={{
+            display: 'flex',
+            overflowX: 'auto',
+            flexShrink: 0,
+            borderBottom: '1px solid #e2e8f0',
+            background: '#f8fafc',
+            padding: '6px 8px',
+            gap: 4,
+            WebkitOverflowScrolling: 'touch',
+          }}>
+            {TABS.map(tab => {
+              const active = activeTab === tab.key
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => openHelp(tab.key)}
+                  style={{
+                    padding: '6px 12px',
+                    border: 'none',
+                    borderRadius: 20,
+                    background: active ? '#667eea' : 'transparent',
+                    color: active ? 'white' : '#475569',
+                    fontWeight: active ? 700 : 500,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    flexShrink: 0,
+                    transition: 'background 0.12s, color 0.12s',
+                  }}
+                >
+                  <span style={{ fontSize: 13 }}>{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Body */}
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-          {/* Vertical Tab Sidebar */}
+          {/* Desktop: Vertical Tab Sidebar */}
+          {!isMobile && (
           <div style={{
             width: 190,
             flexShrink: 0,
@@ -332,9 +512,10 @@ export default function HelpModal() {
               )
             })}
           </div>
+          )}
 
           {/* Content */}
-          <div style={{ flex: 1, padding: 22, overflowY: 'auto' }}>
+          <div style={{ flex: 1, padding: isMobile ? '16px 14px' : 22, overflowY: 'auto' }}>
             {tabContent[activeTab]}
           </div>
         </div>
