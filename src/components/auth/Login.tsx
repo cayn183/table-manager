@@ -101,8 +101,8 @@ export default function Login({ initialMode }: LoginProps) {
   }
 
   return (
-    <div style={{ padding: '32px', display: 'flex', justifyContent: 'center' }}>
-      <div style={{ width: '100%', maxWidth: 720 }}>
+    <div className="auth-page-wrapper" style={{ padding: '32px', display: 'flex', justifyContent: 'center' }}>
+      <div style={{ width: '100%', maxWidth: 480 }}>
         <div style={{ marginBottom: 16, textAlign: 'center' }}>
           <h2 style={{ margin: 0 }}>{mode === 'login' ? 'Anmelden' : 'Registrieren'}</h2>
           <p style={{ marginTop: 8, color: '#64748b' }}>{mode === 'login' ? 'Melde dich an, um deine Events zu verwalten' : 'Erstelle ein Konto, um deine Events zu speichern'}</p>
@@ -112,12 +112,12 @@ export default function Login({ initialMode }: LoginProps) {
           {error && <div style={{ color: 'crimson', marginBottom: 12 }}>{error}</div>}
           {mode === 'register' && (
             <div style={{ marginBottom: 12 }}>
-              <input value={name} onChange={e => setName(e.target.value)} placeholder="Name" style={{ width: '100%', padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
+              <input value={name} onChange={e => setName(e.target.value)} placeholder="Name" autoComplete="name" style={{ width: '100%', padding: 12, borderRadius: 8, border: '1px solid #e6e6e6', boxSizing: 'border-box' }} />
             </div>
           )}
 
           <div style={{ marginBottom: 12 }}>
-            <input value={email} onChange={e => setEmail(e.target.value)} placeholder="E-Mail" type="email" style={{ width: '100%', padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
+            <input value={email} onChange={e => setEmail(e.target.value)} placeholder="E-Mail" type="email" autoComplete="email" style={{ width: '100%', padding: 12, borderRadius: 8, border: '1px solid #e6e6e6', boxSizing: 'border-box' }} />
             {mode === 'register' && email && !emailValid && (
               <div style={{ fontSize: 12, marginTop: 6, color: '#f59e0b' }}>Bitte gib eine gültige E-Mail-Adresse ein.</div>
             )}
@@ -129,7 +129,7 @@ export default function Login({ initialMode }: LoginProps) {
           </div>
 
           <div style={{ marginBottom: 16 }}>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Passwort" style={{ width: '100%', padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Passwort" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} style={{ width: '100%', padding: 12, borderRadius: 8, border: '1px solid #e6e6e6', boxSizing: 'border-box' }} />
             {mode === 'register' && passwordStrength && (
               <div style={{ marginTop: 8 }}>
                 <div style={{ display: 'flex', gap: 4 }}>

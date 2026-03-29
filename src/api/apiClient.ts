@@ -64,6 +64,7 @@ export const api = {
   get: (path: string, token?: string) => request('GET', path, undefined, { token }),
   del: (path: string, token?: string) => request('DELETE', path, undefined, { token }),
   patch: (path: string, body?: any, token?: string) => request('PATCH', path, body, { token }),
+  put: (path: string, body?: any, token?: string) => request('PUT', path, body, { token }),
 }
 
 /** Make a request without credentials/cookies — used for public endpoints. */

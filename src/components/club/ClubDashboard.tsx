@@ -18,7 +18,7 @@ export default function ClubDashboard() {
   useEffect(() => {
     if (!activeClub) return
     getClubMembers(activeClub.id, token || undefined).then(setMembers).catch(() => {})
-    getClubActivity(activeClub.id, 10, token || undefined).then(setActivity).catch(() => {})
+    getClubActivity(activeClub.id, { limit: 10 }, token || undefined).then(r => setActivity(r.items)).catch(() => {})
   }, [activeClub?.id, token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!activeClub) return null

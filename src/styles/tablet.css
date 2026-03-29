@@ -1,0 +1,62 @@
+/* ============================================================
+   TABLET STYLES (768px – 1023px)
+   ============================================================ */
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  /* --- Navigation: compact nav --- */
+  .app-desktop-nav {
+    padding: 0 16px !important;
+    height: 56px !important;
+    gap: 12px !important;
+  }
+
+  .app-desktop-nav .app-logo {
+    font-size: 1.3rem !important;
+  }
+
+  /* --- Home: keep two columns but compact --- */
+  .home-action-grid {
+    gap: 12px !important;
+  }
+
+  .home-action-grid button,
+  .home-action-grid a button {
+    padding: 24px 16px !important;
+  }
+
+  .home-welcome-banner {
+    padding: 20px 24px !important;
+    margin-bottom: 24px !important;
+  }
+
+  /* --- Room: sidebar as bottom panel, already handled by 1024px breakpoint --- */
+  .room-content {
+    flex-direction: column !important;
+  }
+
+  .room-content .sidebar {
+    max-width: 100% !important;
+    min-width: 100% !important;
+    order: 2 !important;
+  }
+
+  .room-content .room-layout {
+    order: 1 !important;
+    min-height: 45vh !important;
+  }
+
+  /* --- Modals: 90% width on tablet --- */
+  .modal-content {
+    min-width: 85vw !important;
+    max-width: 90vw !important;
+  }
+
+  /* --- Admin Panel tablet --- */
+  .admin-sidebar {
+    width: 200px !important;
+  }
+
+  .admin-drawer {
+    width: 340px !important;
+  }
+}

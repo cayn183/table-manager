@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import { useDeviceType } from '../../utils/useDeviceType'
 import type { EventDashboardConfig, EventMenuData, EventTimelineData, EventSeatingData, EventRoomData } from '../../types/event'
 
 interface Props {
@@ -15,6 +16,8 @@ interface Props {
 }
 
 export default function EventGuestDashboard({ config, eventName, eventDate, eventFrom, eventTo, menuData, timelineData, seatingData, roomData, onSave }: Props) {
+  const deviceType = useDeviceType()
+  const isMobile = deviceType === 'mobile'
   const [cfg, setCfg] = useState<EventDashboardConfig>(config)
   const [preview, setPreview] = useState(false)
 
@@ -64,9 +67,9 @@ export default function EventGuestDashboard({ config, eventName, eventDate, even
   const mapsUrl = (address: string) =>
     `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
 
-  const inputStyle: React.CSSProperties = { width: '100%', padding: '10px 14px', border: '2px solid #e2e8f0', borderRadius: 10, fontSize: 14, outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s' }
+  const inputStyle: React.CSSProperties = { width: '100%', padding: '10px 14px', border: '2px solid #e2e8f0', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box' }
   const labelStyle: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4 }
-  const sectionStyle: React.CSSProperties = { background: 'white', borderRadius: 16, padding: '20px 24px', border: '1px solid #e2e8f0', boxShadow: '0 1px 6px rgba(0,0,0,0.04)', marginBottom: 16 }
+  const sectionStyle: React.CSSProperties = { background: 'white', borderRadius: 12, padding: '16px 20px', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', marginBottom: 16 }
   const sectionHeaderStyle = (icon: string, title: string, filled?: boolean) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
       <span style={{ fontSize: 18 }}>{icon}</span>
@@ -212,23 +215,26 @@ export default function EventGuestDashboard({ config, eventName, eventDate, even
   // ── Config mode ──
   return (
     <div style={{ padding: 24, maxWidth: 800, margin: '0 auto' }}>
-      {/* Header with progress */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
           <h3 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 700, color: '#1e293b' }}>📱 Gäste-Info Dashboard</h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-            <div style={{ display: 'flex', gap: 4 }}>
-              {progressItems.map((item, i) => (
-                <div key={i} title={item.label}
-                  style={{ width: 8, height: 8, borderRadius: '50%', background: item.filled ? '#22c55e' : '#e2e8f0', transition: 'background 0.3s' }} />
-              ))}
-            </div>
-            <span style={{ fontSize: 12, color: '#64748b' }}>{filledCount} von {progressItems.length} ausgefüllt</span>
-          </div>
+          <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>Infos für deine Gäste zusammenstellen</p>
         </div>
         <button onClick={() => setPreview(true)}
-          style={{ padding: '8px 18px', background: 'linear-gradient(135deg, #667eea, #764ba2)', color: 'white', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 600, boxShadow: '0 2px 8px rgba(102,126,234,0.3)' }}
+          style={{ padding: '8px 16px', background: 'linear-gradient(135deg, #667eea, #764ba2)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
         >👁️ Vorschau</button>
+      </div>
+
+      {/* Progress indicator */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {progressItems.map((item, i) => (
+            <div key={i} title={item.label}
+              style={{ width: 8, height: 8, borderRadius: '50%', background: item.filled ? '#22c55e' : '#e2e8f0', transition: 'background 0.3s' }} />
+          ))}
+        </div>
+        <span style={{ fontSize: 12, color: '#64748b' }}>{filledCount} von {progressItems.length} ausgefüllt</span>
       </div>
 
       {/* ── Section 1: Begrüßung & Event ── */}
@@ -313,7 +319,7 @@ export default function EventGuestDashboard({ config, eventName, eventDate, even
       <div style={sectionStyle}>
         {sectionHeaderStyle('📋', 'Details & Kontakt', !!(cfg.dressCode || cfg.contactPhone || cfg.contactEmail || cfg.giftRegistryUrl || cfg.additionalInfo))}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>👔 Dresscode</label>
             <input type="text" value={cfg.dressCode ?? ''} onChange={e => update({ dressCode: e.target.value })}
@@ -326,7 +332,7 @@ export default function EventGuestDashboard({ config, eventName, eventDate, even
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 14 }}>
           <div>
             <label style={labelStyle}>📱 Telefon</label>
             <input type="tel" value={cfg.contactPhone ?? ''} onChange={e => update({ contactPhone: e.target.value })}

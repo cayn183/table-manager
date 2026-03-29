@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
+import { useDeviceType } from '../../utils/useDeviceType'
 import {
   publishClubEvent,
   unpublishClubEvent,
@@ -40,6 +41,8 @@ export default function ClubReservationPanel({
   syncedReservationIds = [],
   onSync,
 }: Props) {
+  const deviceType = useDeviceType()
+  const isMobile = deviceType === 'mobile'
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -210,7 +213,7 @@ export default function ClubReservationPanel({
           <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: '#1e293b' }}>Reservierungsseite</h3>
           {isPublic && shareUrl ? (
             <>
-              <p style={{ fontSize: 14, color: '#64748b', margin: '0 0 16px', lineHeight: 1.6 }}>
+              <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 16px', lineHeight: 1.6 }}>
                 Die Reservierungsseite f�r {eventTitle}" ist aktiv.
               </p>
               <a href={shareUrl} target="_blank" rel="noopener noreferrer"
@@ -218,7 +221,7 @@ export default function ClubReservationPanel({
               > Anmeldeseite �ffnen</a>
             </>
           ) : (
-            <p style={{ fontSize: 14, color: '#64748b', margin: 0, lineHeight: 1.6 }}>
+            <p style={{ fontSize: 13, color: '#64748b', margin: 0, lineHeight: 1.6 }}>
               Die Reservierungsseite ist noch nicht aktiviert.
             </p>
           )}
@@ -228,7 +231,7 @@ export default function ClubReservationPanel({
   }
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, padding: '16px 24px' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, padding: isMobile ? '12px 14px' : '16px 24px' }}>
 
       {(hasFoodModule || hasSeatingModule) && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -239,10 +242,10 @@ export default function ClubReservationPanel({
 
       <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: '#f1f5f9', borderRadius: 8, padding: 3, flexShrink: 0 }}>
         <button onClick={() => setTab('config')} style={{ ...innerTabStyle, ...(tab === 'config' ? innerTabActiveStyle : {}) }}>
-           Einstellungen
+          {isMobile ? '⚙️ Einstellungen' : '⚙️ Einstellungen'}
         </button>
         <button onClick={() => setTab('reservations')} style={{ ...innerTabStyle, ...(tab === 'reservations' ? innerTabActiveStyle : {}) }}>
-           Anmeldungen {reservations.length > 0 ? `(${reservations.length})` : ''}
+          {isMobile ? `📋 (${reservations.length})` : `📋 Anmeldungen ${reservations.length > 0 ? `(${reservations.length})` : ''}`}
           {unsyncedCount > 0 && <span style={{ marginLeft: 4, background: '#f59e0b', color: 'white', borderRadius: 10, padding: '1px 6px', fontSize: 11 }}>{unsyncedCount} neu</span>}
         </button>
       </div>
@@ -255,7 +258,7 @@ export default function ClubReservationPanel({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto', flex: 1, paddingBottom: 16 }}>
 
           {isPublic && shareUrl && (
-            <div style={{ background: '#f0fdf4', border: '1.5px solid #bbf7d0', borderRadius: 10, padding: '12px 14px' }}>
+            <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: '12px 14px' }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: '#166534', marginBottom: 6 }}> �ffentlicher Link</div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <input readOnly value={shareUrl}
@@ -268,7 +271,7 @@ export default function ClubReservationPanel({
           )}
 
           {!isPublic && (
-            <div style={{ background: '#fff7ed', border: '1.5px solid #fed7aa', borderRadius: 10, padding: '12px 14px', fontSize: 13, color: '#9a3412' }}>
+            <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 12, padding: '12px 14px', fontSize: 13, color: '#9a3412' }}>
                Die Reservierungsseite ist noch nicht aktiv. Konfiguriere sie und aktiviere sie unten.
             </div>
           )}
@@ -519,5 +522,5 @@ const dangerBtnStyle: React.CSSProperties = { padding: '12px 20px', background: 
 const errorStyle: React.CSSProperties = { padding: '10px 14px', borderRadius: 8, background: '#fee2e2', color: '#991b1b', fontSize: 13, fontWeight: 500, marginBottom: 12 }
 const successStyle: React.CSSProperties = { padding: '10px 14px', borderRadius: 8, background: '#dcfce7', color: '#166534', fontSize: 13, fontWeight: 500, marginBottom: 12 }
 const statBadgeStyle: React.CSSProperties = { padding: '6px 12px', background: '#f1f5f9', borderRadius: 20, fontSize: 13, fontWeight: 600, color: '#475569' }
-const reservationCardStyle: React.CSSProperties = { padding: '12px 14px', borderRadius: 10, border: '1.5px solid #f1f5f9', background: '#fafbfc' }
+const reservationCardStyle: React.CSSProperties = { padding: '12px 14px', borderRadius: 12, border: '1px solid #e2e8f0', background: 'white', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }
 const statusBadgeBase: React.CSSProperties = { padding: '4px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }

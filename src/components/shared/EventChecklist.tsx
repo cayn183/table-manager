@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react'
+import { useDeviceType } from '../../utils/useDeviceType'
 import type { ChecklistItem, EventChecklistData } from '../../types/event'
 
 interface Props {
@@ -62,6 +63,7 @@ const FIRMEN_TEMPLATE: Omit<ChecklistItem, 'id'>[] = [
 function genId() { return `cl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` }
 
 export default function EventChecklist({ data, onSave }: Props) {
+  const isMobile = useDeviceType() === 'mobile'
   const [list, setList] = useState<ChecklistItem[]>(data.items ?? [])
   const [categories, setCategories] = useState<string[]>(data.categories ?? [])
   const [newText, setNewText] = useState('')
@@ -76,6 +78,7 @@ export default function EventChecklist({ data, onSave }: Props) {
   const [showTemplates, setShowTemplates] = useState(false)
   const [templateModal, setTemplateModal] = useState<{ label: string; items: Omit<ChecklistItem, 'id'>[] } | null>(null)
   const [selectedTemplateItems, setSelectedTemplateItems] = useState<Set<number>>(new Set())
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
 
   const persist = useCallback(async (updated: ChecklistItem[], cats?: string[]) => {
     setList(updated)
@@ -214,8 +217,8 @@ export default function EventChecklist({ data, onSave }: Props) {
       {list.length > 0 && (
         <div style={{ ...cardStyle, marginBottom: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>Fortschritt</span>
-            <span style={{ fontSize: 13, color: '#64748b' }}>{stats.done} / {stats.total} erledigt ({stats.progress}%)</span>
+            <span style={{ fontSize: isMobile ? 13 : 14, fontWeight: 600, color: '#1e293b' }}>Fortschritt</span>
+            <span style={{ fontSize: isMobile ? 12 : 13, color: '#64748b' }}>{stats.done} / {stats.total} erledigt ({stats.progress}%)</span>
           </div>
           <div style={{ height: 10, background: '#e2e8f0', borderRadius: 5, overflow: 'hidden', marginBottom: 10 }}>
             <div style={{ height: '100%', width: `${stats.progress}%`, background: stats.progress === 100 ? '#10b981' : 'linear-gradient(135deg, #667eea, #764ba2)', borderRadius: 5, transition: 'width 0.3s' }} />
@@ -225,8 +228,8 @@ export default function EventChecklist({ data, onSave }: Props) {
             {stats.overdue > 0 && <span style={{ color: '#dc2626' }}>⚠️ {stats.overdue} überfällig</span>}
             {stats.progress === 100 && <span style={{ color: '#10b981' }}>🎉 Alles erledigt!</span>}
           </div>
-          {/* Category progress */}
-          {Object.keys(stats.byCategory).length > 1 && (
+          {/* Category progress – desktop only */}
+          {!isMobile && Object.keys(stats.byCategory).length > 1 && (
             <div style={{ marginTop: 10, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               {Object.entries(stats.byCategory).map(([cat, c]) => (
                 <div key={cat} style={{ fontSize: 11, color: '#64748b' }}>
@@ -249,25 +252,69 @@ export default function EventChecklist({ data, onSave }: Props) {
 
         <div style={{ flex: 1 }} />
 
-        <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>Filter:</span>
-        {(['all', 'todo', 'done'] as const).map(s => (
-          <button key={s} onClick={() => setFilterStatus(s)} style={pillBtn(filterStatus === s)}>
-            {{ all: 'Alle', todo: 'Offen', done: 'Erledigt' }[s]}
-          </button>
-        ))}
-        {(['all', 'high', 'medium', 'low'] as const).map(p => (
-          <button key={p} onClick={() => setFilterPriority(p)} style={pillBtn(filterPriority === p)}>
-            {{ all: '⬛', high: '🔴', medium: '🟡', low: '🔵' }[p]}
-          </button>
-        ))}
-        {allCategories.length > 0 && (
-          <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}
-            style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 11, color: '#475569', background: 'white' }}>
-            <option value="all">Alle Kategorien</option>
-            {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
+        {isMobile ? (
+          <button onClick={() => setShowMobileFilters(!showMobileFilters)}
+            style={{ padding: '6px 12px', background: (filterStatus !== 'all' || filterPriority !== 'all' || filterCategory !== 'all') ? '#e0e7ff' : '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: (filterStatus !== 'all' || filterPriority !== 'all' || filterCategory !== 'all') ? '#4f46e5' : '#475569' }}
+          >🔽 Filter{(filterStatus !== 'all' || filterPriority !== 'all' || filterCategory !== 'all') ? ' ●' : ''}</button>
+        ) : (
+          <>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>Filter:</span>
+            {(['all', 'todo', 'done'] as const).map(s => (
+              <button key={s} onClick={() => setFilterStatus(s)} style={pillBtn(filterStatus === s)}>
+                {{ all: 'Alle', todo: 'Offen', done: 'Erledigt' }[s]}
+              </button>
+            ))}
+            {(['all', 'high', 'medium', 'low'] as const).map(p => (
+              <button key={p} onClick={() => setFilterPriority(p)} style={pillBtn(filterPriority === p)}>
+                {{ all: '⬛', high: '🔴', medium: '🟡', low: '🔵' }[p]}
+              </button>
+            ))}
+            {allCategories.length > 0 && (
+              <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}
+                style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 11, color: '#475569', background: 'white' }}>
+                <option value="all">Alle Kategorien</option>
+                {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            )}
+          </>
         )}
       </div>
+
+      {/* Mobile filters (collapsible) */}
+      {isMobile && showMobileFilters && (
+        <div style={{ ...cardStyle, marginBottom: 16, padding: '12px 14px' }}>
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', marginBottom: 6 }}>Status</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {(['all', 'todo', 'done'] as const).map(s => (
+                <button key={s} onClick={() => setFilterStatus(s)} style={pillBtn(filterStatus === s)}>
+                  {{ all: 'Alle', todo: 'Offen', done: 'Erledigt' }[s]}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ marginBottom: allCategories.length > 0 ? 10 : 0 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', marginBottom: 6 }}>Priorität</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {(['all', 'high', 'medium', 'low'] as const).map(p => (
+                <button key={p} onClick={() => setFilterPriority(p)} style={pillBtn(filterPriority === p)}>
+                  {{ all: 'Alle', high: '🔴 Hoch', medium: '🟡 Mittel', low: '🔵 Niedrig' }[p]}
+                </button>
+              ))}
+            </div>
+          </div>
+          {allCategories.length > 0 && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', marginBottom: 6 }}>Kategorie</div>
+              <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}
+                style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 12, color: '#475569', background: 'white', width: '100%' }}>
+                <option value="all">Alle Kategorien</option>
+                {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Templates */}
       {showTemplates && (
@@ -366,7 +413,7 @@ export default function EventChecklist({ data, onSave }: Props) {
                 autoFocus style={inputStyle} onKeyDown={e => e.key === 'Enter' && handleSave()} />
             </div>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <div style={{ flex: '1 1 120px' }}>
+              <div style={{ flex: isMobile ? '1 1 100%' : '1 1 120px' }}>
                 <label style={labelStyle}>Priorität</label>
                 <select value={newPriority} onChange={e => setNewPriority(e.target.value as any)} style={{ ...inputStyle, appearance: 'auto' }}>
                   <option value="high">🔴 Hoch</option>
@@ -374,13 +421,13 @@ export default function EventChecklist({ data, onSave }: Props) {
                   <option value="low">🔵 Niedrig</option>
                 </select>
               </div>
-              <div style={{ flex: '1 1 140px' }}>
+              <div style={{ flex: isMobile ? '1 1 100%' : '1 1 140px' }}>
                 <label style={labelStyle}>Kategorie</label>
                 <input type="text" value={newCategory} onChange={e => setNewCategory(e.target.value)}
                   placeholder="z.B. Dekoration" style={inputStyle} list="checklist-cats" />
                 <datalist id="checklist-cats">{allCategories.map(c => <option key={c} value={c} />)}</datalist>
               </div>
-              <div style={{ flex: '0 1 160px' }}>
+              <div style={{ flex: isMobile ? '1 1 100%' : '0 1 160px' }}>
                 <label style={labelStyle}>Fällig bis</label>
                 <input type="date" value={newDueDate} onChange={e => setNewDueDate(e.target.value)} style={inputStyle} />
               </div>

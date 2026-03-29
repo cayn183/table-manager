@@ -96,9 +96,9 @@ export default function Profile() {
   }
 
   return (
-    <div style={{ padding: 32, display: 'flex', justifyContent: 'center' }}>
+    <div className="auth-page-wrapper" style={{ padding: 32, display: 'flex', justifyContent: 'center' }}>
       <div style={{ width: '100%', maxWidth: 900 }}>
-        <button onClick={() => navigate(-1)} style={{ marginBottom: 12, background: 'transparent', border: 'none', cursor: 'pointer' }}>← Zurück</button>
+        <button onClick={() => navigate('/app')} style={{ marginBottom: 12, background: 'transparent', border: 'none', cursor: 'pointer', padding: '8px 4px', fontSize: 14 }}>← Zurück</button>
         <h2 style={{ marginTop: 0 }}>Profil</h2>
 
         <div style={{ background: 'white', padding: 24, borderRadius: 10, boxShadow: '0 8px 24px rgba(15,23,42,0.06)' }}>
@@ -116,7 +116,7 @@ export default function Profile() {
 
           <hr style={{ margin: '16px 0' }} />
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
+          <div className="profile-grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
             <div>
               <h3>Email ändern</h3>
               {emailMsg && <div style={{ color: emailMsg.includes('geändert') || emailMsg.includes('gesendet') ? '#047857' : '#b91c1c', marginBottom: 8 }}>{emailMsg}</div>}
@@ -126,6 +126,7 @@ export default function Profile() {
                   placeholder="Neue Email-Adresse" 
                   value={newEmail} 
                   onChange={e => setNewEmail(e.target.value)} 
+                  autoComplete="email"
                   style={{ padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} 
                 />
                 <input 
@@ -149,9 +150,9 @@ export default function Profile() {
               <h3>Passwort ändern</h3>
               {msg && <div style={{ color: msg.includes('geändert') ? '#047857' : '#b91c1c', marginBottom: 8 }}>{msg}</div>}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <input type="password" placeholder="Altes Passwort" value={oldPwd} onChange={e => setOldPwd(e.target.value)} style={{ padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
-                <input type="password" placeholder="Neues Passwort" value={newPwd} onChange={e => setNewPwd(e.target.value)} style={{ padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
-                <input type="password" placeholder="Neues Passwort bestätigen" value={confirmNewPwd} onChange={e => setConfirmNewPwd(e.target.value)} style={{ padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
+                <input type="password" placeholder="Altes Passwort" autoComplete="current-password" value={oldPwd} onChange={e => setOldPwd(e.target.value)} style={{ padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
+                <input type="password" placeholder="Neues Passwort" autoComplete="new-password" value={newPwd} onChange={e => setNewPwd(e.target.value)} style={{ padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
+                <input type="password" placeholder="Neues Passwort bestätigen" autoComplete="new-password" value={confirmNewPwd} onChange={e => setConfirmNewPwd(e.target.value)} style={{ padding: 12, borderRadius: 8, border: '1px solid #e6e6e6' }} />
                 <button onClick={handleChange} disabled={changing} style={{ padding: '10px 14px', background: '#2b6cb0', color: 'white', borderRadius: 8, border: 'none', cursor: changing ? 'not-allowed' : 'pointer' }}>{changing ? '...' : 'Passwort ändern'}</button>
               </div>
             </div>
@@ -159,7 +160,7 @@ export default function Profile() {
 
           <hr style={{ margin: '16px 0' }} />
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 24 }}>
+          <div className="profile-grid-actions" style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 24 }}>
             <div></div>
 
             <div>

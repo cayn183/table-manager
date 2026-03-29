@@ -233,6 +233,8 @@ export interface PrivateEventItem {
   dashboardConfig?: EventDashboardConfig | null
   reservationConfig?: any
   syncedReservationIds?: string[]
+  /** Module keys the user marked as "done" — hidden from tab bar */
+  completedModules?: string[]
   // Legacy fields for backward compatibility
   isToGo?: boolean
   noRoom?: boolean

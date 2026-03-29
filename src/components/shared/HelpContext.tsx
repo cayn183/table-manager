@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useCallback } from 'react'
 import type { ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
 
-export type HelpTab = 'home' | 'room' | 'roomeditor' | 'events' | 'rooms' | 'togo' | 'profile'
+export type HelpTab = 'home' | 'privateEvents' | 'clubModules' | 'room' | 'roomeditor' | 'togo' | 'profile'
 
 interface HelpContextType {
   isOpen: boolean
@@ -23,10 +23,12 @@ export function useHelp() {
 }
 
 function detectTabFromPath(pathname: string): HelpTab {
-  if (pathname.match(/\/app\/events\/[^/]+/)) return 'room'
+  if (pathname.match(/\/app\/club\/[^/]+\/events\/[^/]+/)) return 'clubModules'
+  if (pathname.match(/\/app\/club\//)) return 'clubModules'
+  if (pathname.match(/\/app\/events\/[^/]+/)) return 'privateEvents'
   if (pathname.match(/\/app\/rooms\/[^/]+/)) return 'roomeditor'
-  if (pathname === '/app/events' || pathname.startsWith('/app/events')) return 'events'
-  if (pathname === '/app/rooms' || pathname.startsWith('/app/rooms')) return 'rooms'
+  if (pathname === '/app/events' || pathname.startsWith('/app/events')) return 'privateEvents'
+  if (pathname === '/app/rooms' || pathname.startsWith('/app/rooms')) return 'roomeditor'
   if (pathname.startsWith('/app/togo')) return 'togo'
   if (pathname.startsWith('/app/profile')) return 'profile'
   return 'home'

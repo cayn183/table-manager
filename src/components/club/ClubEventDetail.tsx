@@ -1,14 +1,16 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
-import { getClub, getClubEvents, getClubEvent, updateClubEvent, deleteClubEvent } from '../../api/clubApi'
+import { getClub, getClubEvents, getClubEvent, updateClubEvent, deleteClubEvent, getClubRooms, createClubRoom } from '../../api/clubApi'
 import type { Club, ClubEvent, ClubEventData, ClubEventModules } from '../../types/club'
-import { TEMPLATE_LABELS } from '../../types/club'
+import { TEMPLATE_LABELS, CLUB_MODULE_OPTIONS } from '../../types/club'
 import type { Table, ViewFrame } from '../../types/room'
 import type { MenuItem, ToGoOrder, OrderItem } from '../../types/togo'
 import userStorage from '../../utils/userStorage'
 import { formatDateShort } from '../../utils/dateFormatting'
 import { usePageHeader } from '../layout/PageHeaderContext'
+import { useEventTabs } from '../layout/EventTabContext'
+import { useDeviceType } from '../../utils/useDeviceType'
 import ClubRoomEditor from './ClubRoomEditor'
 import ClubToGo from './ClubToGo'
 import ClubReservationPanel from './ClubReservationPanel'
@@ -43,15 +45,7 @@ const ALL_TABS: TabDef[] = [
   { key: 'invite', moduleKey: 'invite', label: 'Mitgliedereinladung', icon: '📨' },
 ]
 
-// ── Vereinsräume helpers (localStorage keyed by clubId) ─────
-function loadClubRooms(clubId: string): SavedRoom[] {
-  try { return JSON.parse(localStorage.getItem(`tm:clubrooms-${clubId}`) || '[]') } catch { return [] }
-}
-function saveToClubLibrary(clubId: string, room: SavedRoom): void {
-  const list = loadClubRooms(clubId)
-  const cleaned = list.filter(r => r.id !== room.id)
-  localStorage.setItem(`tm:clubrooms-${clubId}`, JSON.stringify([room, ...cleaned]))
-}
+
 
 export default function ClubEventDetail() {
   const { clubId, eventId } = useParams<{ clubId: string; eventId: string }>()
@@ -80,6 +74,10 @@ export default function ClubEventDetail() {
   const [showRoomPicker, setShowRoomPicker] = useState(false)
   const [savedRooms, setSavedRooms] = useState<SavedRoom[]>([])
   const [pickerMode, setPickerMode] = useState<'club' | 'personal'>('club')
+  const [roomsLoading, setRoomsLoading] = useState(false)
+  const [roomsError, setRoomsError] = useState<string | null>(null)
+  const [moduleEditing, setModuleEditing] = useState(false)
+  const [confirmDisable, setConfirmDisable] = useState<keyof ClubEventModules | null>(null)
 
   const isVorstand = club?.my_role === 'owner' || club?.my_role === 'vorstand'
   const userId = user?.id ?? null
@@ -94,6 +92,25 @@ export default function ClubEventDetail() {
       }),
     ]).finally(() => setLoading(false))
   }, [clubId, eventId, token])
+
+  // ── One-time localStorage → API migration for club rooms ──
+  useEffect(() => {
+    if (!clubId || !token) return
+    const key = `tm:clubrooms-${clubId}`
+    const raw = localStorage.getItem(key)
+    if (!raw) return
+    let rooms: SavedRoom[] = []
+    try { rooms = JSON.parse(raw) } catch { return }
+    if (!Array.isArray(rooms) || rooms.length === 0) { localStorage.removeItem(key); return }
+    ;(async () => {
+      try {
+        for (const room of rooms) {
+          await createClubRoom(clubId, { name: room.name, data: room.data }, token)
+        }
+        localStorage.removeItem(key)
+      } catch { /* migration will retry next time */ }
+    })()
+  }, [clubId, token])
 
   // Refresh event from API when switching to room tab (picks up ClubRoomPage saves)
   useEffect(() => {
@@ -202,7 +219,101 @@ export default function ClubEventDetail() {
     setEvent(updated)
   }, [clubId, eventId, data, token])
 
-  const visibleTabs = ALL_TABS.filter(t => !t.moduleKey || data?.modules?.[t.moduleKey])
+  // ── Module management ───────────────────────────────────────
+  function moduleHasData(key: keyof ClubEventModules): boolean {
+    if (!data) return false
+    switch (key) {
+      case 'room': return (data.roomData?.tables?.length ?? 0) > 0
+      case 'food': return (data.togoConfig?.orders?.length ?? 0) > 0 || (data.togoConfig?.menuItems?.length ?? 0) > 0
+      case 'seating': return (data.seatingData?.groups?.length ?? 0) > 0
+      case 'reservation': return (data.syncedReservationIds?.length ?? 0) > 0
+      case 'invite': return (data.invitedMemberIds?.length ?? 0) > 0
+      default: return false
+    }
+  }
+
+  async function toggleEventModule(key: keyof ClubEventModules) {
+    if (!data) return
+    const newVal = !data.modules[key]
+    if (!newVal && moduleHasData(key)) {
+      setConfirmDisable(key)
+      return
+    }
+    applyModuleToggle(key)
+  }
+
+  async function applyModuleToggle(key: keyof ClubEventModules) {
+    if (!clubId || !eventId || !data || !event) return
+    const newModules = { ...data.modules }
+    const newVal = !newModules[key]
+    newModules[key] = newVal
+    if (key === 'seating' && newVal) newModules.room = true
+    if (key === 'room' && !newVal) newModules.seating = false
+
+    let newCompleted = [...(data.completedModules ?? [])]
+    if (newCompleted.includes(key)) {
+      newCompleted = newCompleted.filter(k => k !== key)
+    }
+
+    const updatedData = { ...data, modules: newModules, completedModules: newCompleted }
+    const updated = await updateClubEvent(clubId, eventId, { data: updatedData as any }, token || undefined)
+    setEvent(updated)
+    setConfirmDisable(null)
+  }
+
+  async function toggleModuleCompleted(key: string) {
+    if (!clubId || !eventId || !data || !event) return
+    const completed = new Set(data.completedModules ?? [])
+    if (completed.has(key)) completed.delete(key)
+    else {
+      completed.add(key)
+      if (activeTab === key) setActiveTab('overview')
+    }
+    const updatedData = { ...data, completedModules: [...completed] }
+    const updated = await updateClubEvent(clubId, eventId, { data: updatedData as any }, token || undefined)
+    setEvent(updated)
+  }
+
+  const completedSet = new Set(data?.completedModules ?? [])
+  const visibleTabs = ALL_TABS.filter(t => !t.moduleKey || (data?.modules?.[t.moduleKey] && !completedSet.has(t.key)))
+
+  const device = useDeviceType()
+  const isMobile = device === 'mobile'
+  const { setEventTabs, clearEventTabs } = useEventTabs()
+  const tabBarRef = useRef<HTMLDivElement>(null)
+
+  // Scroll active tab into view when it changes
+  useEffect(() => {
+    const activeEl = tabBarRef.current?.querySelector('[data-active="true"]') as HTMLElement
+    if (activeEl) {
+      activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+    }
+  }, [activeTab])
+
+  // Broadcast visible tabs to BottomTabBar on mobile
+  useEffect(() => {
+    if (!isMobile || !event) return
+    setEventTabs(
+      visibleTabs.map(t => ({ key: t.key, label: t.label, icon: t.icon })),
+      activeTab,
+      (key: string) => setActiveTab(key as TabKey),
+    )
+  }, [isMobile, visibleTabs.length, event?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep context activeTab in sync when local activeTab changes
+  useEffect(() => {
+    if (!isMobile || !event) return
+    setEventTabs(
+      visibleTabs.map(t => ({ key: t.key, label: t.label, icon: t.icon })),
+      activeTab,
+      (key: string) => setActiveTab(key as TabKey),
+    )
+  }, [activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clear event tabs on unmount
+  useEffect(() => {
+    return () => { clearEventTabs() }
+  }, [clearEventTabs])
 
   function startEditing() {
     if (!data || !event) return
@@ -246,10 +357,25 @@ export default function ClubEventDetail() {
   }
 
   // ── Room picker ─────────────────────────────────────────────
+  async function loadClubRoomsFromApi() {
+    if (!clubId) return
+    setRoomsLoading(true)
+    setRoomsError(null)
+    try {
+      const rooms = await getClubRooms(clubId, token || undefined)
+      setSavedRooms(rooms.map((r: any) => ({ id: r.id, name: r.name, createdAt: r.created_at, data: r.data })))
+    } catch (err: any) {
+      setRoomsError(err?.message || 'Fehler beim Laden der Räume.')
+      setSavedRooms([])
+    } finally {
+      setRoomsLoading(false)
+    }
+  }
+
   function openRoomPicker(mode: 'club' | 'personal' = 'club') {
     setPickerMode(mode)
     if (mode === 'club') {
-      setSavedRooms(loadClubRooms(clubId!))
+      loadClubRoomsFromApi()
     } else {
       const raw = userStorage.getItem('rooms', userId) || localStorage.getItem('rooms')
       try { setSavedRooms(raw ? JSON.parse(raw) : []) } catch { setSavedRooms([]) }
@@ -260,7 +386,7 @@ export default function ClubEventDetail() {
   function switchPickerMode(mode: 'club' | 'personal') {
     setPickerMode(mode)
     if (mode === 'club') {
-      setSavedRooms(loadClubRooms(clubId!))
+      loadClubRoomsFromApi()
     } else {
       const raw = userStorage.getItem('rooms', userId) || localStorage.getItem('rooms')
       try { setSavedRooms(raw ? JSON.parse(raw) : []) } catch { setSavedRooms([]) }
@@ -273,7 +399,12 @@ export default function ClubEventDetail() {
       data: { ...data, roomData: { tables: room.data.tables, viewFrame: room.data.viewFrame ?? null } } as any,
     }, token || undefined)
     setEvent(updated)
-    saveToClubLibrary(clubId, room)   // persist to Vereinsräume
+    // If applied from personal rooms, also save to club library via API
+    if (pickerMode === 'personal') {
+      try {
+        await createClubRoom(clubId, { name: room.name, data: room.data }, token || undefined)
+      } catch { /* ignore – room already exists or save failed */ }
+    }
     setShowRoomPicker(false)
   }
 
@@ -370,19 +501,21 @@ export default function ClubEventDetail() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
 
-      {/* ── Slim module / tab bar ─────────────────────────────── */}
-      <div style={{ background: 'white', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 0, padding: '0 16px', flexShrink: 0 }}>
+      {/* ── Slim module / tab bar (desktop/tablet only) ─────────────────────────────── */}
+      {!isMobile && (
+      <div ref={tabBarRef} className="scrollable-tabs" style={{ background: 'white', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 0, padding: '0 16px', flexShrink: 0 }}>
         <button
           onClick={() => navigate(`/app/club/${clubId}/events`)}
           style={{ background: 'none', border: 'none', color: '#667eea', cursor: 'pointer', fontSize: 13, padding: '10px 8px 10px 0', fontWeight: 500, flexShrink: 0, marginRight: 8 }}
         >← Zurück</button>
 
-        <div style={{ width: 1, height: 20, background: '#e2e8f0', marginRight: 8 }} />
+        <div style={{ width: 1, height: 20, background: '#e2e8f0', marginRight: 8, flexShrink: 0 }} />
 
         {visibleTabs.map(tab => {
           const active = activeTab === tab.key
           return (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+              data-active={active ? 'true' : undefined}
               style={{
                 padding: '10px 16px', border: 'none',
                 borderBottom: active ? '2px solid #667eea' : '2px solid transparent',
@@ -390,11 +523,13 @@ export default function ClubEventDetail() {
                 color: active ? '#667eea' : '#64748b',
                 fontWeight: active ? 700 : 500,
                 fontSize: 13, cursor: 'pointer', transition: 'all 0.15s', marginBottom: -1,
+                whiteSpace: 'nowrap', flexShrink: 0,
               }}
             >{tab.icon} {tab.label}</button>
           )
         })}
       </div>
+      )}
 
       {/* ── Tab Content ────────────────────────────────────────── */}
       <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
@@ -430,25 +565,100 @@ export default function ClubEventDetail() {
               </div>
             </div>
 
+            {/* ── Module verwalten (collapsible) ── */}
             <div style={{ background: 'white', borderRadius: 12, padding: '20px 24px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #e2e8f0' }}>
-              <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 700, color: '#1e293b' }}>🧩 Aktive Module</h3>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                {data.modules?.room && (
-                  <button onClick={() => setActiveTab('room')} style={modulePillStyle(true)}>🪑 Sitzplanung</button>
-                )}
-                {data.modules?.food && (
-                  <button onClick={() => setActiveTab('food')} style={modulePillStyle(true)}>🍽️ Speiseplanung</button>
-                )}
-                {data.modules?.seating && (
-                  <button onClick={() => setActiveTab('seating')} style={modulePillStyle(true)}>👥 Gästeplanung</button>
-                )}
-                {data.modules?.reservation && (
-                  <button onClick={() => setActiveTab('reservation')} style={modulePillStyle(true)}>📝 Reservierung</button>
-                )}
-                {!data.modules?.room && !data.modules?.food && !data.modules?.seating && !data.modules?.reservation && (
-                  <span style={{ fontSize: 13, color: '#94a3b8', fontStyle: 'italic' }}>Keine Module aktiviert.</span>
-                )}
-              </div>
+              {isVorstand ? (
+                <button onClick={() => setModuleEditing(!moduleEditing)}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 15 }}>🧩</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>Module verwalten</span>
+                    {(() => {
+                      const active = CLUB_MODULE_OPTIONS.filter(m => !!data.modules[m.key])
+                      const done = active.filter(m => completedSet.has(m.key)).length
+                      return (
+                        <span style={{ fontSize: 11, color: done > 0 ? '#16a34a' : '#94a3b8', fontWeight: 500 }}>
+                          {done}/{active.length} erledigt
+                        </span>
+                      )
+                    })()}
+                  </div>
+                  <span style={{ fontSize: 12, color: '#64748b' }}>{moduleEditing ? '▲ Fertig' : '▼ Module ändern'}</span>
+                </button>
+              ) : (
+                <h3 style={{ margin: '0 0 12px', fontSize: 16, fontWeight: 700, color: '#1e293b' }}>🧩 Aktive Module</h3>
+              )}
+
+              {!moduleEditing && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: isVorstand ? 12 : 0 }}>
+                  {CLUB_MODULE_OPTIONS.filter(m => !!data.modules[m.key]).map(m => {
+                    const done = completedSet.has(m.key)
+                    return (
+                      <div key={m.key} style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+                        <button onClick={() => done ? toggleModuleCompleted(m.key) : setActiveTab(m.key as TabKey)}
+                          style={{
+                            padding: isVorstand ? '6px 10px 6px 14px' : '8px 16px',
+                            borderRadius: isVorstand ? '20px 0 0 20px' : 10,
+                            border: '1px solid ' + (done ? '#bbf7d0' : '#e2e8f0'),
+                            borderRight: isVorstand ? 'none' : undefined,
+                            background: done ? '#f0fdf4' : '#f8fafc', cursor: 'pointer',
+                            fontSize: 12, fontWeight: 600,
+                            color: done ? '#16a34a' : '#475569',
+                          }}
+                        >{done ? '✅' : m.icon} {m.label}</button>
+                        {isVorstand && (
+                          <button
+                            onClick={() => toggleModuleCompleted(m.key)}
+                            title={done ? 'Modul wieder öffnen' : 'Als erledigt markieren'}
+                            style={{
+                              padding: '6px 10px', borderRadius: '0 20px 20px 0',
+                              border: '1px solid ' + (done ? '#bbf7d0' : '#e2e8f0'),
+                              background: done ? '#16a34a' : '#f8fafc', cursor: 'pointer',
+                              fontSize: 12, lineHeight: 1, color: done ? '#fff' : '#94a3b8',
+                              display: 'flex', alignItems: 'center',
+                            }}
+                          >{done ? '↺' : '✓'}</button>
+                        )}
+                      </div>
+                    )
+                  })}
+                  {!CLUB_MODULE_OPTIONS.some(m => !!data.modules[m.key]) && (
+                    <span style={{ fontSize: 12, color: '#94a3b8', fontStyle: 'italic' }}>Keine Module aktiviert.</span>
+                  )}
+                </div>
+              )}
+
+              {moduleEditing && isVorstand && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
+                  {CLUB_MODULE_OPTIONS.map(mod => {
+                    const active = !!data.modules[mod.key]
+                    return (
+                      <button key={mod.key} onClick={() => toggleEventModule(mod.key)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '10px 14px', borderRadius: 10, textAlign: 'left',
+                          border: active ? '2px solid #667eea' : '1px solid #e2e8f0',
+                          background: active ? 'linear-gradient(135deg, rgba(102,126,234,0.04), rgba(118,75,162,0.04))' : 'white',
+                          cursor: 'pointer', transition: 'all 0.15s',
+                        }}>
+                        <div style={{
+                          width: 20, height: 20, borderRadius: 5, flexShrink: 0,
+                          border: active ? '2px solid #667eea' : '2px solid #cbd5e1',
+                          background: active ? 'linear-gradient(135deg, #667eea, #764ba2)' : 'white',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          {active && <span style={{ color: 'white', fontSize: 11, lineHeight: 1 }}>✓</span>}
+                        </div>
+                        <span style={{ fontSize: 16, flexShrink: 0 }}>{mod.icon}</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: active ? '#667eea' : '#1e293b' }}>{mod.label}</div>
+                          <div style={{ fontSize: 11, color: '#94a3b8' }}>{mod.description}</div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -583,7 +793,17 @@ export default function ClubEventDetail() {
 
             {/* List */}
             <div style={{ flex: 1, overflow: 'auto', padding: '16px 24px' }}>
-              {savedRooms.length === 0 ? (
+              {roomsLoading && pickerMode === 'club' ? (
+                <div style={{ textAlign: 'center', padding: '28px 0', color: '#64748b', fontSize: 14 }}>Räume werden geladen…</div>
+              ) : roomsError && pickerMode === 'club' ? (
+                <div style={{ textAlign: 'center', padding: '28px 0' }}>
+                  <div style={{ fontSize: 40, marginBottom: 10 }}>⚠️</div>
+                  <p style={{ fontSize: 14, color: '#dc2626', marginBottom: 12 }}>{roomsError}</p>
+                  <button onClick={() => loadClubRoomsFromApi()}
+                    style={{ padding: '7px 14px', background: 'white', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer', fontSize: 12, color: '#475569', fontWeight: 500 }}
+                  >↻ Erneut versuchen</button>
+                </div>
+              ) : savedRooms.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '28px 0' }}>
                   {pickerMode === 'club' ? (
                     <>
@@ -646,16 +866,37 @@ export default function ClubEventDetail() {
           </div>
         </div>
       )}
+
+      {/* ═══ Confirm deactivate module dialog ═══ */}
+      {confirmDisable && (() => {
+        const mod = CLUB_MODULE_OPTIONS.find(m => m.key === confirmDisable)
+        if (!mod) return null
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+            onClick={() => setConfirmDisable(null)}>
+            <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: 16, padding: '24px', maxWidth: 400, width: '100%', boxShadow: '0 8px 30px rgba(0,0,0,0.15)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <span style={{ fontSize: 24 }}>⚠️</span>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#1e293b' }}>Modul deaktivieren?</h3>
+              </div>
+              <p style={{ margin: '0 0 8px', fontSize: 14, color: '#475569', lineHeight: 1.5 }}>
+                <strong>{mod.icon} {mod.label}</strong> enthält bereits Daten.
+              </p>
+              <p style={{ margin: '0 0 20px', fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
+                Das Modul wird ausgeblendet, aber die Daten bleiben erhalten. Wenn es später wieder aktiviert wird, ist alles noch da.
+              </p>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button onClick={() => setConfirmDisable(null)}
+                  style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#64748b' }}
+                >Abbrechen</button>
+                <button onClick={() => applyModuleToggle(confirmDisable)}
+                  style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#ef4444', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'white' }}
+                >Deaktivieren</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
-}
-
-function modulePillStyle(active: boolean): React.CSSProperties {
-  return {
-    padding: '8px 16px', borderRadius: 10,
-    border: active ? '2px solid #667eea' : '2px solid #e2e8f0',
-    background: active ? 'linear-gradient(135deg, rgba(102,126,234,0.08), rgba(118,75,162,0.08))' : 'white',
-    color: active ? '#667eea' : '#64748b',
-    fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
-  }
 }

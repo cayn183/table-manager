@@ -145,8 +145,42 @@ export async function updateClubReservationStatus(
 }
 
 // ═══ Activity ══════════════════════════════════════════════════════
-export async function getClubActivity(clubId: string, limit = 20, token?: string): Promise<ClubActivity[]> {
-  return api.get(`/clubs/${clubId}/activity?limit=${limit}`, token)
+export interface ActivityQuery {
+  limit?: number
+  before?: string
+  action?: string
+  user_id?: string
+  from?: string
+  to?: string
+}
+
+export interface ActivityPage {
+  items: ClubActivity[]
+  hasMore: boolean
+  nextCursor: string | null
+}
+
+export async function getClubActivity(clubId: string, query: ActivityQuery = {}, token?: string): Promise<ActivityPage> {
+  const params = new URLSearchParams()
+  if (query.limit) params.set('limit', String(query.limit))
+  if (query.before) params.set('before', query.before)
+  if (query.action) params.set('action', query.action)
+  if (query.user_id) params.set('user_id', query.user_id)
+  if (query.from) params.set('from', query.from)
+  if (query.to) params.set('to', query.to)
+  const qs = params.toString()
+  return api.get(`/clubs/${clubId}/activity${qs ? '?' + qs : ''}`, token)
+}
+
+export function getClubActivityCsvUrl(clubId: string, query: ActivityQuery = {}): string {
+  const base = (typeof window !== 'undefined' && (window as any).__RUNTIME_CONFIG__?.VITE_API_URL) ||
+    (import.meta as any).env?.VITE_API_URL || `${window.location.protocol}//${window.location.hostname}:4000`
+  const params = new URLSearchParams({ format: 'csv' })
+  if (query.action) params.set('action', query.action)
+  if (query.from) params.set('from', query.from)
+  if (query.to) params.set('to', query.to)
+  if (query.limit) params.set('limit', String(query.limit))
+  return `${base}/clubs/${clubId}/activity?${params.toString()}`
 }
 
 // ═══ Templates ═══════════════════════════════════════════════════
@@ -196,4 +230,21 @@ export async function adminDeleteSystemTemplate(id: string, token?: string) {
 // ═══ Transfer Ownership ════════════════════════════════════════════
 export async function transferOwnership(clubId: string, newOwnerId: string, token?: string): Promise<void> {
   return api.post(`/clubs/${clubId}/transfer`, { newOwnerId }, token)
+}
+
+// ═══ Club Rooms ════════════════════════════════════════════════════
+export async function getClubRooms(clubId: string, token?: string): Promise<any[]> {
+  return api.get(`/clubs/${clubId}/rooms`, token)
+}
+
+export async function createClubRoom(clubId: string, data: { name: string; data: object }, token?: string): Promise<any> {
+  return api.post(`/clubs/${clubId}/rooms`, data, token)
+}
+
+export async function updateClubRoom(clubId: string, roomId: string, data: { name?: string; data?: object }, token?: string): Promise<any> {
+  return api.put(`/clubs/${clubId}/rooms/${roomId}`, data, token)
+}
+
+export async function deleteClubRoom(clubId: string, roomId: string, token?: string): Promise<void> {
+  return api.del(`/clubs/${clubId}/rooms/${roomId}`, token)
 }

@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react'
+import { useDeviceType } from '../../utils/useDeviceType'
 import type { BudgetItem, EventBudgetData } from '../../types/event'
 
 interface Props {
@@ -15,13 +16,15 @@ const CAT_COLORS: Record<string, string> = {
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '10px 14px', border: '2px solid #e2e8f0', borderRadius: 8,
-  fontSize: 13, outline: 'none', boxSizing: 'border-box', marginTop: 4,
+  fontSize: 14, outline: 'none', boxSizing: 'border-box',
 }
-const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#475569' }
+const labelStyle: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4 }
 
 function genId() { return `b-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` }
 
 export default function EventBudget({ data, onSave }: Props) {
+  const deviceType = useDeviceType()
+  const isMobile = deviceType === 'mobile'
   const currency = data.currency || 'EUR'
   const [list, setList] = useState<BudgetItem[]>(data.items ?? [])
   const [totalBudget, setTotalBudget] = useState<number>(data.totalBudget ?? 0)
@@ -38,6 +41,7 @@ export default function EventBudget({ data, onSave }: Props) {
   const [filterPaid, setFilterPaid] = useState<'all' | 'paid' | 'unpaid'>('all')
   const [editBudget, setEditBudget] = useState(false)
   const [budgetInput, setBudgetInput] = useState('')
+  const [showMobileFilters, setShowMobileFilters] = useState(false)
 
   const fmt = (v: number) => v.toLocaleString('de-DE', { style: 'currency', currency })
 
@@ -112,14 +116,14 @@ export default function EventBudget({ data, onSave }: Props) {
   const usedCategories = useMemo(() => Array.from(new Set(list.map(i => i.category))).sort(), [list])
   const cardStyle: React.CSSProperties = { background: 'white', borderRadius: 12, padding: '16px 20px', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }
   const pillBtn = (active: boolean): React.CSSProperties => ({
-    padding: '4px 10px', borderRadius: 16, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
+    padding: '5px 12px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
     background: active ? 'linear-gradient(135deg, #667eea, #764ba2)' : '#f1f5f9', color: active ? 'white' : '#475569', transition: 'all 0.15s',
   })
 
   return (
     <div style={{ padding: 24, maxWidth: 800, margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 20 }}>
         <h3 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 700, color: '#1e293b' }}>💰 Budgetplanung</h3>
         <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>Kosten planen, verfolgen und im Blick behalten</p>
       </div>
@@ -164,7 +168,7 @@ export default function EventBudget({ data, onSave }: Props) {
       )}
 
       {/* Summary cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 16 }}>
         <div style={{ ...cardStyle, textAlign: 'center' }}>
           <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Geplant</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#1e293b' }}>{fmt(stats.totalEstimated)}</div>
@@ -186,7 +190,7 @@ export default function EventBudget({ data, onSave }: Props) {
       </div>
 
       {/* Category breakdown */}
-      {Object.keys(stats.byCat).length > 1 && (
+      {!isMobile && Object.keys(stats.byCat).length > 1 && (
         <div style={{ ...cardStyle, marginBottom: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', marginBottom: 10 }}>Aufschlüsselung nach Kategorie</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -215,26 +219,61 @@ export default function EventBudget({ data, onSave }: Props) {
           style={{ padding: '8px 16px', background: 'linear-gradient(135deg, #667eea, #764ba2)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
         >+ Neue Position</button>
         <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>Filter:</span>
-        {(['all', 'paid', 'unpaid'] as const).map(p => (
-          <button key={p} onClick={() => setFilterPaid(p)} style={pillBtn(filterPaid === p)}>
-            {{ all: 'Alle', paid: '✓ Bezahlt', unpaid: '○ Offen' }[p]}
+        {isMobile ? (
+          <button onClick={() => setShowMobileFilters(!showMobileFilters)}
+            style={{ padding: '5px 12px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, background: showMobileFilters ? 'linear-gradient(135deg, #667eea, #764ba2)' : '#f1f5f9', color: showMobileFilters ? 'white' : '#475569' }}>
+            {showMobileFilters ? '✕ Filter' : '🔽 Filter'}
           </button>
-        ))}
-        {usedCategories.length > 1 && (
-          <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}
-            style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 11, color: '#475569', background: 'white' }}>
-            <option value="all">Alle Kategorien</option>
-            {usedCategories.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
+        ) : (
+          <>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>Filter:</span>
+            {(['all', 'paid', 'unpaid'] as const).map(p => (
+              <button key={p} onClick={() => setFilterPaid(p)} style={pillBtn(filterPaid === p)}>
+                {{ all: 'Alle', paid: '✓ Bezahlt', unpaid: '○ Offen' }[p]}
+              </button>
+            ))}
+            {usedCategories.length > 1 && (
+              <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}
+                style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 11, color: '#475569', background: 'white' }}>
+                <option value="all">Alle Kategorien</option>
+                {usedCategories.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            )}
+          </>
         )}
       </div>
+
+      {/* Mobile filters panel */}
+      {isMobile && showMobileFilters && (
+        <div style={{ ...cardStyle, marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', marginBottom: 4, display: 'block' }}>Status:</span>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {(['all', 'paid', 'unpaid'] as const).map(p => (
+                <button key={p} onClick={() => setFilterPaid(p)} style={pillBtn(filterPaid === p)}>
+                  {{ all: 'Alle', paid: '✓ Bezahlt', unpaid: '○ Offen' }[p]}
+                </button>
+              ))}
+            </div>
+          </div>
+          {usedCategories.length > 1 && (
+            <div>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', marginBottom: 4, display: 'block' }}>Kategorie:</span>
+              <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}
+                style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 12, color: '#475569', background: 'white', width: '100%' }}>
+                <option value="all">Alle Kategorien</option>
+                {usedCategories.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Add / Edit form */}
       {showForm && (
         <div style={{ ...cardStyle, marginBottom: 16 }}>
           <h4 style={{ margin: '0 0 14px', fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{editId ? '✏️ Position bearbeiten' : '+ Neue Position'}</h4>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
             <div>
               <label style={labelStyle}>Bezeichnung *</label>
               <input value={name} onChange={e => setName(e.target.value)} style={inputStyle} placeholder="z.B. Catering" autoFocus />

@@ -1,5 +1,6 @@
 # 🪑 Table Manager
 
+![CI](https://github.com/Cayn183/Table-Manager/actions/workflows/ci.yml/badge.svg)
 [![Version](https://img.shields.io/github/v/release/Cayn183/Table-Manager)](https://github.com/Cayn183/Table-Manager/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 

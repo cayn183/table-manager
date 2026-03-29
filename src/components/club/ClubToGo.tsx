@@ -3,6 +3,7 @@
 // Derived from ToGo.tsx, but uses props + callback instead of localStorage.
 // ============================================================================
 import React, { useEffect, useState, useMemo, useCallback } from 'react'
+import { useDeviceType } from '../../utils/useDeviceType'
 import Papa from 'papaparse'
 import type { MenuItem, ToGoOrder, ToGoEventConfig, OrderItem } from '../../types/togo'
 import { calculateOrderTotal, formatPrice, generateToGoId } from '../../types/togo'
@@ -83,6 +84,10 @@ export default function ClubToGo({
   // Sorting
   const [sortBy, setSortBy] = useState<'time' | 'name'>('time')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  const deviceType = useDeviceType()
+  const isMobile = deviceType === 'mobile'
+  const [showMobileTools, setShowMobileTools] = useState(false)
 
   // ── Sync when parent re-mounts with new data ────────────────────
   useEffect(() => {
@@ -664,8 +669,9 @@ export default function ClubToGo({
 
       {/* Summary Bar */}
       <div style={{
-        background: 'white', padding: '12px 20px', borderBottom: '1px solid #e2e8f0',
-        display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: '16px', alignItems: 'center',
+        background: 'white', padding: isMobile ? '10px 14px' : '12px 20px', borderBottom: '1px solid #e2e8f0',
+        display: isMobile ? 'flex' : 'grid', flexDirection: isMobile ? 'column' : undefined, gap: isMobile ? '10px' : '16px',
+        gridTemplateColumns: isMobile ? undefined : 'auto 1fr auto', alignItems: isMobile ? 'stretch' : 'center',
       }}>
         <div style={{ padding: '6px 10px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10 }}>
           <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Bestellanzahl</div>
@@ -691,7 +697,7 @@ export default function ClubToGo({
 
       {/* Toolbar */}
       {!readOnly && (
-        <div style={{ padding: '12px 20px', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ padding: isMobile ? '10px 14px' : '12px 20px', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <button onClick={() => openOrderModal()} disabled={menuItems.filter(m => m.available).length === 0}
             style={{ padding: '8px 18px', background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)', color: 'white', border: 'none', borderRadius: 8, cursor: menuItems.filter(m => m.available).length === 0 ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600, boxShadow: '0 2px 8px rgba(249,115,22,0.3)' }}
           >➕ Neue Bestellung</button>
@@ -699,32 +705,66 @@ export default function ClubToGo({
             style={{ padding: '8px 14px', background: 'white', color: '#ea580c', border: '2px solid #fed7aa', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}
           >📥 CSV Import</button>
 
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontSize: 13, color: '#64748b' }}>Sortieren:</span>
+          {isMobile ? (
+            <button onClick={() => setShowMobileTools(!showMobileTools)}
+              style={{ marginLeft: 'auto', padding: '5px 12px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, background: showMobileTools ? 'linear-gradient(135deg, #f97316, #ea580c)' : '#f1f5f9', color: showMobileTools ? 'white' : '#475569' }}>
+              {showMobileTools ? '✕ Tools' : '🔽 Tools'}
+            </button>
+          ) : (
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={{ fontSize: 13, color: '#64748b' }}>Sortieren:</span>
+              <select value={sortBy} onChange={e => setSortBy(e.target.value as any)}
+                style={{ padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, background: 'white' }}
+              >
+                <option value="time">Uhrzeit</option>
+                <option value="name">Name</option>
+              </select>
+              <button onClick={() => setSortDirection(d => d === 'asc' ? 'desc' : 'asc')}
+                style={{ padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 6, background: 'white', cursor: 'pointer', fontSize: 13 }}
+              >{sortDirection === 'asc' ? '↑' : '↓'}</button>
+              <div style={{ width: 1, height: 24, background: '#e2e8f0' }} />
+              <button onClick={printOrders} disabled={sortedOrders.length === 0}
+                style={{ padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 6, background: sortedOrders.length > 0 ? 'white' : '#f1f5f9', cursor: sortedOrders.length > 0 ? 'pointer' : 'not-allowed', fontSize: 13, color: sortedOrders.length > 0 ? '#1e293b' : '#94a3b8' }}
+                title="Drucken"
+              >🖨️ Drucken</button>
+              <button onClick={exportToCsv} disabled={sortedOrders.length === 0}
+                style={{ padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 6, background: sortedOrders.length > 0 ? 'white' : '#f1f5f9', cursor: sortedOrders.length > 0 ? 'pointer' : 'not-allowed', fontSize: 13, color: sortedOrders.length > 0 ? '#1e293b' : '#94a3b8' }}
+                title="Als CSV exportieren"
+              >📥 CSV</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Mobile tools panel */}
+      {isMobile && showMobileTools && !readOnly && (
+        <div style={{ padding: '10px 14px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>Sortieren:</span>
             <select value={sortBy} onChange={e => setSortBy(e.target.value as any)}
-              style={{ padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, background: 'white' }}
-            >
+              style={{ padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, background: 'white', flex: 1 }}>
               <option value="time">Uhrzeit</option>
               <option value="name">Name</option>
             </select>
             <button onClick={() => setSortDirection(d => d === 'asc' ? 'desc' : 'asc')}
               style={{ padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 6, background: 'white', cursor: 'pointer', fontSize: 13 }}
             >{sortDirection === 'asc' ? '↑' : '↓'}</button>
-            <div style={{ width: 1, height: 24, background: '#e2e8f0' }} />
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={printOrders} disabled={sortedOrders.length === 0}
-              style={{ padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 6, background: sortedOrders.length > 0 ? 'white' : '#f1f5f9', cursor: sortedOrders.length > 0 ? 'pointer' : 'not-allowed', fontSize: 13, color: sortedOrders.length > 0 ? '#1e293b' : '#94a3b8' }}
-              title="Drucken"
-            >🖨️ Drucken</button>
+              style={{ flex: 1, padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 6, background: 'white', cursor: sortedOrders.length > 0 ? 'pointer' : 'not-allowed', fontSize: 12, color: sortedOrders.length > 0 ? '#1e293b' : '#94a3b8' }}>
+              🖨️ Drucken
+            </button>
             <button onClick={exportToCsv} disabled={sortedOrders.length === 0}
-              style={{ padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 6, background: sortedOrders.length > 0 ? 'white' : '#f1f5f9', cursor: sortedOrders.length > 0 ? 'pointer' : 'not-allowed', fontSize: 13, color: sortedOrders.length > 0 ? '#1e293b' : '#94a3b8' }}
-              title="Als CSV exportieren"
-            >📥 CSV</button>
+              style={{ flex: 1, padding: '8px 10px', border: '1px solid #e2e8f0', borderRadius: 6, background: 'white', cursor: sortedOrders.length > 0 ? 'pointer' : 'not-allowed', fontSize: 12, color: sortedOrders.length > 0 ? '#1e293b' : '#94a3b8' }}>
+              📥 CSV Export
+            </button>
           </div>
         </div>
       )}
 
       {/* Orders List */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '0 20px 20px' }}>
+      <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '0 14px 14px' : '0 20px 20px' }}>
         {sortedOrders.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px 20px', background: 'white', borderRadius: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
             <p style={{ fontSize: 48, margin: '0 0 16px' }}>🥡</p>
@@ -732,6 +772,42 @@ export default function ClubToGo({
             <p style={{ fontSize: 14, color: '#94a3b8', margin: 0 }}>
               {menuItems.length === 0 ? 'Lege zuerst Speisen in der Speisekarte an.' : 'Klicke auf "Neue Bestellung" um zu starten.'}
             </p>
+          </div>
+        ) : isMobile ? (
+          /* Mobile: Card layout */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {sortedOrders.map(order => {
+              const total = calculateOrderTotal(order, menuItems)
+              return (
+                <div key={order.id} style={{ background: 'white', borderRadius: 12, padding: '12px 14px', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>{order.familyName}</div>
+                      <div style={{ fontSize: 12, color: '#64748b' }}>{order.time || '-'}</div>
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{formatPrice(total)}</div>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: order.note ? 6 : 0 }}>
+                    {order.items.map(item => {
+                      const mi = menuItems.find(m => m.id === item.menuItemId)
+                      if (!mi) return null
+                      return (
+                        <span key={item.menuItemId} style={{ padding: '2px 8px', background: '#e0e7ff', color: '#4f46e5', borderRadius: 4, fontSize: 11, fontWeight: 500 }}>
+                          {item.quantity}× {mi.name}
+                        </span>
+                      )
+                    })}
+                  </div>
+                  {order.note && <div style={{ fontSize: 11, color: '#f97316', marginBottom: 6 }}>📝 {order.note}</div>}
+                  {!readOnly && (
+                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                      <button onClick={() => openOrderModal(order)} style={{ padding: '4px 10px', background: '#f1f5f9', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>✏️</button>
+                      <button onClick={() => deleteOrder(order.id)} style={{ padding: '4px 10px', background: '#fee2e2', border: 'none', borderRadius: 6, cursor: 'pointer', color: '#ef4444', fontSize: 12 }}>🗑️</button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', background: 'white', borderRadius: 12, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
@@ -804,7 +880,7 @@ export default function ClubToGo({
               <h4 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: '#64748b' }}>
                 {editingMenuItem ? 'Speise bearbeiten' : 'Neue Speise hinzufügen'}
               </h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
                 <input type="text" placeholder="Name (z.B. Bratwurst)" value={menuItemName} onChange={e => setMenuItemName(e.target.value)}
                   style={{ padding: '10px 14px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 14 }} />
                 <input type="text" placeholder="Preis (z.B. 4,50)" value={menuItemPrice} onChange={e => setMenuItemPrice(e.target.value)}
