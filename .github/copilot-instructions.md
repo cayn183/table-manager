@@ -59,6 +59,11 @@ docker build -t table-manager:local --build-arg BUILD_SHA=local --build-arg BUIL
 
 - [Cayn183/backend-table-manager](https://github.com/Cayn183/backend-table-manager) - Backend API service
 
+## Custom Agents
+
+Dieses Projekt nutzt eigene Copilot-Agents unter `.github/agents/`.
+Prüfe vor jeder Aufgabe, ob ein passender Agent vorhanden ist, und delegiere entsprechend.
+
 ## Safe-editing rules
 
 - Keep changes minimal and focused
