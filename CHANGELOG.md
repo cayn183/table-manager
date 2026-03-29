@@ -8,6 +8,27 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 ## [Unreleased]
 _Noch keine Änderungen eingetragen._
 
+## [1.1.0] - 2026-03-26
+### Added
+- **Vereins-/Club-Feature**: Vollständiges neues Modul mit ClubContext, ClubDashboard, Mitglieder-Verwaltung (ClubMembers, ClubMemberModal, InviteMembers), Club-Einstellungen, Beitritts-Modal und vollständigem Routing.
+- **Club-Event-Wizard**: Mehrstufige Event-Erstellung direkt im Vereinskontext mit Detailseite (ClubEventDetail) und Tab-Navigation (Raumplanung, ToGo, Einladungen).
+- **ClubRoomEditor und ClubToGo** in Club-Event-Detailseite integriert; Raumauswahl-Picker für Raumplanung-Tab.
+- **Reservierungs-System**: Öffentliche Reservierungs-Seite (`ReservationPage`), Manager-UI (`ReservationConfigPanel`), raum-freie Events und Reservierungs-Token-Authentifizierung.
+- **Einladungs-Seiten**: `EventInvitePage` (personalisierte Einladungs-Links) und `EventOpenInvitePage` (öffentliche Einladungen) für Gäste.
+- **Gästeliste-Landingpage**: Neue Landing-Page-Sektion für Clubs und Hochzeitsplanung mit two-section split und Banner-Konsistenz.
+
+### Changed
+- **Komponenten-Umstrukturierung**: Alle React-Komponenten in thematische Unterverzeichnisse (`auth/`, `club/`, `landing/`, `layout/`, `reservation/`, `room/`, `shared/`, `togo/`) reorganisiert.
+- **AppLayout-Header** zeigt nun Event-Titel und Uhrzeit; RoomEditor kehrt korrekt zur Club-Event-Seite zurück.
+- **Landingpages** mit konsistenter Banner-Gestaltung und separaten Sektionen für Vereins- und Hochzeitskontext aktualisiert.
+
+### Fixed
+- Token-Parameter zu allen Club-API-Aufrufen ergänzt.
+- Footer.tsx-Pfad im dev-push-Workflow auf neuen Komponentenpfad (`src/components/layout/`) korrigiert.
+- Dockerfile: Node.js 18 → 20 aktualisiert (react-router-dom v7 erfordert Node ≥ 20).
+- Fehlende transitive Abhängigkeit `@floating-ui/dom` in package-lock.json ergänzt.
+- Implizites Type-Loading in tsconfig.json deaktiviert (unterdrückt false-positive TypeScript-Fehler).
+
 ## [1.0.2] - 2026-02-23
 ### Added
 - Umfassende Keyboard-Shortcuts für `/room` und `/roomeditor`: ESC (Abbruch), Ctrl+Z (Rückgängig), Ctrl+Y/Shift+Z (Wiederholen), Ctrl+S (Speichern), R/T (beim Ziehen).
@@ -56,6 +77,20 @@ _Noch keine Änderungen eingetragen._
 
 ### Release note
 - Release 1.0.0 liefert Landingpage, Dokumentationsrefresh, neuen Multi-Container-Stack, gehärtete Authentifizierung und log-levelfähige Vorschau.
+
+
+## [0.9.0] - 2026-02-08
+### Added
+- ToGo: Vollständige A4-Druckansicht (hochkant) für ToGo-Bestellungen mit automatischer Seitenteilung.
+
+### Changed
+- Kompakteres Drucklayout: Header reduziert, Namen mit Zeitstempel (z. B. "Name (HH:MM Uhr)") und Bestellpositionen in einer Spalte, Items inline getrennt mit " | ".
+- Umsatz- und Standinformationen in die Fußzeile verschoben.
+- Preisformatierung: Ganze Euro-Werte ohne ",00" (z. B. "8€" statt "8,00€").
+- Schriftgrößen reduziert: Name/Preis 12px, Items 11px, Bemerkungen 10px.
+
+### Fixed
+- Verbesserte Seitenumbruch-Logik: Heuristiken für Überschriften, Bestellkarten und Bemerkungen überarbeitet, damit Seitenumbrüche seltener und präziser erfolgen.
 
 
 ## [0.8.3] - 2026-02-06
@@ -134,10 +169,10 @@ _Noch keine Änderungen eingetragen._
 - Room: Kontextmenü-Bereitstellung nutzt nun die Platzierungs-Helper (`tryPlaceOnTable`), um Überlappungen bei Einzelplatzierungen zu vermeiden
 - Placement: Erlaube rotierte Layout-Varianten für bestimmte Gruppengrößen (z. B. 6/8), indem Basisausrichtung auch virtuell generiert wird, damit geeignete Rotationen berücksichtigt werden
 
-
+## [0.6.8] - 2026-01-23
 ### Fixed
-- Entfernt Scrollbar in der Liste "Zugewiesen" — Verhalten nun konsistent zu "Unzugewiesen"
-- Entfernt Schloss-Symbol vor der Tischnummer in der Liste "Zugewiesen"
+- Entfernt Scrollbar in der Liste "Zugewiesen" — Verhalten nun konsistent zu "Unzugewiesen".
+- Entfernt Schloss-Symbol vor der Tischnummer in der Liste "Zugewiesen".
 
 ## [0.6.7] - 2026-01-22
 
@@ -174,6 +209,13 @@ _Noch keine Änderungen eingetragen._
 - Batch-Löschen und Tischzuweisung-aufheben in der zugewiesenen Liste funktionierten nicht zuverlässig
 - n+1 Zählfehler in Bestätigungs-Dialogs behoben
 - Fehlende IDs bei Drag & Drop und beim Bearbeiten unzugewiesener Familien führten zu Typ-/Auswahlfehlern
+
+## [0.6.5] - 2026-01-16
+### Changed
+- GitHub Actions: version-release.yml triggert nun auf Versionstags (`v*`) statt auf `main`-Branch-Pushes.
+- Neuer sync-version.yml-Workflow gleicht package.json-Version mit Footer-Komponente und CHANGELOG auf `dev` ab.
+- Verbesserte Trigger-Konfiguration für Release-Erstellungs-Automation.
+
 ## [0.6.4] - 2026-01-16
 
 ### Changed
