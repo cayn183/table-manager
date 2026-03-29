@@ -35,6 +35,8 @@ import { openPrintDocument } from '../../utils/printUtils'
 import logger from '../../utils/logger'
 import { usePageHeader } from '../layout/PageHeaderContext'
 import ReservationConfigPanel from '../reservation/ReservationConfigPanel'
+import { useDeviceType } from '../../utils/useDeviceType'
+import RoomMobile from './RoomMobile'
 
 // ============================================================================
 // MAIN COMPONENT: Room
@@ -70,6 +72,7 @@ export interface ClubEventSeatingProps {
 export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSeatingProps } = {}) {
   const navigate = useNavigate()
   const auth = useAuth()
+  const device = useDeviceType()
   const isClubEventMode = !!clubEventProps
   const userId = auth.user ? auth.user.id : null
   
@@ -1558,6 +1561,24 @@ export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSea
           <button>Zum Editor</button>
         </Link>
       </div>
+    )
+  }
+
+  // --- Mobile view: simplified tap-to-assign planner ---
+  if (device === 'mobile') {
+    return (
+      <RoomMobile
+        room={room}
+        groups={groups}
+        setGroups={setGroups}
+        assignedGroups={assignedGroups}
+        setAssignedGroups={setAssignedGroups}
+        onSave={() => { saveEventSilently() }}
+        onAutoAssign={() => { autoAssign() }}
+        isDirty={isDirty}
+        lastSaveTime={lastSaveTime}
+        readOnly={clubEventProps?.readOnly}
+      />
     )
   }
 

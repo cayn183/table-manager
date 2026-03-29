@@ -2,8 +2,8 @@ import React, { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../auth/AuthContext'
 import userStorage from '../../utils/userStorage'
 import logger from '../../utils/logger'
-import { syncUserData } from '../../utils/sync'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { syncUserData, hydrateUserData } from '../../utils/sync'
+import { useNavigate, useLocation, useParams } from 'react-router-dom'
 import type { Table } from '../../types/room'
 import { usePageHeader } from '../layout/PageHeaderContext'
 
@@ -35,7 +35,10 @@ export default function RoomEditor() {
   const gridRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const location = useLocation()
+  const { roomId } = useParams<{ roomId: string }>()
   const { user, token } = useAuth()
+  const [roomLoading, setRoomLoading] = useState(!!roomId && roomId !== 'new')
+  const [roomNotFound, setRoomNotFound] = useState(false)
   const [isSavingRoom, setIsSavingRoom] = useState(false)
   const [saveRoomError, setSaveRoomError] = useState<string | null>(null)
   const [duplicateConfirmModal, setDuplicateConfirmModal] = useState<{ name: string; existingId: string; existingCreatedAt: string } | null>(null)
@@ -95,65 +98,98 @@ export default function RoomEditor() {
   }, [selectedTableId, showSaveModal])
 
   useEffect(() => {
-    // Prefer user-scoped storage, fall back to legacy global keys if needed.
-    const currentRoom = userStorage.getItem('currentRoom', userId) || localStorage.getItem('currentRoom')
-    if (currentRoom) {
-      try {
-        const room = JSON.parse(currentRoom)
-        if (room.tables && room.tables.length > 0) {
-          setTables(room.tables)
-          const maxId = Math.max(...room.tables.map((t: Table) => parseInt(t.id.slice(1), 10) || 0))
-          setNextId(maxId + 1)
+    let mounted = true
+    ;(async () => {
+      // Deep-link support: load room by URL param ID
+      if (roomId && roomId !== 'new') {
+        if (userId) await hydrateUserData(token, userId)
+        if (!mounted) return
+        const roomsRaw = userStorage.getItem('rooms', userId) || localStorage.getItem('rooms') || '[]'
+        try {
+          const list = JSON.parse(roomsRaw as string) as any[]
+          const found = list.find((e: any) => e.id === roomId)
+          if (found?.data?.tables?.length) {
+            setTables(found.data.tables)
+            const maxId = Math.max(...found.data.tables.map((t: Table) => parseInt(t.id.slice(1), 10) || 0))
+            setNextId(maxId + 1)
+            setIsEditingExisting(true)
+            setRoomName(found.name)
+            setSaveRoomName(found.name)
+            setExistingRoomId(found.id)
+            setExistingCreatedAt(found.createdAt || null)
+            if (found.data.viewFrame) setViewFrame(found.data.viewFrame)
+            setRoomLoading(false)
+            return
+          }
+        } catch (e) {
+          logger.error('RoomEditor', { action: 'findRoomById', err: e })
+        }
+        // Room ID from URL not found in saved rooms
+        setRoomNotFound(true)
+        setRoomLoading(false)
+        return
+      }
 
-          // Try to find a matching saved room entry to determine if we're editing an existing room
-          const roomsRaw = userStorage.getItem('rooms', userId) || localStorage.getItem('rooms')
-          let matchedName: string | null = null
-          let matchedId: string | null = null
-          let matchedCreatedAt: string | null = null
-          if (roomsRaw) {
-            try {
-              const list = JSON.parse(roomsRaw)
-              for (const entry of list) {
-                try {
-                  if (entry && entry.data && entry.data.tables) {
-                    // simple deep-compare of tables arrays
-                    if (JSON.stringify(entry.data.tables) === JSON.stringify(room.tables)) {
-                      matchedName = entry.name
-                      matchedId = entry.id
-                      matchedCreatedAt = entry.createdAt || null
-                      break
+      // Fallback: load from currentRoom localStorage (normal new-room or legacy flow)
+      const currentRoom = userStorage.getItem('currentRoom', userId) || localStorage.getItem('currentRoom')
+      if (currentRoom) {
+        try {
+          const room = JSON.parse(currentRoom)
+          if (room.tables && room.tables.length > 0) {
+            setTables(room.tables)
+            const maxId = Math.max(...room.tables.map((t: Table) => parseInt(t.id.slice(1), 10) || 0))
+            setNextId(maxId + 1)
+
+            // Try to find a matching saved room entry to determine if we're editing an existing room
+            const roomsRaw = userStorage.getItem('rooms', userId) || localStorage.getItem('rooms')
+            let matchedName: string | null = null
+            let matchedId: string | null = null
+            let matchedCreatedAt: string | null = null
+            if (roomsRaw) {
+              try {
+                const list = JSON.parse(roomsRaw)
+                for (const entry of list) {
+                  try {
+                    if (entry && entry.data && entry.data.tables) {
+                      if (JSON.stringify(entry.data.tables) === JSON.stringify(room.tables)) {
+                        matchedName = entry.name
+                        matchedId = entry.id
+                        matchedCreatedAt = entry.createdAt || null
+                        break
+                      }
                     }
+                  } catch (e) {
+                    // ignore
                   }
-                } catch (e) {
-                  // ignore
                 }
+              } catch (e) {
+                // ignore
               }
-            } catch (e) {
-              // ignore
+            }
+
+            if (matchedName) {
+              setIsEditingExisting(true)
+              setRoomName(matchedName)
+              setSaveRoomName(matchedName)
+              setExistingRoomId(matchedId)
+              setExistingCreatedAt(matchedCreatedAt)
+            } else {
+              setIsEditingExisting(false)
+              setRoomName('Neuer Raum')
+              setSaveRoomName('Neuer Raum')
+            }
+
+            if (room.viewFrame) {
+              setViewFrame(room.viewFrame)
             }
           }
-
-          if (matchedName) {
-            setIsEditingExisting(true)
-            setRoomName(matchedName)
-            setSaveRoomName(matchedName)
-            setExistingRoomId(matchedId)
-            setExistingCreatedAt(matchedCreatedAt)
-          } else {
-            // No matching saved room found: treat as new room
-            setIsEditingExisting(false)
-            setRoomName('Neuer Raum')
-            setSaveRoomName('Neuer Raum')
-          }
-
-          if (room.viewFrame) {
-            setViewFrame(room.viewFrame)
-          }
+        } catch (e) {
+          logger.error('RoomEditor', { action: 'loadRoom', err: e })
         }
-      } catch (e) {
-        logger.error('RoomEditor', { action: 'loadRoom', err: e })
       }
-    }
+      setRoomLoading(false)
+    })()
+    return () => { mounted = false }
   }, [])
 
   function addTable() {
@@ -424,6 +460,15 @@ export default function RoomEditor() {
     setPageTitle(isEditingExisting ? 'Raum bearbeiten' : 'Neuen Raum erstellen', '🏗️')
     return () => { setPageTitle(null); setHeaderContent(null) }
   }, [isEditingExisting, setPageTitle, setHeaderContent])
+
+  if (roomLoading) return <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>Laden…</div>
+  if (roomNotFound) return (
+    <div style={{ padding: 60, textAlign: 'center' }}>
+      <p style={{ fontSize: 48, margin: '0 0 16px' }}>🔍</p>
+      <p style={{ fontSize: 18, color: '#991b1b', margin: '0 0 16px' }}>Raum nicht gefunden.</p>
+      <button onClick={() => navigate('/app/rooms')} style={{ padding: '10px 20px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>Zurück zur Raumübersicht</button>
+    </div>
+  )
 
   return (
     <div style={{ 

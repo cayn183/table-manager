@@ -73,7 +73,7 @@ export default function LoadEvent() {
   return (
     <div style={{ background: '#f8fafc', display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Main Content */}
-      <div style={{ flex: 1, padding: '32px 24px', maxWidth: '900px', width: '100%', margin: '0 auto' }}>
+      <div className="page-content-wrapper" style={{ flex: 1, padding: '32px 24px', maxWidth: '900px', width: '100%', margin: '0 auto' }}>
       {events.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 20px', background: 'white', borderRadius: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
           <p style={{ fontSize: '48px', margin: '0 0 16px' }}>📂</p>
@@ -84,8 +84,9 @@ export default function LoadEvent() {
           {events.map(event => (
             <div
               key={event.id}
+              className="load-card"
               style={{
-                padding: '24px',
+                padding: '20px',
                 background: 'white',
                 borderRadius: '12px',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
@@ -118,7 +119,7 @@ export default function LoadEvent() {
                 </p>
                 {event.lastModified && <p style={{ margin: '4px 0', fontSize: '12px', color: '#94a3b8' }}>Geändert: {event.lastModified}</p>}
               </div>
-              <div style={{ display: 'flex', gap: 10 }}>
+              <div className="load-card-actions" style={{ display: 'flex', gap: 10 }}>
                 <button 
                   onClick={() => loadEvent(event)}
                   style={{ 

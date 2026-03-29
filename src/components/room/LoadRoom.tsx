@@ -108,7 +108,7 @@ export default function LoadRoom() {
   return (
     <div style={{ background: '#f8fafc', display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Main Content */}
-      <div style={{ flex: 1, padding: '32px 24px', maxWidth: '900px', width: '100%', margin: '0 auto' }}>
+      <div className="page-content-wrapper" style={{ flex: 1, padding: '32px 24px', maxWidth: '900px', width: '100%', margin: '0 auto' }}>
       {rooms.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 20px', background: 'white', borderRadius: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
           <p style={{ fontSize: '48px', margin: '0 0 16px' }}>🏠</p>
@@ -119,8 +119,9 @@ export default function LoadRoom() {
           {rooms.map(room => (
             <div
               key={room.id}
+              className="load-card"
               style={{
-                padding: '24px',
+                padding: '20px',
                 background: 'white',
                 borderRadius: '12px',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
@@ -144,7 +145,7 @@ export default function LoadRoom() {
                   </span>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 10 }}>
+              <div className="load-card-actions" style={{ display: 'flex', gap: 10 }}>
                 <button 
                   onClick={() => loadRoom(room)}
                   style={{ padding: '10px 20px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', boxShadow: '0 2px 8px rgba(102,126,234,0.3)', transition: 'all 0.2s' }}
@@ -166,7 +167,7 @@ export default function LoadRoom() {
 
       {deleteConfirm && (
         <div className="modal" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
-          <div style={{ background: 'white', borderRadius: 12, padding: 24, minWidth: 420, maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+          <div style={{ background: 'white', borderRadius: 12, padding: 24, width: 'min(420px, 95vw)', maxWidth: '95vw', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
             <h3 style={{ margin: 0, marginBottom: 10, fontSize: 22, color: '#1e293b' }}>Raum wirklich löschen?</h3>
             <p style={{ margin: '0 0 14px', color: '#475569', fontSize: 14 }}>
               Der Raum „{deleteConfirm.room.name}“ ist noch mit folgenden Events verknüpft und wird zusammen mit ihnen gelöscht:
