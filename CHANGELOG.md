@@ -7,6 +7,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 _Noch keine Änderungen eingetragen._
+## [0.0.0-dev] - 2026-04-03
+
 ## [1.0.2] - 2026-02-23
 ### Added
 - Umfassende Keyboard-Shortcuts für `/room` und `/roomeditor`: ESC (Abbruch), Ctrl+Z (Rückgängig), Ctrl+Y/Shift+Z (Wiederholen), Ctrl+S (Speichern), R/T (beim Ziehen).
