@@ -182,6 +182,19 @@ Falls du einen Release **ohne PR** erstellen möchtest:
 - **NIE** Version in Footer.tsx manuell ändern (Workflow macht das)
 - **NIE** Docker Images manuell bauen/pushen (Workflow macht das)
 
+### Kurzer Trigger-Guide (falls kein normaler Code-Change vorhanden)
+
+- Wenn du den `dev-push.yml` dennoch auslösen willst, aber keine echten Code-Änderungen hast, kannst du entweder:
+   - einen kleinen Dokumentations-Änderung committen (z. B. `CHANGELOG.md`) oder
+   - einen leeren Commit erstellen, der den Workflow triggert:
+
+```bash
+git commit --allow-empty -m "ci: trigger dev-push"
+git push origin dev
+```
+
+Dieser leere Commit ist bewusst erlaubt, damit man Deploys wiederholen kann ohne inhaltliche Änderungen vorzunehmen.
+
 ---
 
 ## 🛠️ Troubleshooting
