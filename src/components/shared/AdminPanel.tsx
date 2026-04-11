@@ -8,13 +8,13 @@ import { adminGetSystemTemplates, adminCreateSystemTemplate, adminUpdateSystemTe
 import TiptapEditor from './TiptapEditor'
 import '../../styles/admin-panel.css'
 
-type UserRow = { id: string; name: string; email: string; created_at: string; is_admin: boolean; email_verified?: boolean; deleted_at?: string }
+type UserRow = { id: string; name: string; email: string; created_at: string; is_admin: boolean; email_verified?: boolean; deleted_at?: string; admin_granted_at?: string; admin_granted_by?: string; last_activity?: string; stats?: { events_count: number; clubs_count: number; feedback_count: number; login_count: number; last_login_at?: string; reservation_stats?: Record<string, number>; rsvp_stats?: { events_with_guests: number; events_with_invitations: number }; quality_metrics?: { avg_rooms_per_event: number; avg_tables_per_room: number; events_with_rooms: number; events_with_invitations: number; events_updated: number }; engagement_metrics?: { events_last_30_days: number; events_updated_last_30_days: number; active_last_7_days: boolean; active_last_30_days: boolean }; usage_type?: string }; recent_events?: { id: string; title: string; created_at: string }[]; club_memberships?: { club_id: string; name: string; role: string; joined_at: string }[]; recent_feedback?: { id: string; headline?: string; message: string; created_at: string }[] }
 type AuditRow = { id: string; actor_id: string; action: string; target_type: string; target_id: string; details: any; created_at: string }
 
 export default function AdminPanel() {
   const auth = useAuth()
   const navigate = useNavigate()
-  const [menu, setMenu] = useState<'users' | 'audit' | 'feedback' | 'system' | 'templates'>('users')
+  const [menu, setMenu] = useState<'users' | 'audit' | 'feedback' | 'system' | 'templates' | 'performance'>('users')
 
   // Users list state
   const [users, setUsers] = useState<UserRow[]>([])
@@ -68,8 +68,14 @@ export default function AdminPanel() {
   const [tplError, setTplError] = useState<string | null>(null)
   const [savingTpl, setSavingTpl] = useState(false)
 
+  // Performance monitoring state
+  const [performanceData, setPerformanceData] = useState<any>(null)
+  const [performanceLoading, setPerformanceLoading] = useState(false)
+  const [performanceError, setPerformanceError] = useState<string | null>(null)
+
   useEffect(() => {
     if (menu === 'templates') fetchSysTpls()
+    if (menu === 'performance') fetchPerformance()
   }, [menu, auth.user])
 
   async function fetchSysTpls() {
@@ -80,6 +86,80 @@ export default function AdminPanel() {
       setSysTpls(data || [])
     } catch (e: any) { setTplError(e?.message || 'Fehler beim Laden') }
     finally { setSysTplLoading(false) }
+  }
+
+  async function fetchPerformance() {
+    if (!auth.user) return
+    setPerformanceLoading(true)
+    setPerformanceError(null)
+    try {
+      const res = await api.get('/admin/performance', auth.token ?? undefined)
+      setPerformanceData(res)
+    } catch (e: any) {
+      const message = e?.message || 'Fehler beim Laden der Performance-Daten'
+      setPerformanceError(message)
+      console.error('Failed to fetch performance data:', e)
+      setPerformanceData(null)
+    } finally {
+      setPerformanceLoading(false)
+    }
+  }
+
+  function getPerformanceSummary(data: any) {
+    if (!data) return null
+    const waiting = data.pool_stats?.waitingCount || 0
+    const total = data.pool_stats?.totalCount || 0
+    const slowCount = Array.isArray(data.slow_queries) ? data.slow_queries.length : 0
+    const hasSlow = slowCount > 0
+
+    if (performanceError) {
+      return {
+        label: 'Fehler',
+        level: 'error',
+        message: 'Die Performance-Daten konnten nicht geladen werden.'
+      }
+    }
+    if (waiting > 5 || hasSlow) {
+      return {
+        label: 'C',
+        level: 'warning',
+        message: hasSlow
+          ? `Langsame Queries erkannt (${slowCount}). Prüfe Indexe und Abfragen.`
+          : 'Mehrere wartende Verbindungen im Pool. Datenbank-Pool ist belastet.'
+      }
+    }
+    if (waiting > 0 || total > 30) {
+      return {
+        label: 'B',
+        level: 'ok',
+        message: `Verbindungspool leicht belastet. ${waiting} wartende Anfrage(n), ${total} von max. Verbindungen in Betrieb.`
+      }
+    }
+    return {
+      label: 'A',
+      level: 'good',
+      message: 'Datenbankverbindung und Poolnutzer sind aktuell in Ordnung.'
+    }
+  }
+
+  function getSlowQuerySummary(data: any) {
+    const queries = Array.isArray(data?.slow_queries) ? data.slow_queries : []
+    if (!queries.length) return null
+
+    const durations = queries.map((q: any) => Number(q.duration_ms) || 0)
+    const total = durations.reduce((sum, value) => sum + value, 0)
+    const avg = total / durations.length
+    const max = Math.max(...durations)
+
+    return {
+      count: queries.length,
+      avg: Math.round(avg),
+      max: Math.round(max)
+    }
+  }
+
+  function formatDuration(ms: number) {
+    return `${ms.toLocaleString('de-DE')} ms`
   }
 
   async function handleCreateTpl() {
@@ -300,6 +380,7 @@ export default function AdminPanel() {
             <button onClick={() => { setMenu('feedback'); markRepliesSeen() }} className={`admin-nav-button ${menu === 'feedback' ? 'active' : ''}`}>Feedbackübersicht</button>
             <button onClick={() => setMenu('system')} className={`admin-nav-button ${menu === 'system' ? 'active' : ''}`}>System</button>
             <button onClick={() => setMenu('templates')} className={`admin-nav-button ${menu === 'templates' ? 'active' : ''}`}>Mustervorlagen</button>
+            <button onClick={() => setMenu('performance')} className={`admin-nav-button ${menu === 'performance' ? 'active' : ''}`}>Performance</button>
           </nav>
         </div>
         <div>
@@ -722,6 +803,259 @@ export default function AdminPanel() {
             )}
           </>
         )}
+
+        {menu === 'performance' && (
+          <>
+            <h2>Performance-Monitoring</h2>
+            <div style={{ marginBottom: 16 }}>
+              <button 
+                onClick={fetchPerformance}
+                disabled={performanceLoading}
+                style={{ padding: '8px 16px', background: '#667eea', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}
+              >
+                {performanceLoading ? 'Lade…' : '🔄 Aktualisieren'}
+              </button>
+            </div>
+
+            {performanceLoading ? (
+              <p>Lade Performance-Daten…</p>
+            ) : performanceError ? (
+              <p style={{ color: 'red' }}>{performanceError}</p>
+            ) : performanceData ? (
+              <div style={{ display: 'grid', gap: 24 }}>
+                {/* Performance Summary */}
+                {(() => {
+                  const summary = getPerformanceSummary(performanceData)
+                  return summary ? (
+                    <div
+                      style={{
+                        padding: 16,
+                        borderRadius: 12,
+                        background: summary.level === 'good' ? '#ecfdf5' : summary.level === 'ok' ? '#fef3c7' : '#fee2e2',
+                        border: `1px solid ${summary.level === 'good' ? '#10b981' : summary.level === 'ok' ? '#f59e0b' : '#ef4444'}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 16,
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4, color: summary.level === 'good' ? '#065f46' : summary.level === 'ok' ? '#92400e' : '#991b1b' }}>
+                          Performance-Bewertung: {summary.label}
+                        </div>
+                        <div style={{ fontSize: 13, color: '#334155' }}>{summary.message}</div>
+                      </div>
+                      <div
+                        style={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: 9999,
+                          display: 'grid',
+                          placeItems: 'center',
+                          background: summary.level === 'good' ? '#10b981' : summary.level === 'ok' ? '#f59e0b' : '#ef4444',
+                          color: 'white',
+                          fontWeight: 700,
+                          fontSize: 16,
+                        }}
+                      >
+                        {summary.label}
+                      </div>
+                    </div>
+                  ) : null
+                })()}
+
+                {/* Slow query overview */}
+                {(() => {
+                  const slowSummary = getSlowQuerySummary(performanceData)
+                  return slowSummary ? (
+                    <div style={{ padding: 16, borderRadius: 12, border: '1px solid #fde68a', background: '#fffbeb' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: '#92400e' }}>Query-Dauer Übersicht</div>
+                          <div style={{ fontSize: 13, color: '#475569', marginTop: 6 }}>
+                            {slowSummary.count} langsame Abfrage(n) mit einer maximalen Dauer von {formatDuration(slowSummary.max)} und durchschnittlich {formatDuration(slowSummary.avg)}.
+                          </div>
+                        </div>
+                        <div style={{ fontWeight: 700, color: '#92400e' }}>{formatDuration(slowSummary.max)}</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ padding: 16, borderRadius: 12, border: '1px solid #d1fae5', background: '#ecfdf5', color: '#064e3b' }}>
+                      Keine langsamen Queries gefunden. Die durchschnittliche Abfragezeit liegt derzeit unter dem Schwellenwert.
+                    </div>
+                  )
+                })()}
+
+                {/* Connection Pool Details */}
+                <div style={{ padding: 16, border: '1px solid #e2e8f0', borderRadius: 8, background: '#f8fafc' }}>
+                  <h3 style={{ margin: '0 0 12px 0' }}>Datenbank-Verbindungspool</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 24, fontWeight: 'bold', color: '#1e293b' }}>{performanceData.pool_stats?.totalCount || 0}</div>
+                      <div style={{ fontSize: 12, color: '#64748b' }}>Aktive Connections</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 24, fontWeight: 'bold', color: '#059669' }}>{performanceData.pool_stats?.idleCount || 0}</div>
+                      <div style={{ fontSize: 12, color: '#64748b' }}>Verfügbar (Idle)</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 24, fontWeight: 'bold', color: (performanceData.pool_stats?.waitingCount || 0) > 0 ? '#dc2626' : '#059669' }}>{performanceData.pool_stats?.waitingCount || 0}</div>
+                      <div style={{ fontSize: 12, color: '#64748b' }}>Wartende Anfragen</div>
+                    </div>
+                    {performanceData.pool_stats?.maxConnections && (
+                      <div>
+                        <div style={{ fontSize: 24, fontWeight: 'bold', color: '#7c3aed' }}>{performanceData.pool_stats.maxConnections}</div>
+                        <div style={{ fontSize: 12, color: '#64748b' }}>Max. Limit</div>
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#475569', padding: '10px 8px', background: '#f1f5f9', borderRadius: 6 }}>
+                    💡 <strong>Aktive Connections</strong> = derzeit genutzte Verbindungen. <strong>Verfügbar</strong> = nicht gerade in Benutzung. <strong>Wartende Anfragen</strong> = Queries, die auf eine freie Connection warten. Das bedeutet, der Pool ist erschöpft.
+                  </div>
+                </div>
+
+                {/* Cache Hit Ratio */}
+                {performanceData.cache_hit_ratio && performanceData.cache_hit_ratio.cache_hit_ratio !== null && (() => {
+                  const ratio = Number(performanceData.cache_hit_ratio.cache_hit_ratio) || 0
+                  const isBad = ratio < 80
+                  return (
+                    <div style={{ padding: 16, borderRadius: 12, border: isBad ? '1px solid #fca5a5' : '1px solid #bbf7d0', background: isBad ? '#fef2f2' : '#f0fdf4' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: isBad ? '#991b1b' : '#065f46' }}>Cache Hit Ratio</div>
+                          <div style={{ fontSize: 13, color: '#475569', marginTop: 4 }}>
+                            {ratio.toFixed(2)}% der Queries bedient aus RAM-Cache. {performanceData.cache_hit_ratio.cache_hits} Hits zu {performanceData.cache_hit_ratio.disk_reads} Disk Reads.
+                          </div>
+                          {isBad && <div style={{ fontSize: 12, color: '#dc2626', marginTop: 4 }}>⚠️ Unter 80% gilt als schlecht. Das deutet auf Speicherdruck oder fehlende Indizes hin.</div>}
+                        </div>
+                        <div style={{ fontSize: 32, fontWeight: 'bold', color: isBad ? '#991b1b' : '#065f46' }}>{ratio.toFixed(0)}%</div>
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* Unused Indexes Warning */}
+                {Array.isArray(performanceData.unused_indexes) && performanceData.unused_indexes.length > 0 && (
+                  <div style={{ padding: 16, borderRadius: 12, border: '1px solid #fed7aa', background: '#fffbeb' }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#92400e', marginBottom: 8 }}>
+                      ⚠️ {performanceData.unused_indexes.length} unbenutzte Index(e) gefunden
+                    </div>
+                    <div style={{ fontSize: 12, color: '#475569', marginBottom: 8 }}>
+                      Diese Indexes nehmen Speicher ein, aber werden nicht bei Queries genutzt. Sie können gelöscht werden, um Storage und Schreib-Performance zu verbessern.
+                    </div>
+                    <div style={{ display: 'grid', gap: 6 }}>
+                      {performanceData.unused_indexes.slice(0, 3).map((idx: any, i: number) => (
+                        <div key={i} style={{ fontSize: 11, color: '#64748b', padding: '6px 8px', background: '#f1f5f9', borderRadius: 4 }}>
+                          <strong>{idx.indexname}</strong> auf {idx.tablename} ({idx.size})
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+
+
+                {/* Table Statistics */}
+                <div style={{ padding: 16, border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                  <h3 style={{ margin: '0 0 12px 0' }}>Tabellen-Statistiken</h3>
+                  <div style={{ fontSize: 12, color: '#475569', padding: '10px 8px', background: '#f1f5f9', borderRadius: 6, marginBottom: 12 }}>
+                    <strong>Zu beachten:</strong> Hohe <strong>Dead Rows</strong> deuten auf fehlende VACUUM-Operationen hin. <strong>Große Tabellen</strong> sollten regelmäßig überwacht werden. Ein Verhältnis von Updates/Deletes zu Inserts zeigt, wie die Tabelle genutzt wird.
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ background: '#f8fafc' }}>
+                          <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Tabelle</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right', borderBottom: '1px solid #e2e8f0' }}>Größe</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right', borderBottom: '1px solid #e2e8f0' }}>Live Rows</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right', borderBottom: '1px solid #e2e8f0' }}>Dead Rows</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right', borderBottom: '1px solid #e2e8f0' }}>Inserts</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right', borderBottom: '1px solid #e2e8f0' }}>Updates</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right', borderBottom: '1px solid #e2e8f0' }}>Deletes</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {performanceData.table_stats?.map((table: any, i: number) => (
+                          <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '8px 12px', fontWeight: 500 }}>{table.tablename}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right' }}>{table.size}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right' }}>{table.live_rows?.toLocaleString()}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', color: (table.dead_rows || 0) > (table.live_rows || 1) * 0.1 ? '#dc2626' : '#475569' }}>{table.dead_rows?.toLocaleString()}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right' }}>{table.inserts?.toLocaleString()}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right' }}>{table.updates?.toLocaleString()}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right' }}>{table.deletes?.toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Index Usage */}
+                <div style={{ padding: 16, border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                  <h3 style={{ margin: '0 0 12px 0' }}>Index-Nutzung</h3>
+                  <div style={{ fontSize: 12, color: '#475569', padding: '10px 8px', background: '#f1f5f9', borderRadius: 6, marginBottom: 12 }}>
+                    <strong>Gut:</strong> Hohe <strong>Scans</strong> = Index wird genutzt. <strong>Schlecht:</strong> 0 Scans = Index wird nicht benutzt (verschleudert Speicher). <strong>Zu achten:</strong> Indexes mit niedrigen Scans können gelöscht werden.
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ background: '#f8fafc' }}>
+                          <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Index</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid #e2e8f0' }}>Tabelle</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right', borderBottom: '1px solid #e2e8f0' }}>Scans</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right', borderBottom: '1px solid #e2e8f0' }}>Tuples Read</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right', borderBottom: '1px solid #e2e8f0' }}>Tuples Fetched</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right', borderBottom: '1px solid #e2e8f0' }}>Größe</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {performanceData.index_stats?.slice(0, 10).map((index: any, i: number) => (
+                          <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '8px 12px', fontWeight: 500 }}>{index.indexname}</td>
+                            <td style={{ padding: '8px 12px' }}>{index.tablename}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right' }}>{index.scans?.toLocaleString()}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right' }}>{index.tuples_read?.toLocaleString()}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right' }}>{index.tuples_fetched?.toLocaleString()}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right' }}>{index.size}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {performanceData.index_stats?.length > 10 && (
+                    <p style={{ fontSize: 12, color: '#64748b', marginTop: 8 }}>
+                      Zeige Top 10 Indizes. Gesamt: {performanceData.index_stats.length}
+                    </p>
+                  )}
+                </div>
+
+                {/* Slow Queries */}
+                {performanceData.slow_queries?.length > 0 && (
+                  <div style={{ padding: 16, border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                    <h3 style={{ margin: '0 0 12px 0', color: '#dc2626' }}>Langsame Queries</h3>
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      {performanceData.slow_queries.map((query: any, i: number) => (
+                        <div key={i} style={{ padding: 12, background: '#fef2f2', borderRadius: 6 }}>
+                          <div style={{ fontFamily: 'monospace', fontSize: 12, marginBottom: 4 }}>{query.query}</div>
+                          <div style={{ fontSize: 11, color: '#dc2626' }}>
+                            Dauer: {query.duration_ms}ms • Zeit: {formatDateTimeShortDE(query.timestamp)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ padding: 12, background: '#f8fafc', borderRadius: 6, fontSize: 12, color: '#64748b' }}>
+                  Letzte Aktualisierung: {performanceData.timestamp ? formatDateTimeShortDE(performanceData.timestamp) : 'Unbekannt'}
+                </div>
+              </div>
+            ) : (
+              <p>Keine Performance-Daten verfügbar. Klicke auf "Aktualisieren" um Daten zu laden.</p>
+            )}
+          </>
+        )}
       </main>
 
       {/* Detail drawer */}
@@ -733,10 +1067,111 @@ export default function AdminPanel() {
             <div>
               <p><strong>ID:</strong> {selectedUser.id}</p>
               <p><strong>Email:</strong> {selectedUser.email}</p>
+              <p><strong>Name:</strong> {selectedUser.name}</p>
               <p><strong>Created:</strong> {formatDateTimeShortDE(selectedUser.created_at)}</p>
+              <p><strong>Last Activity:</strong> {selectedUser.last_activity ? formatDateTimeShortDE(selectedUser.last_activity) : 'Nie'}</p>
               <p><strong>Admin:</strong> {(selectedUser as any).is_admin ? 'Yes' : 'No'}</p>
+              {selectedUser.admin_granted_at && <p><strong>Admin granted:</strong> {formatDateTimeShortDE(selectedUser.admin_granted_at)}</p>}
               <p><strong>Email verifiziert:</strong> {(selectedUser as any).email_verified ? 'Yes' : 'No'}</p>
               <p><strong>Deleted:</strong> {selectedUser.deleted_at || '—'}</p>
+
+              {selectedUser.stats && (
+                <div style={{ marginTop: 16, padding: 12, background: '#f8fafc', borderRadius: 6 }}>
+                  <h4 style={{ margin: '0 0 8px' }}>Statistiken</h4>
+                  <p><strong>Events erstellt:</strong> {selectedUser.stats.events_count}</p>
+                  <p><strong>Club-Mitgliedschaften:</strong> {selectedUser.stats.clubs_count}</p>
+                  <p><strong>Feedback gegeben:</strong> {selectedUser.stats.feedback_count}</p>
+                  <p><strong>Login-Anzahl:</strong> {selectedUser.stats.login_count}</p>
+                  <p><strong>Letzter Login:</strong> {selectedUser.stats.last_login_at ? formatDateTimeShortDE(selectedUser.stats.last_login_at) : 'Nie'}</p>
+                  
+                  {selectedUser.stats.usage_type && (
+                    <p><strong>Nutzungstyp:</strong> {selectedUser.stats.usage_type === 'club_user' ? 'Club-Manager' : 'Event-only'}</p>
+                  )}
+                  
+                  {selectedUser.stats.reservation_stats && Object.keys(selectedUser.stats.reservation_stats).length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <strong>Reservierungen für Events:</strong>
+                      <ul style={{ margin: 4, paddingLeft: 16 }}>
+                        {Object.entries(selectedUser.stats.reservation_stats).map(([status, count]) => (
+                          <li key={status}>{status}: {count}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {selectedUser.stats.rsvp_stats && (
+                    <div style={{ marginTop: 8 }}>
+                      <strong>RSVP-Statistiken:</strong>
+                      <p>Events mit Gästedaten: {selectedUser.stats.rsvp_stats.events_with_guests}</p>
+                      <p>Events mit Einladungen: {selectedUser.stats.rsvp_stats.events_with_invitations}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {selectedUser.stats?.quality_metrics && (
+                <div style={{ marginTop: 16, padding: 12, background: '#f0f9ff', borderRadius: 6 }}>
+                  <h4 style={{ margin: '0 0 8px', color: '#0369a1' }}>📊 Event-Qualität</h4>
+                  <p><strong>Ø Räume pro Event:</strong> {selectedUser.stats.quality_metrics.avg_rooms_per_event.toFixed(1)}</p>
+                  <p><strong>Ø Tische pro Raum:</strong> {selectedUser.stats.quality_metrics.avg_tables_per_room.toFixed(1)}</p>
+                  <p><strong>Events mit Räumen:</strong> {selectedUser.stats.quality_metrics.events_with_rooms}</p>
+                  <p><strong>Events mit Einladungen:</strong> {selectedUser.stats.quality_metrics.events_with_invitations}</p>
+                  <p><strong>Events bearbeitet:</strong> {selectedUser.stats.quality_metrics.events_updated}</p>
+                  <p><strong>Completion-Rate:</strong> {selectedUser.stats.events_count > 0 ? ((selectedUser.stats.quality_metrics.events_with_rooms / selectedUser.stats.events_count) * 100).toFixed(1) : 0}%</p>
+                </div>
+              )}
+
+              {selectedUser.stats?.engagement_metrics && (
+                <div style={{ marginTop: 16, padding: 12, background: '#fef3c7', borderRadius: 6 }}>
+                  <h4 style={{ margin: '0 0 8px', color: '#92400e' }}>⚡ Engagement</h4>
+                  <p><strong>Events letzte 30 Tage:</strong> {selectedUser.stats.engagement_metrics.events_last_30_days}</p>
+                  <p><strong>Events bearbeitet (30 Tage):</strong> {selectedUser.stats.engagement_metrics.events_updated_last_30_days}</p>
+                  <p><strong>Aktiv letzte 7 Tage:</strong> {selectedUser.stats.engagement_metrics.active_last_7_days ? '✅ Ja' : '❌ Nein'}</p>
+                  <p><strong>Aktiv letzte 30 Tage:</strong> {selectedUser.stats.engagement_metrics.active_last_30_days ? '✅ Ja' : '❌ Nein'}</p>
+                  <p><strong>Update-Rate:</strong> {selectedUser.stats.engagement_metrics.events_last_30_days > 0 ? ((selectedUser.stats.engagement_metrics.events_updated_last_30_days / selectedUser.stats.engagement_metrics.events_last_30_days) * 100).toFixed(1) : 0}%</p>
+                </div>
+              )}
+
+              {selectedUser.recent_events && selectedUser.recent_events.length > 0 && (
+                <div style={{ marginTop: 16, padding: 12, background: '#f8fafc', borderRadius: 6 }}>
+                  <h4 style={{ margin: '0 0 8px' }}>Zuletzt erstellte Events</h4>
+                  <ul style={{ margin: 0, paddingLeft: 16 }}>
+                    {selectedUser.recent_events.map(e => (
+                      <li key={e.id} style={{ marginBottom: 4 }}>
+                        <strong>{e.title}</strong> - {formatDateTimeShortDE(e.created_at)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {selectedUser.club_memberships && selectedUser.club_memberships.length > 0 && (
+                <div style={{ marginTop: 16, padding: 12, background: '#f8fafc', borderRadius: 6 }}>
+                  <h4 style={{ margin: '0 0 8px' }}>Club-Mitgliedschaften</h4>
+                  <ul style={{ margin: 0, paddingLeft: 16 }}>
+                    {selectedUser.club_memberships.map(c => (
+                      <li key={c.club_id} style={{ marginBottom: 4 }}>
+                        <strong>{c.name}</strong> (Rolle: {c.role}) - Beigetreten: {formatDateTimeShortDE(c.joined_at)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {selectedUser.recent_feedback && selectedUser.recent_feedback.length > 0 && (
+                <div style={{ marginTop: 16, padding: 12, background: '#f8fafc', borderRadius: 6 }}>
+                  <h4 style={{ margin: '0 0 8px' }}>Zuletzt gegebenes Feedback</h4>
+                  <ul style={{ margin: 0, paddingLeft: 16 }}>
+                    {selectedUser.recent_feedback.map(f => (
+                      <li key={f.id} style={{ marginBottom: 8 }}>
+                        <strong>{f.headline || 'Kein Titel'}</strong> - {formatDateTimeShortDE(f.created_at)}
+                        <br />
+                        <small>{f.message.length > 100 ? f.message.substring(0, 100) + '...' : f.message}</small>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
         </div>
