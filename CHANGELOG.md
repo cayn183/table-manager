@@ -7,6 +7,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 ### Added
+## [1.2.4] - 2026-04-13
+
 - Backend: Performance-Endpunkt robuster (Try/Catch für einzelne Statistiken) und neue Metriken: Unused Indexes, Cache-Hit-Ratio, detaillierte Pool-Internals (aktive/idle/waiting, max connections).
 - Frontend: Admin-Panel erweitert: Connection-Pool-Details, Cache-Hit-Ratio-Anzeige, Unused-Index-Warnung, Slow-Query-Übersicht, interpretierende Hinweisboxen für Tabellen- und Index-Statistiken.
 
