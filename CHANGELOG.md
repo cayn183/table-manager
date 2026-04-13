@@ -6,24 +6,19 @@ Das Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.0.0/),
 und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
-_Noch keine Änderungen eingetragen._
-## [1.2.3] - 2026-04-11
-
-## [0.0.0-dev] - 2026-04-03
-
-## [1.0.2] - 2026-02-23
 ### Added
-- Umfassende Keyboard-Shortcuts für `/room` und `/roomeditor`: ESC (Abbruch), Ctrl+Z (Rückgängig), Ctrl+Y/Shift+Z (Wiederholen), Ctrl+S (Speichern), R/T (beim Ziehen).
-- Redo/Undo-Funktionalität mit getrennten Stacks (je max. 5 Schritte) und visuellen Schrittzählern.
-- Schmale Action-Spalte rechts in `/room` mit Icon-Buttons für Zurück, Vorwärts, Drehen und Spiegeln.
-- Erweiterte Help-Modal mit aktualisierten Tastatur-Referenzen.
+- Backend: Performance-Endpunkt robuster (Try/Catch für einzelne Statistiken) und neue Metriken: Unused Indexes, Cache-Hit-Ratio, detaillierte Pool-Internals (aktive/idle/waiting, max connections).
+- Frontend: Admin-Panel erweitert: Connection-Pool-Details, Cache-Hit-Ratio-Anzeige, Unused-Index-Warnung, Slow-Query-Übersicht, interpretierende Hinweisboxen für Tabellen- und Index-Statistiken.
 
 ### Changed
-- Undo-Button aus Seitenleiste entfernt (nun in Action-Spalte mit Redo-Funktion).
-- Help-Modal mit Tab-Navigation und separater RoomEditor-Hilfe erweitert.
+- Backend: Cache-Hit-Ratio-Berechnung vereinfacht und gegen Division-by-zero abgesichert; Statistikabfragen defensiv gestaltet.
+- Frontend: Fehlerbehebungen (z. B. Konvertierung von String->Number vor toFixed) und bessere Darstellung/Erklärungen in `src/components/shared/AdminPanel.tsx`.
 
-### Fixed
-- Keyboard-Shortcut-Handler refaktoriert zur Vermeidung von Duplikaten.
+### Docs
+- `RELEASE_GUIDE.md`: Kurzer Trigger-Guide ergänzt (Anleitung für leeren Commit zum Auslösen des `dev-push.yml`-Workflows).
+
+### Notes
+- Diese Änderungen verbessern die Beobachtbarkeit der DB-Performance und verhindern, dass einzelne Statistik-Queries den gesamten Endpoint zum Scheitern bringen.
 
 ## [1.2.0] - 2026-03-29
 ### Added
