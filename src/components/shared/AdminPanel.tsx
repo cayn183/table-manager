@@ -8,7 +8,7 @@ import { adminGetSystemTemplates, adminCreateSystemTemplate, adminUpdateSystemTe
 import TiptapEditor from './TiptapEditor'
 import '../../styles/admin-panel.css'
 
-type UserRow = { id: string; name: string; email: string; created_at: string; is_admin: boolean; email_verified?: boolean; deleted_at?: string; admin_granted_at?: string; admin_granted_by?: string; last_activity?: string; stats?: { events_count: number; clubs_count: number; feedback_count: number; login_count: number; last_login_at?: string; reservation_stats?: Record<string, number>; rsvp_stats?: { events_with_guests: number; events_with_invitations: number }; quality_metrics?: { avg_rooms_per_event: number; avg_tables_per_room: number; events_with_rooms: number; events_with_invitations: number; events_updated: number }; engagement_metrics?: { events_last_30_days: number; events_updated_last_30_days: number; active_last_7_days: boolean; active_last_30_days: boolean }; usage_type?: string }; recent_events?: { id: string; title: string; created_at: string }[]; club_memberships?: { club_id: string; name: string; role: string; joined_at: string }[]; recent_feedback?: { id: string; headline?: string; message: string; created_at: string }[] }
+type UserRow = { id: string; name: string; email: string; created_at: string; is_admin: boolean; email_verified?: boolean; deleted_at?: string; admin_granted_at?: string; admin_granted_by?: string; last_activity?: string; stats?: { events_count: number; clubs_count: number; feedback_count: number; login_count: number; last_login_at?: string; reservation_stats?: Record<string, number>; rsvp_stats?: { events_with_guests: number; events_with_invitations: number }; quality_metrics?: { avg_rooms_per_event: number; avg_tables_per_room: number; events_with_rooms: number; events_with_invitations: number; events_updated: number }; engagement_metrics?: { events_last_30_days: number; events_updated_last_30_days: number; active_last_7_days: boolean; active_last_30_days: boolean }; usage_type?: string }; recent_events?: { id: string; title: string; created_at: string }[]; club_memberships?: { club_id: string; name: string; role: string; joined_at: string }[]; recent_feedback?: { id: string; headline?: string; message: string; created_at: string }[]; recent_login_ips?: { ip_address: string; login_at: string; user_agent?: string }[] }
 type AuditRow = { id: string; actor_id: string; action: string; target_type: string; target_id: string; details: any; created_at: string }
 
 export default function AdminPanel() {
@@ -864,6 +864,18 @@ export default function AdminPanel() {
                   ) : null
                 })()}
 
+                {/* Client IP (viewer) */}
+                {performanceData.client_ip && (
+                  <div style={{ padding: 12, borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc' }}>
+                    <div style={{ fontSize: 13, color: '#334155' }}>
+                      <strong>Deine IP:</strong> <span style={{ fontFamily: 'monospace' }}>{performanceData.client_ip}</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>
+                      Diese IP wird erkannt von der Server-Verbindung (X-Forwarded-For / RemoteAddress). Nützlich zum Prüfen von Firewall-Regeln.
+                    </div>
+                  </div>
+                )}
+
                 {/* Slow query overview */}
                 {(() => {
                   const slowSummary = getSlowQuerySummary(performanceData)
@@ -1170,6 +1182,30 @@ export default function AdminPanel() {
                       </li>
                     ))}
                   </ul>
+                </div>
+              )}
+
+              {/* Login IP History Box - always show if data came from backend */}
+              {selectedUser.recent_login_ips !== undefined && (
+                <div style={{ marginTop: 16, padding: 12, background: '#fee2e2', borderRadius: 6, border: '1px solid #fca5a5' }}>
+                  <h4 style={{ margin: '0 0 8px', color: '#991b1b' }}>🔒 Login IP-Adressen (Firewall-Audit)</h4>
+                  <p style={{ fontSize: '12px', color: '#7f1d1d', marginBottom: 8 }}>Für Firewall-Debugging & Sicherheit.</p>
+                  {selectedUser.recent_login_ips.length === 0 ? (
+                    <p style={{ fontSize: '13px', color: '#7f1d1d', fontStyle: 'italic' }}>Keine Login-IPs verzeichnet. Dieser User hat sich noch nie angemeldet.</p>
+                  ) : (
+                    <ul style={{ margin: 0, paddingLeft: 16 }}>
+                      {selectedUser.recent_login_ips.map((login, idx) => (
+                        <li key={idx} style={{ marginBottom: 8, fontSize: '13px' }}>
+                          <code style={{ wordBreak: 'break-all', background: '#fff5f5', padding: '2px 4px', borderRadius: 3, fontWeight: 500, color: '#7f1d1d' }}>{login.ip_address}</code>
+                          <br />
+                          <small style={{ color: '#666' }}>
+                            {formatDateTimeShortDE(login.login_at)}
+                            {login.user_agent && ` • ${login.user_agent}`}
+                          </small>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               )}
             </div>
