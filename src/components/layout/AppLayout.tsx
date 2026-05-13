@@ -16,7 +16,7 @@ function AppLayoutInner() {
   const isMobile = device === 'mobile'
   const location = useLocation()
   const navigate = useNavigate()
-  // Show back button on sub-pages (anything deeper than /app, /app/events, /app/rooms, /app/profile, /app/togo)
+  // Show back button on sub-pages (anything deeper than /app, /app/events, /app/profile, /app/togo)
   const isSubPage = isMobile && /^\/app\/(events|rooms|club)\/[^/]+/.test(location.pathname)
   
   return (

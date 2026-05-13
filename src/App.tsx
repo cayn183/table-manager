@@ -2,7 +2,6 @@ import React from 'react'
 import type { ReactNode } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './auth/AuthContext'
-import { useDeviceType } from './utils/useDeviceType'
 import PublicLayout from './components/layout/PublicLayout'
 import PublicLayoutNoFooter from './components/layout/PublicLayoutNoFooter'
 import AppLayout from './components/layout/AppLayout'
@@ -11,10 +10,7 @@ import ClubLandingPage from './components/landing/ClubLandingPage'
 import WeddingLandingPage from './components/landing/WeddingLandingPage'
 import GuestListLandingPage from './components/landing/GuestListLandingPage'
 import Home from './components/shared/Home'
-import RoomEditor from './components/room/RoomEditor'
-import RoomEditorMobile from './components/room/RoomEditorMobile'
 import Room from './components/room/Room'
-import LoadRoom from './components/room/LoadRoom'
 import LoadEvent from './components/room/LoadEvent'
 import Login from './components/auth/Login'
 import ForgotPassword from './components/auth/ForgotPassword'
@@ -43,11 +39,6 @@ function RequireAuth({ children }: { children: ReactNode }) {
     return <Navigate to={`/login?redirect=${redirect}`} replace />
   }
   return <>{children}</>
-}
-
-function ResponsiveRoomEditor() {
-  const device = useDeviceType()
-  return device === 'mobile' ? <RoomEditorMobile /> : <RoomEditor />
 }
 
 export default function App() {
@@ -87,8 +78,6 @@ export default function App() {
         <Route path="profile" element={<Profile />} />
         <Route path="events" element={<LoadEvent />} />
         <Route path="events/:eventId" element={<PrivateEventDetail />} />
-        <Route path="rooms" element={<LoadRoom />} />
-        <Route path="rooms/:roomId" element={<ResponsiveRoomEditor />} />
         <Route path="togo" element={<ToGo />} />
         <Route path="club/:clubId/members" element={<ClubMembers />} />
         <Route path="club/:clubId/settings" element={<ClubSettings />} />
@@ -104,8 +93,8 @@ export default function App() {
       } />
       
       {/* ═══ LEGACY ROUTES (Redirect to new structure) ═══ */}
-      <Route path="/new-room" element={<Navigate to="/app/rooms/new" replace />} />
-      <Route path="/load-room" element={<Navigate to="/app/rooms" replace />} />
+      <Route path="/new-room" element={<Navigate to="/app" replace />} />
+      <Route path="/load-room" element={<Navigate to="/app" replace />} />
       <Route path="/load-event" element={<Navigate to="/app/events" replace />} />
       <Route path="/room" element={<Navigate to="/app" replace />} />
       <Route path="/togo" element={<Navigate to="/app/togo" replace />} />

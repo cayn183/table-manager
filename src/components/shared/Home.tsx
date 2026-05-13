@@ -2,7 +2,6 @@ import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
 import { useClubs } from '../club/ClubContext'
-import userStorage from '../../utils/userStorage'
 import FeedbackForm from './FeedbackForm'
 import PrivateEventWizardModal from './PrivateEventWizardModal'
 import ClubCreateModal from '../club/ClubCreateModal'
@@ -11,8 +10,6 @@ import ClubDashboard from '../club/ClubDashboard'
 import { useHelp } from './HelpContext'
 import { useDeviceType } from '../../utils/useDeviceType'
 import type { PrivateEventItem } from '../../types/event'
-
-const STORAGE_KEY = 'currentRoom'
 export default function Home() {
   const navigate = useNavigate()
   const auth = useAuth()
@@ -210,48 +207,6 @@ export default function Home() {
                       <span>Events laden</span>
                     </button>
                   </Link>
-                  <Link to="/app/rooms" style={{ textDecoration: 'none' }}>
-                    <button style={{
-                      width: '100%',
-                      padding: '14px 16px',
-                      background: 'white',
-                      border: '2px solid #e2e8f0',
-                      borderRadius: '12px',
-                      cursor: 'pointer',
-                      fontSize: '15px',
-                      fontWeight: '600',
-                      color: '#1e293b',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                      textAlign: 'left',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px'
-                    }}>
-                      <span style={{ fontSize: '22px', flexShrink: 0 }}>🏠</span>
-                      <span>Räume laden</span>
-                    </button>
-                  </Link>
-                  <Link to="/app/rooms/new" onClick={() => { userStorage.removeItem(STORAGE_KEY, userId); localStorage.removeItem(STORAGE_KEY) }} style={{ textDecoration: 'none' }}>
-                    <button style={{
-                      width: '100%',
-                      padding: '14px 16px',
-                      background: 'white',
-                      border: '2px solid #e2e8f0',
-                      borderRadius: '12px',
-                      cursor: 'pointer',
-                      fontSize: '15px',
-                      fontWeight: '600',
-                      color: '#1e293b',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                      textAlign: 'left',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px'
-                    }}>
-                      <span style={{ fontSize: '22px', flexShrink: 0 }}>🏗️</span>
-                      <span>Raum erstellen</span>
-                    </button>
-                  </Link>
                 </div>
                 {/* Club join/create — compact on mobile private tab */}
                 {clubs.length === 0 && (
@@ -418,57 +373,6 @@ export default function Home() {
                 <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '400' }}>Bestehende Events öffnen und bearbeiten</span>
               </button>
             </Link>
-            <Link to="/app/rooms" style={{ textDecoration: 'none' }}>
-              <button style={{
-                width: '100%',
-                padding: '32px 24px',
-                background: 'white',
-                border: '2px solid #e2e8f0',
-                borderRadius: '16px',
-                cursor: 'pointer',
-                fontSize: '18px',
-                fontWeight: '600',
-                color: '#1e293b',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                transition: 'all 0.2s',
-                textAlign: 'left',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px'
-              }}
-              onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.15)'; }}
-              onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'; }}>
-                <span style={{ fontSize: '32px' }}>🏠</span>
-                <span>Raum laden</span>
-                <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '400' }}>Gespeicherte Raum-Layouts verwenden</span>
-              </button>
-            </Link>
-            <Link to="/app/rooms/new" onClick={() => { userStorage.removeItem(STORAGE_KEY, userId); localStorage.removeItem(STORAGE_KEY) }} style={{ textDecoration: 'none' }}>
-              <button style={{
-                width: '100%',
-                padding: '32px 24px',
-                background: 'white',
-                border: '2px solid #e2e8f0',
-                borderRadius: '16px',
-                cursor: 'pointer',
-                fontSize: '18px',
-                fontWeight: '600',
-                color: '#1e293b',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                transition: 'all 0.2s',
-                textAlign: 'left',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px'
-              }}
-              onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.15)'; }}
-              onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'; }}>
-                <span style={{ fontSize: '32px' }}>🏗️</span>
-                <span>Raum anlegen</span>
-                <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '400' }}>Neuen Raum mit Tisch-Layout erstellen</span>
-              </button>
-            </Link>
-
             {/* Club Buttons */}
             <button
               onClick={() => setShowCreateClubModal(true)}

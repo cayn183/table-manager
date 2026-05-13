@@ -14,7 +14,6 @@ interface NavTab {
 const TABS: NavTab[] = [
   { label: 'Home',   icon: '🏠', path: '/app',          match: p => p === '/app' },
   { label: 'Events', icon: '📅', path: '/app/events',   match: p => p.startsWith('/app/events') },
-  { label: 'Räume',  icon: '🪑', path: '/app/rooms',    match: p => p.startsWith('/app/rooms') },
   { label: 'Club',   icon: '👥', path: '',              match: p => p.startsWith('/app/club') },
   { label: 'Profil', icon: '👤', path: '/app/profile',  match: p => p.startsWith('/app/profile') },
 ]

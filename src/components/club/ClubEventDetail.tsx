@@ -11,7 +11,7 @@ import { formatDateShort } from '../../utils/dateFormatting'
 import { usePageHeader } from '../layout/PageHeaderContext'
 import { useEventTabs } from '../layout/EventTabContext'
 import { useDeviceType } from '../../utils/useDeviceType'
-import ClubRoomEditor from './ClubRoomEditor'
+import EventRoomEditor from '../shared/EventRoomEditor'
 import ClubToGo from './ClubToGo'
 import ClubReservationPanel from './ClubReservationPanel'
 import ClubRoomPage from './ClubRoomPage'
@@ -125,9 +125,12 @@ export default function ClubEventDetail() {
     : null
 
   // ── Save callbacks ──────────────────────────────────────────
-  const handleRoomSave = useCallback(async (tables: Table[], viewFrame: ViewFrame | null) => {
+  const handleRoomSave = useCallback(async (tables: Table[], viewFrame: ViewFrame | null, grid?: { width?: number; height?: number }) => {
     if (!clubId || !eventId || !data) return
-    const updated = await updateClubEvent(clubId, eventId, { data: { ...data, roomData: { tables, viewFrame } } as any }, token || undefined)
+    const roomData: any = { tables, viewFrame }
+    if (grid?.height != null) roomData.gridHeight = grid.height
+    if (grid?.width != null) roomData.gridWidth = grid.width
+    const updated = await updateClubEvent(clubId, eventId, { data: { ...data, roomData } as any }, token || undefined)
     setEvent(updated)
   }, [clubId, eventId, data, token])
 
@@ -689,10 +692,11 @@ export default function ClubEventDetail() {
 
             {/* Always-on embedded editor */}
             <div style={{ flex: 1, minHeight: 0 }}>
-              <ClubRoomEditor
+              <EventRoomEditor
                 key={`room-${event.id}-${(data.roomData?.tables?.length ?? 0)}`}
                 initialTables={data.roomData?.tables ?? []}
                 initialViewFrame={data.roomData?.viewFrame ?? null}
+                initialGridHeight={data.roomData?.gridHeight ?? 20}
                 onSave={handleRoomSave}
                 readOnly={!isVorstand}
               />
@@ -723,6 +727,8 @@ export default function ClubEventDetail() {
             <ClubRoomPage
               tables={data.roomData?.tables ?? []}
               viewFrame={data.roomData?.viewFrame ?? null}
+              gridHeight={data.roomData?.gridHeight ?? 20}
+              gridWidth={data.roomData?.gridWidth ?? 28}
               initialGroups={data.seatingData?.groups ?? []}
               initialAssignedGroups={data.seatingData?.assignedGroups ?? {}}
               onSave={handleSeatingSave}

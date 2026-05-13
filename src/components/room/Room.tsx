@@ -2,7 +2,7 @@
 // IMPORTS
 // ============================================================================
 import React, { useEffect, useLayoutEffect, useMemo, useCallback, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
 import userStorage from '../../utils/userStorage'
 import { syncUserData } from '../../utils/sync'
@@ -53,11 +53,6 @@ function getResponsiveFontSize(text: string): number {
   return 10
 }
 
-type SavedRoom = {
-  id: string
-  data?: { tables?: Table[] }
-}
-
 // Optional props for embedding Room inside a club event (seating tab)
 export interface ClubEventSeatingProps {
   tables: Table[]
@@ -75,6 +70,8 @@ export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSea
   const device = useDeviceType()
   const isClubEventMode = !!clubEventProps
   const userId = auth.user ? auth.user.id : null
+  const gridHeightVar = clubEventProps?.gridHeight ?? GRID_HEIGHT
+  const gridWidthVar = clubEventProps?.gridWidth ?? GRID_WIDTH
   
   // --------------------------------------------------------------------------
   // STATE: Core Data
@@ -83,7 +80,6 @@ export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSea
   const [loadError, setLoadError] = useState<string | null>(null)
   const [groups, setGroups] = useState<Group[]>([])
   const [assignedGroups, setAssignedGroups] = useState<Record<string, AssignedGroup[]>>({})
-  const [roomEditPath, setRoomEditPath] = useState('/app/rooms')
   const [currentEventId, setCurrentEventId] = useState<string | null>(null)
   
   // --------------------------------------------------------------------------
@@ -359,7 +355,7 @@ export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSea
   // Calculate bounding box for tables or explicit view frame
   const gridBounds = useMemo(() => {
     if (!room) {
-      return { minX: 0, minY: 0, maxX: GRID_WIDTH, maxY: GRID_HEIGHT, width: GRID_WIDTH, height: GRID_HEIGHT }
+      return { minX: 0, minY: 0, maxX: gridWidthVar, maxY: gridHeightVar, width: gridWidthVar, height: gridHeightVar }
     }
 
     // If a custom view frame exists, honor it directly (clamped to grid)
@@ -367,15 +363,15 @@ export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSea
       const vf = room.viewFrame
       const minX = Math.max(0, vf.x)
       const minY = Math.max(0, vf.y)
-      const maxX = Math.min(GRID_WIDTH, vf.x + vf.width)
-      const maxY = Math.min(GRID_HEIGHT, vf.y + vf.height)
+      const maxX = Math.min(gridWidthVar, vf.x + vf.width)
+      const maxY = Math.min(gridHeightVar, vf.y + vf.height)
       const width = Math.max(1, maxX - minX)
       const height = Math.max(1, maxY - minY)
       return { minX, minY, maxX, maxY, width, height }
     }
 
     if (room.tables.length === 0) {
-      return { minX: 0, minY: 0, maxX: GRID_WIDTH, maxY: GRID_HEIGHT, width: GRID_WIDTH, height: GRID_HEIGHT }
+      return { minX: 0, minY: 0, maxX: gridWidthVar, maxY: gridHeightVar, width: gridWidthVar, height: gridHeightVar }
     }
     
     const minX = Math.min(...room.tables.map(t => t.x))
@@ -389,8 +385,8 @@ export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSea
     // Add padding (1 cell on each side)
     const paddedMinX = Math.max(0, minX - 1)
     const paddedMinY = Math.max(0, minY - 1)
-    const paddedMaxX = Math.min(GRID_WIDTH, maxX + 1)
-    const paddedMaxY = Math.min(GRID_HEIGHT, maxY + 1)
+    const paddedMaxX = Math.min(gridWidthVar, maxX + 1)
+    const paddedMaxY = Math.min(gridHeightVar, maxY + 1)
     const paddedWidth = paddedMaxX - paddedMinX
     const paddedHeight = paddedMaxY - paddedMinY
 
@@ -421,11 +417,19 @@ export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSea
 
       const scaleX = availableW / contentW
       const scaleY = availableH / contentH
-      
+
       // Höhere Max-Scale für große Monitore (4K)
       const screenWidth = window.innerWidth
       const maxScale = room?.viewFrame ? 6 : (screenWidth >= 2560 ? 2.5 : 1.8)
-      const scale = Math.min(maxScale, Math.max(0.3, Math.min(scaleX, scaleY)))
+
+      // Wenn das Grid höher als Standard ist, priorisiere die Breite (vermeide zu starke Verkleinerung der Schrift)
+      let scale: number
+      if (gridBounds.height > GRID_HEIGHT) {
+        scale = scaleX
+      } else {
+        scale = Math.min(scaleX, scaleY)
+      }
+      scale = Math.min(maxScale, Math.max(0.3, scale))
 
       setMapScale(scale)
     }
@@ -620,24 +624,6 @@ export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSea
     setHeaderContent(
       <div style={{ width: '100%', minHeight: '70px', display: 'flex', alignItems: 'center' }}>
         <div style={{ flex: '0 1 185px', minWidth: 0, display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-          <Link
-            to={roomEditPath}
-            state={currentEventId ? { returnToEventId: currentEventId } : undefined}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '8px 18px',
-              borderRadius: '999px',
-              background: 'linear-gradient(135deg, rgba(255,255,255,0.24), rgba(255,255,255,0.08))',
-              border: '1px solid rgba(255,255,255,0.6)',
-              color: 'white',
-              fontSize: '13px',
-              fontWeight: 700,
-              textDecoration: 'none',
-              boxShadow: '0 10px 30px rgba(0,0,0,0.25)'
-            }}
-          >Raum bearbeiten</Link>
           {currentEventId && (
             <button
               onClick={() => setShowReservationPanel(true)}
@@ -728,7 +714,7 @@ export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSea
         </div>
       </div>
     )
-  }, [isClubEventMode, viewMode, timeInterval, headerStats, setHeaderContent, setViewMode, setTimeInterval, roomEditPath, currentEventId, showReservationPanel])
+  }, [isClubEventMode, viewMode, timeInterval, headerStats, setHeaderContent, setViewMode, setTimeInterval, currentEventId, showReservationPanel])
 
   const computePlacementFromClient = useCallback((coords: { clientX: number; clientY: number }) => {
     if (!draggingGroup || !room) return null
@@ -1016,51 +1002,6 @@ export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSea
       setLoadError('Kein gespeicherter Raum gefunden. Bitte im Editor speichern und erneut öffnen.')
     }
   }, [])
-
-  useEffect(() => {
-    if (!room) {
-      setRoomEditPath('/app/rooms')
-      return
-    }
-
-    let resolvedPath = '/app/rooms'
-    let matchedId: string | null = null
-
-    const rawCurrentEvent = userStorage.getItem('currentEvent', userId) || localStorage.getItem('currentEvent')
-    if (rawCurrentEvent) {
-      try {
-        const currentEvent = JSON.parse(rawCurrentEvent as string)
-        if (currentEvent?.roomId) {
-          matchedId = currentEvent.roomId
-        }
-      } catch (err) {
-        // ignore parse errors
-      }
-    }
-
-    if (!matchedId) {
-      const tablesJson = JSON.stringify(room.tables || [])
-      const rawRooms = userStorage.getItem('rooms', userId) || localStorage.getItem('rooms') || '[]'
-      try {
-        const savedRooms = JSON.parse(rawRooms as string) as SavedRoom[]
-        for (const entry of savedRooms) {
-          if (!entry?.data?.tables) continue
-          if (JSON.stringify(entry.data.tables) === tablesJson) {
-            matchedId = entry.id
-            break
-          }
-        }
-      } catch (err) {
-        // ignore parse errors
-      }
-    }
-
-    if (matchedId) {
-      resolvedPath = `/app/rooms/${matchedId}`
-    }
-
-    setRoomEditPath(resolvedPath)
-  }, [room, userId])
 
   // Hover tracking for preview; skip collision against the item being moved.
   useEffect(() => {
@@ -1557,9 +1498,7 @@ export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSea
       <div className="container">
         <h1>Tischplaner</h1>
         <p>{loadError ?? 'Lade Raum...'}</p>
-        <Link to="/app/rooms">
-          <button>Zum Editor</button>
-        </Link>
+        <button onClick={() => navigate('/app/events')}>Zu den Events</button>
       </div>
     )
   }
@@ -2431,7 +2370,9 @@ export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSea
               flex: 1,
               minHeight: 0,
               height: 'calc(100vh - 150px)',
-              overflow: 'hidden'
+              overflowX: 'auto',
+              overflowY: 'auto',
+              WebkitOverflowScrolling: 'touch'
             }}
           >
             {viewMode === 'map' ? (
@@ -2447,11 +2388,11 @@ export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSea
                       className="grid"
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: `repeat(${GRID_WIDTH}, ${CELL_SIZE}px)`,
-                      gridTemplateRows: `repeat(${GRID_HEIGHT}, ${CELL_SIZE}px)`,
+                      gridTemplateColumns: `repeat(${gridWidthVar}, ${CELL_SIZE}px)`,
+                      gridTemplateRows: `repeat(${gridHeightVar}, ${CELL_SIZE}px)`,
                       border: '2px solid #cbd5e1',
-                      width: GRID_WIDTH * CELL_SIZE + 'px',
-                      height: GRID_HEIGHT * CELL_SIZE + 'px',
+                      width: gridWidthVar * CELL_SIZE + 'px',
+                      height: gridHeightVar * CELL_SIZE + 'px',
                       position: 'relative',
                       borderRadius: '12px',
                       overflow: 'hidden',

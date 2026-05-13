@@ -12,7 +12,7 @@ import type { Group } from '../room/Importer'
 import { usePageHeader } from '../layout/PageHeaderContext'
 import { useEventTabs } from '../layout/EventTabContext'
 import { useDeviceType } from '../../utils/useDeviceType'
-import ClubRoomEditor from '../club/ClubRoomEditor'
+import EventRoomEditor from './EventRoomEditor'
 import Room from '../room/Room'
 import EventChecklist from './EventChecklist'
 import EventBudget from './EventBudget'
@@ -69,6 +69,14 @@ export default function PrivateEventDetail() {
 
   const [showRoomPicker, setShowRoomPicker] = useState(false)
   const [savedRooms, setSavedRooms] = useState<SavedRoom[]>([])
+  const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false)
+  const [templateName, setTemplateName] = useState('')
+  const [templateError, setTemplateError] = useState<string | null>(null)
+  const [templateConflict, setTemplateConflict] = useState<SavedRoom | null>(null)
+  const [roomTemplateToast, setRoomTemplateToast] = useState<string | null>(null)
+  const [templateEditId, setTemplateEditId] = useState<string | null>(null)
+  const [templateEditName, setTemplateEditName] = useState('')
+  const [templateEditError, setTemplateEditError] = useState<string | null>(null)
   const [moduleEditing, setModuleEditing] = useState(false)
   const [confirmDisable, setConfirmDisable] = useState<keyof EventModules | null>(null)
 
@@ -120,9 +128,12 @@ export default function PrivateEventDetail() {
   }, [userId, token])
 
   // ── Save callbacks ──
-  const handleRoomSave = useCallback(async (tables: Table[], viewFrame: ViewFrame | null) => {
+  const handleRoomSave = useCallback(async (tables: Table[], viewFrame: ViewFrame | null, grid?: { width?: number; height?: number }) => {
     if (!event) return
-    await persistEvent({ ...event, roomData: { tables, viewFrame } })
+    const roomData: any = { tables, viewFrame }
+    if (grid?.height != null) roomData.gridHeight = grid.height
+    if (grid?.width != null) roomData.gridWidth = grid.width
+    await persistEvent({ ...event, roomData })
   }, [event, persistEvent])
 
   const handleSeatingSave = useCallback(async (groups: Group[], assignedGroups: Record<string, AssignedGroup[]>) => {
@@ -339,6 +350,9 @@ export default function PrivateEventDetail() {
   function openRoomPicker() {
     const raw = userStorage.getItem('rooms', userId) || localStorage.getItem('rooms')
     try { setSavedRooms(raw ? JSON.parse(raw) : []) } catch { setSavedRooms([]) }
+    setTemplateEditId(null)
+    setTemplateEditName('')
+    setTemplateEditError(null)
     setShowRoomPicker(true)
   }
 
@@ -350,6 +364,164 @@ export default function PrivateEventDetail() {
       roomData: { tables: room.data.tables, viewFrame: room.data.viewFrame ?? null },
     })
     setShowRoomPicker(false)
+  }
+
+  async function startEmptyRoomPlanning() {
+    if (!event) return
+    await persistEvent({
+      ...event,
+      roomId: undefined,
+      roomData: { tables: [], viewFrame: null },
+    })
+    setShowRoomPicker(false)
+  }
+
+  function openSaveTemplateModal() {
+    if (!event?.roomData?.tables?.length) return
+    setTemplateName(event.name ? `${event.name} Raumvorlage` : 'Neue Raumvorlage')
+    setTemplateError(null)
+    setTemplateConflict(null)
+    setShowSaveTemplateModal(true)
+  }
+
+  function buildDuplicateTemplateName(baseName: string, rooms: SavedRoom[]) {
+    let suffix = 2
+    let candidate = `${baseName} (${suffix})`
+    while (rooms.some(room => room.name === candidate)) {
+      suffix += 1
+      candidate = `${baseName} (${suffix})`
+    }
+    return candidate
+  }
+
+  function updateSavedRooms(nextRooms: SavedRoom[]) {
+    userStorage.setItem('rooms', JSON.stringify(nextRooms), userId)
+    setSavedRooms(nextRooms)
+  }
+
+  function startRenameTemplate(room: SavedRoom) {
+    setTemplateEditId(room.id)
+    setTemplateEditName(room.name)
+    setTemplateEditError(null)
+  }
+
+  function cancelRenameTemplate() {
+    setTemplateEditId(null)
+    setTemplateEditName('')
+    setTemplateEditError(null)
+  }
+
+  function submitRenameTemplate(roomId: string) {
+    const trimmedName = templateEditName.trim()
+    if (!trimmedName) {
+      setTemplateEditError('Name der Vorlage ist erforderlich.')
+      return
+    }
+    if (savedRooms.some(room => room.id !== roomId && room.name === trimmedName)) {
+      setTemplateEditError('Eine andere Vorlage mit diesem Namen existiert bereits.')
+      return
+    }
+    const nextRooms = savedRooms.map(room => (room.id === roomId ? { ...room, name: trimmedName } : room))
+    updateSavedRooms(nextRooms)
+    cancelRenameTemplate()
+    setRoomTemplateToast(`Vorlage „${trimmedName}“ umbenannt.`)
+    setTimeout(() => setRoomTemplateToast(null), 3000)
+  }
+
+  function deleteTemplate(roomId: string) {
+    const room = savedRooms.find(entry => entry.id === roomId)
+    if (!room) return
+    if (!confirm(`Vorlage „${room.name}" wirklich löschen?`)) return
+    const nextRooms = savedRooms.filter(entry => entry.id !== roomId)
+    updateSavedRooms(nextRooms)
+    if (templateEditId === roomId) {
+      cancelRenameTemplate()
+    }
+    setRoomTemplateToast(`Vorlage „${room.name}“ gelöscht.`)
+    setTimeout(() => setRoomTemplateToast(null), 3000)
+  }
+
+  function renderRoomPreview(room: SavedRoom) {
+    const tables = room.data.tables ?? []
+    if (tables.length === 0) {
+      return <div style={{ fontSize: 11, color: '#94a3b8' }}>Keine Tischdaten</div>
+    }
+
+    const maxX = Math.max(...tables.map(table => table.x + table.width), 1)
+    const maxY = Math.max(...tables.map(table => table.y + table.height), 1)
+    const width = 96
+    const height = 68
+    const cellWidth = width / maxX
+    const cellHeight = height / maxY
+
+    return (
+      <div style={{ width, height, position: 'relative', borderRadius: 8, background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)', border: '1px solid #dbeafe', overflow: 'hidden' }}>
+        {tables.map(table => (
+          <div
+            key={table.id}
+            style={{
+              position: 'absolute',
+              left: table.x * cellWidth,
+              top: table.y * cellHeight,
+              width: Math.max(table.width * cellWidth - 2, 8),
+              height: Math.max(table.height * cellHeight - 2, 8),
+              borderRadius: 4,
+              background: 'linear-gradient(135deg, #818cf8 0%, #6366f1 100%)',
+              boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.45)',
+            }}
+            title={table.id}
+          />
+        ))}
+      </div>
+    )
+  }
+
+  function writeRoomTemplate(name: string, mode: 'overwrite' | 'duplicate') {
+    if (!event?.roomData?.tables?.length) return
+    const rawRooms = userStorage.getItem('rooms', userId) || localStorage.getItem('rooms') || '[]'
+    const rooms = JSON.parse(rawRooms as string) as SavedRoom[]
+    const existing = rooms.find(room => room.name === name)
+    const finalName = mode === 'duplicate' && existing ? buildDuplicateTemplateName(name, rooms) : name
+    const entry: SavedRoom = {
+      id: mode === 'overwrite' && existing ? existing.id : `r-${Date.now()}`,
+      name: finalName,
+      createdAt: mode === 'overwrite' && existing ? existing.createdAt ?? new Date().toLocaleDateString() : new Date().toLocaleDateString(),
+      data: {
+        tables: event.roomData.tables,
+        viewFrame: event.roomData.viewFrame ?? null,
+      },
+    }
+    const nextRooms = mode === 'overwrite' && existing
+      ? rooms.map(room => (room.id === existing.id ? entry : room))
+      : [...rooms, entry]
+
+    userStorage.setItem('rooms', JSON.stringify(nextRooms), userId)
+    setSavedRooms(nextRooms)
+    setShowSaveTemplateModal(false)
+    setTemplateConflict(null)
+    setTemplateError(null)
+    setRoomTemplateToast(mode === 'overwrite' ? `Vorlage „${entry.name}“ überschrieben.` : `Vorlage „${entry.name}“ gespeichert.`)
+    setTimeout(() => setRoomTemplateToast(null), 3000)
+  }
+
+  async function saveRoomAsTemplate() {
+    if (!event?.roomData?.tables?.length) return
+    const trimmedName = templateName.trim()
+    if (!trimmedName) {
+      setTemplateError('Name der Vorlage ist erforderlich.')
+      return
+    }
+
+    const rawRooms = userStorage.getItem('rooms', userId) || localStorage.getItem('rooms') || '[]'
+    const rooms = JSON.parse(rawRooms as string) as SavedRoom[]
+    const existing = rooms.find(room => room.name === trimmedName)
+    if (existing) {
+      setTemplateConflict(existing)
+      setTemplateError(null)
+      return
+    }
+
+    writeRoomTemplate(trimmedName, 'duplicate')
   }
 
   // ── Page header ──
@@ -729,16 +901,27 @@ export default function PrivateEventDetail() {
                 style={{ padding: '4px 10px', background: 'white', border: '1px solid #e2e8f0', borderRadius: 5, cursor: 'pointer', fontSize: 12, color: '#475569', fontWeight: 500 }}
               >📂 Raum laden</button>
               {(event.roomData?.tables?.length ?? 0) > 0 && (
+                <button onClick={openSaveTemplateModal}
+                  style={{ padding: '4px 10px', background: 'white', border: '1px solid #e2e8f0', borderRadius: 5, cursor: 'pointer', fontSize: 12, color: '#475569', fontWeight: 500 }}
+                >💾 Als Vorlage speichern</button>
+              )}
+              {(event.roomData?.tables?.length ?? 0) > 0 && (
                 <button onClick={async () => { if (!confirm('Raumplanung wirklich entfernen?')) return; await handleRoomSave([], null) }}
                   style={{ padding: '4px 10px', background: '#fee2e2', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 12, color: '#dc2626', fontWeight: 500 }}
                 >✕ Entfernen</button>
               )}
             </div>
+            {roomTemplateToast && (
+              <div style={{ margin: '12px 16px 0', padding: '10px 12px', background: '#ecfdf5', color: '#166534', border: '1px solid #bbf7d0', borderRadius: 10, fontSize: 13, fontWeight: 600 }}>
+                {roomTemplateToast}
+              </div>
+            )}
             <div style={{ flex: 1, minHeight: 0 }}>
-              <ClubRoomEditor
+              <EventRoomEditor
                 key={`room-${event.id}-${(event.roomData?.tables?.length ?? 0)}`}
                 initialTables={event.roomData?.tables ?? []}
                 initialViewFrame={event.roomData?.viewFrame ?? null}
+                initialGridHeight={event.roomData?.gridHeight ?? 20}
                 onSave={handleRoomSave}
               />
             </div>
@@ -751,6 +934,8 @@ export default function PrivateEventDetail() {
             <Room clubEventProps={{
               tables: event.roomData?.tables ?? [],
               viewFrame: event.roomData?.viewFrame ?? null,
+              gridHeight: event.roomData?.gridHeight ?? 20,
+              gridWidth: event.roomData?.gridWidth ?? 28,
               initialGroups: seatingGroups,
               initialAssignedGroups: event.seatingData?.assignedGroups ?? {},
               onSave: handleSeatingSave,
@@ -856,31 +1041,101 @@ export default function PrivateEventDetail() {
                 <div style={{ textAlign: 'center', padding: '28px 0' }}>
                   <div style={{ fontSize: 40, marginBottom: 10 }}>📂</div>
                   <p style={{ fontSize: 14, color: '#64748b', marginBottom: 16, lineHeight: 1.6 }}>
-                    Keine gespeicherten Räume gefunden.<br />
-                    Erstelle zuerst einen Raum.
+                    Keine persönlichen Raum-Vorlagen gefunden.<br />
+                    Starte direkt mit einer leeren Raumplanung in diesem Event.
                   </p>
-                  <button onClick={() => { setShowRoomPicker(false); navigate('/app/rooms/new', { state: { returnToEvent: eventId } }) }}
+                  <button onClick={() => { void startEmptyRoomPlanning() }}
                     style={{ padding: '9px 18px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}
-                  >➕ Raum-Editor öffnen</button>
+                  >➕ Leere Raumplanung starten</button>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {savedRooms.map(room => (
-                    <div key={room.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10 }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600, fontSize: 14, color: '#1e293b' }}>{room.name}</div>
-                        <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                          {room.data.tables?.length ?? 0} Tische
-                          {room.createdAt && ` · ${room.createdAt}`}
-                        </div>
+                    <div key={room.id} style={{ display: 'flex', alignItems: 'stretch', gap: 12, padding: '12px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10 }}>
+                      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                        {renderRoomPreview(room)}
                       </div>
-                      <button onClick={() => applyRoom(room)}
-                        style={{ padding: '6px 14px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
-                      >Übernehmen</button>
+                      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                        {templateEditId === room.id ? (
+                          <>
+                            <input
+                              type="text"
+                              value={templateEditName}
+                              onChange={e => {
+                                setTemplateEditName(e.target.value)
+                                setTemplateEditError(null)
+                              }}
+                              style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '2px solid #cbd5e1', borderRadius: 8, fontSize: 13, fontWeight: 600, outline: 'none' }}
+                              autoFocus
+                            />
+                            {templateEditError && <div style={{ fontSize: 11, color: '#dc2626', marginTop: 6 }}>{templateEditError}</div>}
+                            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                              <button onClick={() => submitRenameTemplate(room.id)} style={{ padding: '6px 10px', background: '#0f766e', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>Speichern</button>
+                              <button onClick={cancelRenameTemplate} style={{ padding: '6px 10px', background: 'white', color: '#475569', border: '1px solid #cbd5e1', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>Abbrechen</button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div style={{ fontWeight: 600, fontSize: 14, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{room.name}</div>
+                            <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                              {room.data.tables?.length ?? 0} Tische
+                              {room.createdAt && ` · ${room.createdAt}`}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 8, flexShrink: 0 }}>
+                        <button onClick={() => applyRoom(room)}
+                          style={{ padding: '6px 14px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                        >Übernehmen</button>
+                        {templateEditId !== room.id && (
+                          <>
+                            <button onClick={() => startRenameTemplate(room)} style={{ padding: '6px 10px', background: 'white', color: '#475569', border: '1px solid #cbd5e1', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>Umbenennen</button>
+                            <button onClick={() => deleteTemplate(room.id)} style={{ padding: '6px 10px', background: 'white', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>Löschen</button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSaveTemplateModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}>
+          <div style={{ background: 'white', borderRadius: 16, padding: 24, width: 420, maxWidth: '92vw', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <h3 style={{ margin: '0 0 12px', fontSize: 18, fontWeight: 700, color: '#1e293b' }}>💾 Raum als Vorlage speichern</h3>
+            <p style={{ margin: '0 0 14px', fontSize: 13, color: '#64748b', lineHeight: 1.6 }}>
+              Diese Vorlage steht danach in privaten Events und als persönliche Quelle für Vereinsräume zur Verfügung.
+            </p>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>Vorlagenname</label>
+            <input
+              type="text"
+              value={templateName}
+              onChange={e => {
+                setTemplateName(e.target.value)
+                setTemplateConflict(null)
+                setTemplateError(null)
+              }}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '2px solid #e2e8f0', borderRadius: 10, fontSize: 14, outline: 'none' }}
+              autoFocus
+            />
+            {templateError && <div style={{ marginTop: 10, fontSize: 12, color: '#dc2626' }}>{templateError}</div>}
+            {templateConflict && (
+              <div style={{ marginTop: 12, padding: '10px 12px', background: '#fff7ed', color: '#9a3412', border: '1px solid #fed7aa', borderRadius: 10, fontSize: 12, lineHeight: 1.5 }}>
+                Eine Vorlage mit diesem Namen existiert bereits.
+                <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button onClick={() => writeRoomTemplate(templateConflict.name, 'overwrite')} style={{ padding: '8px 12px', background: '#f97316', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>Vorlage überschreiben</button>
+                  <button onClick={() => writeRoomTemplate(templateConflict.name, 'duplicate')} style={{ padding: '8px 12px', background: 'white', color: '#9a3412', border: '1px solid #fdba74', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>Als Duplikat speichern</button>
+                </div>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18 }}>
+              <button onClick={() => { setShowSaveTemplateModal(false); setTemplateError(null); setTemplateConflict(null) }} style={{ padding: '10px 14px', background: 'white', border: '1px solid #e2e8f0', borderRadius: 8, cursor: 'pointer', fontSize: 13, color: '#475569', fontWeight: 600 }}>Abbrechen</button>
+              <button onClick={() => { void saveRoomAsTemplate() }} style={{ padding: '10px 14px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>Speichern</button>
             </div>
           </div>
         </div>
