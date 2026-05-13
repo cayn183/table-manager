@@ -57,6 +57,8 @@ function getResponsiveFontSize(text: string): number {
 export interface ClubEventSeatingProps {
   tables: Table[]
   viewFrame: ViewFrame | null
+  gridHeight?: number
+  gridWidth?: number
   initialGroups: Group[]
   initialAssignedGroups: Record<string, AssignedGroup[]>
   onSave: (groups: Group[], assignedGroups: Record<string, AssignedGroup[]>) => Promise<void>

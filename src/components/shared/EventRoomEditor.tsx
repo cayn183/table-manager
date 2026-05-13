@@ -9,6 +9,7 @@ import type { Table, ViewFrame } from '../../types/room'
 export interface EventRoomEditorProps {
   initialTables: Table[]
   initialViewFrame?: ViewFrame | null
+  initialGridHeight?: number
   onSave: (tables: Table[], viewFrame: ViewFrame | null, grid?: { width?: number; height?: number }) => Promise<void>
   readOnly?: boolean
 }
