@@ -7,6 +7,8 @@ und dieses Projekt folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 ### Added
+## [1.2.5] - 2026-05-13
+
 ## [1.2.4] - 2026-05-13
 
 - Backend: Performance-Endpunkt robuster (Try/Catch für einzelne Statistiken) und neue Metriken: Unused Indexes, Cache-Hit-Ratio, detaillierte Pool-Internals (aktive/idle/waiting, max connections).
