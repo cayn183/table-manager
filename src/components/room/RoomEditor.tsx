@@ -503,7 +503,6 @@ export default function RoomEditor() {
           }} title="Raumname wird beim Speichern geändert">
             🏷️ {roomName}
           </div>
-          <label style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>Personenzahl pro Tisch</label>
           <input
             type="number"
             value={capacityInput}

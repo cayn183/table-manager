@@ -146,8 +146,8 @@ export default function AdminPanel() {
     const queries = Array.isArray(data?.slow_queries) ? data.slow_queries : []
     if (!queries.length) return null
 
-    const durations = queries.map((q: any) => Number(q.duration_ms) || 0)
-    const total = durations.reduce((sum, value) => sum + value, 0)
+    const durations: number[] = queries.map((q: any) => Number(q.duration_ms) || 0)
+    const total = durations.reduce((sum: number, value: number) => sum + value, 0)
     const avg = total / durations.length
     const max = Math.max(...durations)
 

@@ -34,7 +34,7 @@ function HelpHome() {
       </Section>
       <Section step="4" title="Weitere Funktionen">
         <strong>🪑 Tischplaner</strong> – Gäste per Drag &amp; Drop den Tischen zuweisen.<br />
-        <strong>✏️ Raum bearbeiten</strong> – Tisch-Layouts erstellen und als Vorlage speichern.<br />
+        <strong>✏️ Raumplanung</strong> – Tisch-Layouts direkt im Event erstellen oder aus Vorlagen übernehmen.<br />
         <strong>🥡 ToGo-Bestellungen</strong> – Außer-Haus-Bestellungen mit Zeitfenstern verwalten.<br />
         <strong>👤 Profil</strong> – Konto, Passwort und E-Mail verwalten.
       </Section>
@@ -63,7 +63,7 @@ function HelpPrivateEvents() {
       <Section step="3" title="🏠 Raumplanung">
         Erstelle das Grundlayout deiner Veranstaltung: Platziere Tische auf einer Zeichenfläche,
         bestimme Form, Größe und Position. Das Layout dient als Basis für die Tischplanung.
-        Du kannst auch einen gespeicherten Raum als Vorlage laden.
+        Du kannst auch persönliche Raum-Vorlagen direkt in diesem Modul laden.
       </Section>
 
       <Section step="4" title="🪑 Tischplanung">
@@ -249,19 +249,19 @@ function HelpRoomEditor() {
   return (
     <div style={{ display: 'grid', gap: 14 }}>
       <Section step="1" title="Tisch hinzufügen">
-        Klicke auf <strong>Tisch hinzufügen</strong> in der Werkzeugleiste. Wähle Tischform und Platzanzahl.
-        Tische lassen sich danach frei auf der Zeichenfläche positionieren.
+        Öffne in einem Event den Tab <strong>Raumplanung</strong> und füge über <strong>Tisch hinzufügen</strong>
+        neue Tische ein. Die Personenzahl pro Tisch bestimmt dabei direkt die Tischgröße.
       </Section>
       <Section step="2" title="Tisch verschieben & drehen">
         Tisch anklicken und mit der Maus ziehen, um ihn zu verschieben.
-        Im Eigenschaftspanel rechts kannst du Rotation, Größe und Name exakt einstellen.
+        Mit <strong>R</strong> drehst du den aktuell ausgewählten Tisch.
       </Section>
       <Section step="3" title="Tisch löschen">
         Tisch auswählen und <strong>Entf</strong> drücken oder das Papierkorb-Icon im Eigenschaftspanel verwenden.
       </Section>
-      <Section step="4" title="Raum speichern" color="#f0fdf4" borderColor="#bbf7d0" headColor="#065f46">
-        Über <strong>💾 Speichern</strong> wird das Layout als Raum-Vorlage gespeichert.
-        Gespeicherte Räume können beim Anlegen einer neuen Veranstaltung als Basis ausgewählt werden.
+      <Section step="4" title="Vorlagen übernehmen" color="#f0fdf4" borderColor="#bbf7d0" headColor="#065f46">
+        Über <strong>📂 Raum laden</strong> übernimmst du persönliche Raum-Vorlagen direkt in das aktuelle Event.
+        Das Event speichert danach seine eigene Raumplanung unabhängig von der Vorlage.
       </Section>
       <Section step="5" title="Tastenbefehle" color="#f5f3ff" borderColor="#ddd6fe" headColor="#5b21b6">
         <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 14px', alignItems: 'center' }}>

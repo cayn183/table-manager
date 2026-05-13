@@ -33,6 +33,8 @@ export interface ClubEventModules extends EventModules {
 export interface EventRoomData {
   tables: Table[]
   viewFrame?: ViewFrame | null
+  gridWidth?: number
+  gridHeight?: number
 }
 
 export interface EventToGoConfig {
