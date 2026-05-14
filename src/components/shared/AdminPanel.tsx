@@ -6,9 +6,11 @@ import { formatDateShort, formatDateTimeShortDE } from '../../utils/dateFormatti
 import { markRepliesSeen } from '../layout/UserMenu'
 import { adminGetSystemTemplates, adminCreateSystemTemplate, adminUpdateSystemTemplate, adminDeleteSystemTemplate } from '../../api/clubApi'
 import TiptapEditor from './TiptapEditor'
+import { CLUB_MODULE_OPTIONS } from '../../types/club'
+import { EVENT_MODULE_OPTIONS } from '../../types/event'
 import '../../styles/admin-panel.css'
 
-type UserRow = { id: string; name: string; email: string; created_at: string; is_admin: boolean; email_verified?: boolean; deleted_at?: string; admin_granted_at?: string; admin_granted_by?: string; last_activity?: string; stats?: { events_count: number; clubs_count: number; feedback_count: number; login_count: number; last_login_at?: string; reservation_stats?: Record<string, number>; rsvp_stats?: { events_with_guests: number; events_with_invitations: number }; quality_metrics?: { avg_rooms_per_event: number; avg_tables_per_room: number; events_with_rooms: number; events_with_invitations: number; events_updated: number }; engagement_metrics?: { events_last_30_days: number; events_updated_last_30_days: number; active_last_7_days: boolean; active_last_30_days: boolean }; usage_type?: string }; recent_events?: { id: string; title: string; created_at: string }[]; club_memberships?: { club_id: string; name: string; role: string; joined_at: string }[]; recent_feedback?: { id: string; headline?: string; message: string; created_at: string }[]; recent_login_ips?: { ip_address: string; login_at: string; user_agent?: string }[] }
+type UserRow = { id: string; name: string; email: string; created_at: string; is_admin: boolean; email_verified?: boolean; deleted_at?: string; admin_granted_at?: string; admin_granted_by?: string; last_activity?: string; stats?: { events_count: number; clubs_count: number; feedback_count: number; login_count: number; last_login_at?: string; reservation_stats?: Record<string, number>; rsvp_stats?: { events_with_guests: number; events_with_invitations: number }; quality_metrics?: { avg_rooms_per_event: number; avg_tables_per_room: number; events_with_rooms: number; events_with_invitations: number; events_updated: number }; engagement_metrics?: { events_last_30_days: number; events_updated_last_30_days: number; active_last_7_days: boolean; active_last_30_days: boolean }; usage_type?: string }; recent_events?: { id: string; title: string; created_at: string }[]; club_memberships?: { club_id: string; name: string; role: string; joined_at: string }[]; recent_feedback?: { id: string; headline?: string; message: string; created_at: string }[]; recent_login_ips?: { ip_address: string; login_at: string; user_agent?: string }[]; module_stats?: Record<string, { enabled: number; completed: number }>; }
 type AuditRow = { id: string; actor_id: string; action: string; target_type: string; target_id: string; details: any; created_at: string }
 
 export default function AdminPanel() {
@@ -1092,14 +1094,9 @@ export default function AdminPanel() {
                   <h4 style={{ margin: '0 0 8px' }}>Statistiken</h4>
                   <p><strong>Events erstellt:</strong> {selectedUser.stats.events_count}</p>
                   <p><strong>Club-Mitgliedschaften:</strong> {selectedUser.stats.clubs_count}</p>
-                  <p><strong>Feedback gegeben:</strong> {selectedUser.stats.feedback_count}</p>
                   <p><strong>Login-Anzahl:</strong> {selectedUser.stats.login_count}</p>
                   <p><strong>Letzter Login:</strong> {selectedUser.stats.last_login_at ? formatDateTimeShortDE(selectedUser.stats.last_login_at) : 'Nie'}</p>
-                  
-                  {selectedUser.stats.usage_type && (
-                    <p><strong>Nutzungstyp:</strong> {selectedUser.stats.usage_type === 'club_user' ? 'Club-Manager' : 'Event-only'}</p>
-                  )}
-                  
+
                   {selectedUser.stats.reservation_stats && Object.keys(selectedUser.stats.reservation_stats).length > 0 && (
                     <div style={{ marginTop: 8 }}>
                       <strong>Reservierungen für Events:</strong>
@@ -1110,12 +1107,41 @@ export default function AdminPanel() {
                       </ul>
                     </div>
                   )}
-                  
-                  {selectedUser.stats.rsvp_stats && (
+
+                  {selectedUser.module_stats && (
                     <div style={{ marginTop: 8 }}>
-                      <strong>RSVP-Statistiken:</strong>
-                      <p>Events mit Gästedaten: {selectedUser.stats.rsvp_stats.events_with_guests}</p>
-                      <p>Events mit Einladungen: {selectedUser.stats.rsvp_stats.events_with_invitations}</p>
+                      <div style={{ display: 'flex', gap: 12, alignItems: 'baseline' }}>
+                        <h5 style={{ margin: 0 }}>Event-Module</h5>
+                        <span style={{ color: '#94a3b8', fontSize: 12 }}>aktiv / ausgefüllt</span>
+                      </div>
+                      <div style={{ marginTop: 6, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                        {EVENT_MODULE_OPTIONS.map(m => {
+                          const key = m.key as string
+                          const v = (selectedUser.module_stats as any)[key] || { enabled: 0, completed: 0 }
+                          return (
+                            <div key={key} style={{ fontSize: 13 }}>
+                              <span style={{ color: '#64748b' }}>{m.label}:</span> <strong style={{ marginLeft: 6 }}>{v.enabled} / {v.completed}</strong>
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      {(selectedUser.stats?.clubs_count || 0) > 0 && (
+                        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed #e6edf3' }}>
+                          <h5 style={{ margin: '0 0 6px' }}>Club-Module</h5>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                            {CLUB_MODULE_OPTIONS.filter(m => m.key === 'invite').map(m => {
+                              const key = m.key as string
+                              const v = (selectedUser.module_stats as any)[key] || { enabled: 0, completed: 0 }
+                              return (
+                                <div key={key} style={{ fontSize: 13 }}>
+                                  <span style={{ color: '#64748b' }}>{m.label}:</span> <strong style={{ marginLeft: 6 }}>{v.enabled} / {v.completed}</strong>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
