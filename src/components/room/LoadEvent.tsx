@@ -117,7 +117,7 @@ export default function LoadEvent() {
                 <p style={{ margin: '4px 0', fontSize: '12px', color: '#94a3b8' }}>
                   Erstellt: {formatDateTimeShortDE(event.createdAt) || event.createdAt || 'unbekannt'}
                 </p>
-                {event.lastModified && <p style={{ margin: '4px 0', fontSize: '12px', color: '#94a3b8' }}>Geändert: {event.lastModified}</p>}
+                {event.lastModified && <p style={{ margin: '4px 0', fontSize: '12px', color: '#94a3b8' }}>Zuletzt gespeichert: {event.lastModified}</p>}
               </div>
               <div className="load-card-actions" style={{ display: 'flex', gap: 10 }}>
                 <button 

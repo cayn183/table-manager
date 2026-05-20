@@ -1,7 +1,7 @@
 // ============================================================================
 // IMPORTS
 // ============================================================================
-import React, { useEffect, useLayoutEffect, useMemo, useCallback, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useCallback, useRef, useState, forwardRef, useImperativeHandle } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
 import userStorage from '../../utils/userStorage'
@@ -66,7 +66,7 @@ export interface ClubEventSeatingProps {
   onOpenRoomEditor?: () => void
 }
 
-export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSeatingProps } = {}) {
+const Room = forwardRef(function Room({ clubEventProps }: { clubEventProps?: ClubEventSeatingProps } = {}, ref) {
   const navigate = useNavigate()
   const auth = useAuth()
   const device = useDeviceType()
@@ -83,6 +83,11 @@ export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSea
   const [groups, setGroups] = useState<Group[]>([])
   const [assignedGroups, setAssignedGroups] = useState<Record<string, AssignedGroup[]>>({})
   const [currentEventId, setCurrentEventId] = useState<string | null>(null)
+  
+  // --------------------------------------------------------------------------
+  // REFS: Track last saved state to avoid re-setting isDirty immediately after save
+  // --------------------------------------------------------------------------
+  const justSavedRef = useRef(false)
   
   // --------------------------------------------------------------------------
   // STATE: Modals & UI Controls
@@ -559,7 +564,12 @@ export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSea
   }, [assignedGroups, room])
 
   // Track dirty state: when groups or assignedGroups change, mark as dirty and clamp pagination
+  // BUT: skip if we just saved (to avoid immediately marking dirty after a save)
   useEffect(() => {
+    if (justSavedRef.current) {
+      justSavedRef.current = false
+      return
+    }
     setIsDirty(true)
     const totalPages = Math.max(1, Math.ceil(Object.values(assignedGroups).flat().length / 20))
     setAssignedPage(prev => Math.min(prev, totalPages - 1))
@@ -1142,10 +1152,11 @@ export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSea
     setShowEventSaveModal(true)
   }
 
-  function saveEventSilently() {
+  async function saveEventSilently() {
     // Club event mode: save via the API callback provided by parent
     if (clubEventProps) {
-      void clubEventProps.onSave(groups, assignedGroups)
+      await clubEventProps.onSave(groups, assignedGroups)
+      justSavedRef.current = true
       const now = new Date()
       setLastSaveTime(`${now.toLocaleDateString()} ${now.toLocaleTimeString()}`)
       setLastSaveType('auto')
@@ -1168,6 +1179,7 @@ export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSea
     if (!updated.find((e: any) => e.id === event.id)) updated.push(event)
     userStorage.setItem('events', JSON.stringify(updated), auth.user ? auth.user.id : null)
     userStorage.setItem('currentEvent', JSON.stringify(event), auth.user ? auth.user.id : null)
+    justSavedRef.current = true
     setLastSaveTime(event.lastModified)
     setLastSaveType('auto')
     setIsDirty(false)
@@ -1377,24 +1389,33 @@ export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSea
     }
   }
 
-  // Autosave countdown + save after 10 minutes of unsaved changes
+  // Autosave: debounce on-change (1s) + fallback interval (2min)
   const [autosaveRemaining, setAutosaveRemaining] = useState<number | null>(null)
+  const DEBOUNCE_MS = 1000
+  const FALLBACK_MS = 2 * 60 * 1000
+
+  // Debounced save after short inactivity
   useEffect(() => {
-    if (!isDirty) {
-      setAutosaveRemaining(null)
-      return
-    }
-    // Reset countdown to 10 minutes on any change while dirty
-    setAutosaveRemaining(10 * 60)
+    if (!isDirty) return
+    const deb = setTimeout(() => {
+      saveEventSilently()
+    }, DEBOUNCE_MS)
+    return () => clearTimeout(deb)
+  }, [groups, assignedGroups])
+
+  // Fallback: ensure save after longer period
+  useEffect(() => {
+    if (!isDirty) { setAutosaveRemaining(null); return }
+    setAutosaveRemaining(Math.floor(FALLBACK_MS / 1000))
     const interval = setInterval(() => {
       setAutosaveRemaining(prev => (prev === null ? null : Math.max(0, prev - 1)))
     }, 1000)
     const timeout = setTimeout(() => {
       saveEventSilently()
       setAutosaveRemaining(null)
-    }, 10 * 60 * 1000)
+    }, FALLBACK_MS)
     return () => { clearInterval(interval); clearTimeout(timeout) }
-  }, [isDirty, assignedGroups, groups])
+  }, [isDirty, groups, assignedGroups])
 
   // Save before auto-logout (triggered by idle timer in AuthContext)
   const saveEventSilentlyRef = useRef(saveEventSilently)
@@ -1410,6 +1431,20 @@ export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSea
     window.addEventListener('app:auto-logout', handleAutoLogout)
     return () => window.removeEventListener('app:auto-logout', handleAutoLogout)
   }, [])
+
+  // Expose imperative handle so parent can request saveIfDirty/isDirty
+  useImperativeHandle(ref, () => ({
+    isDirty: () => isDirtyRef.current,
+    saveIfDirty: async () => {
+      if (isDirtyRef.current) {
+        await saveEventSilentlyRef.current()
+      }
+    },
+    getCurrentData: () => ({
+      groups: groupsRef.current,
+      assignedGroups: assignedGroupsRef.current,
+    })
+  }), [])
 
   function autoAssign() {
     if (!room) return
@@ -1517,7 +1552,6 @@ export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSea
         onSave={() => { saveEventSilently() }}
         onAutoAssign={() => { autoAssign() }}
         isDirty={isDirty}
-        lastSaveTime={lastSaveTime}
         readOnly={clubEventProps?.readOnly}
       />
     )
@@ -2262,27 +2296,7 @@ export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSea
           {/* ========== EVENT SPEICHERN ========== */}
           <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #e2e8f0' }}>
             <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch', width: '100%' }}>
-              <button 
-                onClick={() => handleSaveEvent()} 
-                disabled={!isDirty || !Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0)}
-                style={{ 
-                  flex: 1,
-                  padding: '12px 20px',
-                  background: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? '#10b981' : '#e0e7ff',
-                  color: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 'white' : '#94a3b8',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 'pointer' : 'not-allowed',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  boxShadow: '0 2px 8px rgba(102,126,234,0.15)',
-                  transition: 'all 0.2s',
-                  opacity: isDirty && Object.keys(assignedGroups).some(tid => tid !== 'TOGO' && (assignedGroups[tid]?.length || 0) > 0) ? 1 : 0.6
-                }}
-              >
-                💾 Speichern
-              </button>
-              
+              <div style={{ flex: 1 }} />
               <button
                 onClick={() => {
                   // Öffne Print-Dokument mit Sitzplan und Zeitplan in neuem Fenster
@@ -2334,24 +2348,7 @@ export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSea
               </button>
             </div>
 
-            <div style={{ display: 'flex', width: '100%', marginTop: '10px' }}>
-              <div style={{ flex: 3, display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
-                {/* Auto-Save Status - Kompakt */}
-                {typeof autosaveRemaining === 'number' && (
-                  <span style={{ fontSize: '11px', color: '#64748b', background: '#f1f5f9', padding: '6px 8px', borderRadius: '6px', whiteSpace: 'nowrap' }}>
-                    Auto: {String(Math.floor(autosaveRemaining / 60)).padStart(2, '0')}:{String(autosaveRemaining % 60).padStart(2, '0')}
-                  </span>
-                )}
-                
-                {/* Zuletzt gespeichert - Kompakt */}
-                {lastSaveTime && (
-                  <span style={{ fontSize: '11px', color: '#64748b', background: '#f1f5f9', padding: '6px 8px', borderRadius: '6px', whiteSpace: 'nowrap' }}>
-                    {lastSaveType === 'auto' ? 'Auto' : 'Sicherung'}: {lastSaveTime}
-                  </span>
-                )}
-              </div>
-              <div style={{ flex: 1 }} />
-            </div>
+            <div style={{ height: 10 }} />
           </div>
           </div>
         </div>
@@ -4589,7 +4586,9 @@ export default function Room({ clubEventProps }: { clubEventProps?: ClubEventSea
       )}
     </div>
   )
-}
+})
+
+export default Room
 
 function TimelineView({ 
   groups, 

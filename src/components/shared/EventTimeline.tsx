@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useMemo } from 'react'
+import React, { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import useModuleStateRef from '../../hooks/useModuleStateRef'
 import { useDeviceType } from '../../utils/useDeviceType'
 import type { TimelineEntry, EventTimelineData } from '../../types/event'
 
@@ -32,7 +33,7 @@ function durationStr(from: string, to: string): string {
   return `${m}min`
 }
 
-export default function EventTimeline({ data, eventDate, timeFrom, timeTo, onSave }: Props) {
+const EventTimeline = forwardRef(function EventTimeline({ data, eventDate, timeFrom, timeTo, onSave }: Props, ref) {
   const deviceType = useDeviceType()
   const isMobile = deviceType === 'mobile'
   const [list, setList] = useState<TimelineEntry[]>([...(data.entries ?? [])].sort((a, b) => a.time.localeCompare(b.time)))
@@ -48,6 +49,11 @@ export default function EventTimeline({ data, eventDate, timeFrom, timeTo, onSav
   const [icon, setIcon] = useState('')
   const [previewMode, setPreviewMode] = useState(false)
   const [editTitle, setEditTitle] = useState(false)
+  const { setRef: setTimelineRef, updateRef: updateTimelineRef, getCurrentData: getTimelineCurrent } = useModuleStateRef({ entries: list, title: timelineTitle })
+
+  useImperativeHandle(ref, () => ({
+    getCurrentData: () => getTimelineCurrent(),
+  }), [getTimelineCurrent])
 
   function resetForm() {
     setTime(timeFrom || ''); setEndTime(''); setTitle(''); setDescription('')
@@ -59,6 +65,7 @@ export default function EventTimeline({ data, eventDate, timeFrom, timeTo, onSav
     const sorted = [...updated].sort((a, b) => a.time.localeCompare(b.time))
     setList(sorted)
     const t = newTitle ?? timelineTitle
+    setTimelineRef({ entries: sorted, title: t })
     await onSave({ entries: sorted, title: t || undefined })
   }, [onSave, timelineTitle])
 
@@ -162,7 +169,7 @@ export default function EventTimeline({ data, eventDate, timeFrom, timeTo, onSav
         <div>
           {editTitle ? (
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <input type="text" value={timelineTitle} onChange={e => setTimelineTitle(e.target.value)}
+              <input type="text" value={timelineTitle} onChange={e => { timelineTitleRef.current = e.target.value; setTimelineTitle(e.target.value) }} onBlur={saveTitle}
                 placeholder="Ablaufplan-Titel" style={{ ...inputStyle, marginTop: 0, width: 200 }}
                 autoFocus onKeyDown={e => e.key === 'Enter' && saveTitle()} />
               <button onClick={saveTitle} style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', padding: '6px 10px', fontSize: 12 }}>✓</button>
@@ -316,4 +323,6 @@ export default function EventTimeline({ data, eventDate, timeFrom, timeTo, onSav
       )}
     </div>
   )
-}
+})
+
+export default EventTimeline

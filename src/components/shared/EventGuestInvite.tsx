@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react'
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import useModuleStateRef from '../../hooks/useModuleStateRef'
 import type { GuestInvitation, EventGuestInviteData, EventMenuData, EventTimelineData } from '../../types/event'
 import { useDeviceType } from '../../utils/useDeviceType'
 
@@ -27,7 +28,7 @@ type SectionKey = 'share' | 'guests' | 'settings'
 type SortKey = 'name' | 'status' | 'category' | 'groupSize'
 type SortDir = 'asc' | 'desc'
 
-export default function EventGuestInvite({ data, eventName, eventDate, eventFrom, eventTo, menuData, timelineData, onSave }: Props) {
+const EventGuestInvite = forwardRef(function EventGuestInvite({ data, eventName, eventDate, eventFrom, eventTo, menuData, timelineData, onSave }: Props, ref) {
   const [invitations, setInvitations] = useState<GuestInvitation[]>(data.invitations ?? [])
   const [shareToken] = useState(data.shareToken || genToken())
   const [shareMode, setShareMode] = useState<'open' | 'invite-only'>(data.shareMode ?? 'open')
@@ -79,6 +80,11 @@ export default function EventGuestInvite({ data, eventName, eventDate, eventFrom
 
   // CSV import
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { setRef: setInviteRef, updateRef: updateInviteRef, getCurrentData: getInviteCurrent } = useModuleStateRef({ shareMode, invitations, categories, settings })
+
+  useImperativeHandle(ref, () => ({
+    getCurrentData: () => ({ shareToken, ...(getInviteCurrent() as any) }),
+  }), [shareToken, getInviteCurrent])
 
   useEffect(() => {
     setInvitations(data.invitations ?? [])
@@ -106,6 +112,18 @@ export default function EventGuestInvite({ data, eventName, eventDate, eventFrom
       categories: cats ?? categories,
       ...(s ?? settings),
     }
+    setInviteRef({ shareMode: d.shareMode, invitations: d.invitations, categories: d.categories ?? [], settings: {
+      eventDescription: d.eventDescription ?? '',
+      locationName: d.locationName ?? '',
+      locationAddress: d.locationAddress ?? '',
+      rsvpDeadline: d.rsvpDeadline ?? '',
+      allowMenuSelection: d.allowMenuSelection ?? false,
+      showTimeline: d.showTimeline ?? false,
+      allowPlusOne: d.allowPlusOne ?? false,
+      maxGuests: d.maxGuests,
+      emailSubject: d.emailSubject ?? '',
+      emailBody: d.emailBody ?? '',
+    }})
     await onSave(d)
   }
 
@@ -213,6 +231,7 @@ export default function EventGuestInvite({ data, eventName, eventDate, eventFrom
     }
     const next = [...invitations, inv]
     setInvitations(next)
+    updateInviteRef(prev => ({ ...prev, invitations: next }))
     persist(next)
     setAddName(''); setAddEmail(''); setAddPhone(''); setAddGroupSize(1); setAddChildren(0); setAddCategoryField(''); setAddNotes('')
     setShowAddGuest(false)
@@ -220,13 +239,13 @@ export default function EventGuestInvite({ data, eventName, eventDate, eventFrom
 
   function removeGuest(id: string) {
     const next = invitations.filter(i => i.id !== id)
-    setInvitations(next); persist(next)
+    setInvitations(next); updateInviteRef(prev => ({ ...prev, invitations: next })); persist(next)
     if (selectedId === id) setSelectedId(null)
   }
 
   function updateGuest(id: string, updates: Partial<GuestInvitation>) {
     const next = invitations.map(i => i.id === id ? { ...i, ...updates } : i)
-    setInvitations(next); persist(next)
+    setInvitations(next); updateInviteRef(prev => ({ ...prev, invitations: next })); persist(next)
   }
 
   function updateGuestStatus(id: string, status: GuestInvitation['status']) {
@@ -234,26 +253,27 @@ export default function EventGuestInvite({ data, eventName, eventDate, eventFrom
   }
 
   function changeShareMode(mode: 'open' | 'invite-only') {
-    setShareMode(mode); persist(undefined, undefined, mode)
+    setShareMode(mode); updateInviteRef(prev => ({ ...prev, shareMode: mode })); persist(undefined, undefined, mode)
   }
 
   function updateSettings(partial: Partial<typeof settings>) {
-    const s = { ...settings, ...partial }; setSettings(s); persist(undefined, s)
+    const s = { ...settings, ...partial }
+    setSettings(s); updateInviteRef(prev => ({ ...prev, settings: s })); persist(undefined, s)
   }
 
   // ── Categories ──
   function addCategory(name: string) {
     if (!name.trim() || categories.includes(name.trim())) return
     const next = [...categories, name.trim()]
-    setCategories(next); persist(undefined, undefined, undefined, next); setNewCategoryName('')
+    setCategories(next); updateInviteRef(prev => ({ ...prev, categories: next })); persist(undefined, undefined, undefined, next); setNewCategoryName('')
   }
 
   function removeCategory(name: string) {
     const next = categories.filter(c => c !== name)
-    setCategories(next)
+    setCategories(next); updateInviteRef(prev => ({ ...prev, categories: next }))
     // Clear category from guests that had it
     const updatedInvs = invitations.map(i => i.category === name ? { ...i, category: undefined } : i)
-    setInvitations(updatedInvs)
+    setInvitations(updatedInvs); updateInviteRef(prev => ({ ...prev, invitations: updatedInvs }));
     persist(updatedInvs, undefined, undefined, next)
   }
 
@@ -325,7 +345,7 @@ export default function EventGuestInvite({ data, eventName, eventDate, eventFrom
       }
       if (newInvs.length === 0) { alert('Keine Gäste in der CSV-Datei gefunden.'); return }
       const merged = [...invitations, ...newInvs]
-      setInvitations(merged); persist(merged)
+      setInvitations(merged); updateInviteRef(prev => ({ ...prev, invitations: merged })); persist(merged)
       alert(`${newInvs.length} Gäste importiert!`)
     }
     reader.readAsText(file, 'UTF-8')
@@ -1100,4 +1120,6 @@ export default function EventGuestInvite({ data, eventName, eventDate, eventFrom
       )}
     </div>
   )
-}
+})
+
+export default EventGuestInvite

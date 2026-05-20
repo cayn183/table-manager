@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useMemo } from 'react'
+import React, { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import useModuleStateRef from '../../hooks/useModuleStateRef'
 import { useDeviceType } from '../../utils/useDeviceType'
 import type { BudgetItem, EventBudgetData } from '../../types/event'
 
@@ -22,7 +23,7 @@ const labelStyle: React.CSSProperties = { display: 'block', fontSize: 12, fontWe
 
 function genId() { return `b-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` }
 
-export default function EventBudget({ data, onSave }: Props) {
+const EventBudget = forwardRef(function EventBudget({ data, onSave }: Props, ref) {
   const deviceType = useDeviceType()
   const isMobile = deviceType === 'mobile'
   const currency = data.currency || 'EUR'
@@ -42,6 +43,11 @@ export default function EventBudget({ data, onSave }: Props) {
   const [editBudget, setEditBudget] = useState(false)
   const [budgetInput, setBudgetInput] = useState('')
   const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const { setRef: setBudgetRef, updateRef: updateBudgetRef, getCurrentData: getBudgetCurrent } = useModuleStateRef({ list, totalBudget })
+
+  useImperativeHandle(ref, () => ({
+    getCurrentData: () => ({ items: getBudgetCurrent().list, currency, totalBudget: getBudgetCurrent().totalBudget || undefined }),
+  }), [currency, getBudgetCurrent])
 
   const fmt = (v: number) => v.toLocaleString('de-DE', { style: 'currency', currency })
 
@@ -49,6 +55,7 @@ export default function EventBudget({ data, onSave }: Props) {
     setList(updated)
     const tb = budget ?? totalBudget
     if (budget !== undefined) setTotalBudget(tb)
+    setBudgetRef({ list: updated, totalBudget: tb })
     await onSave({ items: updated, currency, totalBudget: tb || undefined })
   }, [onSave, currency, totalBudget])
 
@@ -371,4 +378,6 @@ export default function EventBudget({ data, onSave }: Props) {
       )}
     </div>
   )
-}
+})
+
+export default EventBudget

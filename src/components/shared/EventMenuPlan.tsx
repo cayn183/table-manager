@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 import { useDeviceType } from '../../utils/useDeviceType'
 import type { MenuCourse, MenuChoice, EventMenuData } from '../../types/event'
+import useModuleStateRef from '../../hooks/useModuleStateRef'
 
 interface Props {
   data: EventMenuData
@@ -13,7 +14,7 @@ const COURSE_PRESETS = ['Vorspeise', 'Suppe', 'Zwischengang', 'Hauptgang', 'Dess
 
 function genId() { return `mc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` }
 
-export default function EventMenuPlan({ data, onSave }: Props) {
+const EventMenuPlan = forwardRef(function EventMenuPlan({ data, onSave }: Props, ref) {
   const deviceType = useDeviceType()
   const isMobile = deviceType === 'mobile'
   const [menuTitle, setMenuTitle] = useState(data.title ?? '')
@@ -21,12 +22,18 @@ export default function EventMenuPlan({ data, onSave }: Props) {
   const [courses, setCourses] = useState<MenuCourse[]>(data.courses ?? [])
   const [editingChoiceId, setEditingChoiceId] = useState<string | null>(null)
   const [preview, setPreview] = useState(false)
+  const { setRef: setMenuRef, updateRef: updateMenuRef, getCurrentData: getMenuCurrent } = useModuleStateRef({ title: menuTitle, notes, courses })
+
+  useImperativeHandle(ref, () => ({
+    getCurrentData: () => getMenuCurrent(),
+  }), [getMenuCurrent])
 
   // Sync on data change
   useEffect(() => {
     setMenuTitle(data.title ?? '')
     setNotes(data.notes ?? '')
     setCourses(data.courses ?? [])
+    setMenuRef({ title: data.title ?? '', notes: data.notes ?? '', courses: data.courses ?? [] })
   }, [data])
 
   async function persist(newCourses: MenuCourse[], title?: string, n?: string) {
@@ -35,6 +42,7 @@ export default function EventMenuPlan({ data, onSave }: Props) {
       courses: newCourses,
       notes: n ?? notes,
     }
+    setMenuRef({ title: updated.title ?? '', notes: updated.notes ?? '', courses: updated.courses ?? [] })
     await onSave(updated)
   }
 
@@ -46,18 +54,21 @@ export default function EventMenuPlan({ data, onSave }: Props) {
       choices: [],
     }
     const next = [...courses, c]
+    updateMenuRef(prev => ({ ...prev, courses: next }))
     setCourses(next)
     persist(next)
   }
 
   function removeCourse(id: string) {
     const next = courses.filter(c => c.id !== id)
+    updateMenuRef(prev => ({ ...prev, courses: next }))
     setCourses(next)
     persist(next)
   }
 
   function updateCourseName(id: string, name: string) {
     const next = courses.map(c => c.id === id ? { ...c, name } : c)
+    updateMenuRef(prev => ({ ...prev, courses: next }))
     setCourses(next)
     persist(next)
   }
@@ -69,6 +80,7 @@ export default function EventMenuPlan({ data, onSave }: Props) {
     next[idx] = next[idx + dir]
     next[idx + dir] = tmp
     next.forEach((c, i) => c.sortOrder = i)
+    updateMenuRef(prev => ({ ...prev, courses: next }))
     setCourses(next)
     persist(next)
   }
@@ -78,6 +90,7 @@ export default function EventMenuPlan({ data, onSave }: Props) {
     const next = courses.map(c =>
       c.id === courseId ? { ...c, choices: [...c.choices, choice] } : c
     )
+    updateMenuRef(prev => ({ ...prev, courses: next }))
     setCourses(next)
     setEditingChoiceId(choice.id)
     persist(next)
@@ -89,6 +102,7 @@ export default function EventMenuPlan({ data, onSave }: Props) {
         ? { ...c, choices: c.choices.map(ch => ch.id === choiceId ? { ...ch, ...updates } : ch) }
         : c
     )
+    updateMenuRef(prev => ({ ...prev, courses: next }))
     setCourses(next)
     persist(next)
   }
@@ -97,6 +111,7 @@ export default function EventMenuPlan({ data, onSave }: Props) {
     const next = courses.map(c =>
       c.id === courseId ? { ...c, choices: c.choices.filter(ch => ch.id !== choiceId) } : c
     )
+    updateMenuRef(prev => ({ ...prev, courses: next }))
     setCourses(next)
     persist(next)
   }
@@ -110,8 +125,8 @@ export default function EventMenuPlan({ data, onSave }: Props) {
     updateChoice(courseId, choiceId, { tags: newTags })
   }
 
-  function handleTitleBlur() { persist(courses, menuTitle) }
-  function handleNotesBlur() { persist(courses, undefined, notes) }
+  function handleTitleBlur() { setMenuRef({ title: menuTitle, notes, courses }); persist(courses, menuTitle) }
+  function handleNotesBlur() { setMenuRef({ title: menuTitle, notes, courses }); persist(courses, undefined, notes) }
 
   // ── Preview mode ──
   if (preview) {
@@ -176,14 +191,14 @@ export default function EventMenuPlan({ data, onSave }: Props) {
       <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexDirection: isMobile ? 'column' : 'row' }}>
         <div style={{ flex: isMobile ? undefined : 2 }}>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4 }}>Menütitel</label>
-          <input type="text" value={menuTitle} onChange={e => setMenuTitle(e.target.value)} onBlur={handleTitleBlur}
+          <input type="text" value={menuTitle} onChange={e => { const v = e.target.value; setMenuTitle(v); updateMenuRef(prev => ({ ...prev, title: v })); }} onBlur={handleTitleBlur}
             placeholder="z.B. Hochzeitsmenü"
             style={{ width: '100%', padding: '10px 14px', border: '2px solid #e2e8f0', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
             onFocus={e => e.target.style.borderColor = '#667eea'} />
         </div>
         <div style={{ flex: isMobile ? undefined : 3 }}>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4 }}>Hinweis</label>
-          <input type="text" value={notes} onChange={e => setNotes(e.target.value)} onBlur={handleNotesBlur}
+          <input type="text" value={notes} onChange={e => { const v = e.target.value; setNotes(v); updateMenuRef(prev => ({ ...prev, notes: v })); }} onBlur={handleNotesBlur}
             placeholder="z.B. Bitte Allergien bei der Einladung angeben"
             style={{ width: '100%', padding: '10px 14px', border: '2px solid #e2e8f0', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
             onFocus={e => e.target.style.borderColor = '#667eea'} />
@@ -284,4 +299,6 @@ export default function EventMenuPlan({ data, onSave }: Props) {
       })()}
     </div>
   )
-}
+})
+
+export default EventMenuPlan

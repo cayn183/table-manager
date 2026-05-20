@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useMemo } from 'react'
+import React, { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import useModuleStateRef from '../../hooks/useModuleStateRef'
 import { useDeviceType } from '../../utils/useDeviceType'
 import type { ChecklistItem, EventChecklistData } from '../../types/event'
 
@@ -62,7 +63,7 @@ const FIRMEN_TEMPLATE: Omit<ChecklistItem, 'id'>[] = [
 
 function genId() { return `cl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` }
 
-export default function EventChecklist({ data, onSave }: Props) {
+const EventChecklist = forwardRef(function EventChecklist({ data, onSave }: Props, ref) {
   const isMobile = useDeviceType() === 'mobile'
   const [list, setList] = useState<ChecklistItem[]>(data.items ?? [])
   const [categories, setCategories] = useState<string[]>(data.categories ?? [])
@@ -79,13 +80,19 @@ export default function EventChecklist({ data, onSave }: Props) {
   const [templateModal, setTemplateModal] = useState<{ label: string; items: Omit<ChecklistItem, 'id'>[] } | null>(null)
   const [selectedTemplateItems, setSelectedTemplateItems] = useState<Set<number>>(new Set())
   const [showMobileFilters, setShowMobileFilters] = useState(false)
+  const { setRef: setChecklistRef, updateRef: updateChecklistRef, getCurrentData: getChecklistCurrent } = useModuleStateRef({ list, categories })
+
+  useImperativeHandle(ref, () => ({
+    getCurrentData: () => ({ items: getChecklistCurrent().list, categories: getChecklistCurrent().categories }),
+  }), [getChecklistCurrent])
 
   const persist = useCallback(async (updated: ChecklistItem[], cats?: string[]) => {
     setList(updated)
     const c = cats ?? categories
     setCategories(c)
+    setChecklistRef({ list: updated, categories: c })
     await onSave({ items: updated, categories: c })
-  }, [onSave, categories])
+  }, [onSave, categories, setChecklistRef])
 
   // Derive categories from items
   const allCategories = useMemo(() => {
@@ -505,4 +512,6 @@ export default function EventChecklist({ data, onSave }: Props) {
       )}
     </div>
   )
-}
+})
+
+export default EventChecklist
