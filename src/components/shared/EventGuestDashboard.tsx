@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import useModuleStateRef from '../../hooks/useModuleStateRef'
 import { useDeviceType } from '../../utils/useDeviceType'
 import type { EventDashboardConfig, EventMenuData, EventTimelineData, EventSeatingData, EventRoomData } from '../../types/event'
 
@@ -15,15 +16,19 @@ interface Props {
   onSave: (config: EventDashboardConfig) => Promise<void>
 }
 
-export default function EventGuestDashboard({ config, eventName, eventDate, eventFrom, eventTo, menuData, timelineData, seatingData, roomData, onSave }: Props) {
+const EventGuestDashboard = forwardRef(function EventGuestDashboard({ config, eventName, eventDate, eventFrom, eventTo, menuData, timelineData, seatingData, roomData, onSave }: Props, ref) {
   const deviceType = useDeviceType()
   const isMobile = deviceType === 'mobile'
   const [cfg, setCfg] = useState<EventDashboardConfig>(config)
   const [preview, setPreview] = useState(false)
+  const { setRef: setCfgRef, updateRef: updateCfgRef, getCurrentData: getCfgCurrent } = useModuleStateRef(config)
 
-  useEffect(() => { setCfg(config) }, [config])
+  useImperativeHandle(ref, () => ({ getCurrentData: () => getCfgCurrent() }), [getCfgCurrent])
+
+  useEffect(() => { setCfg(config); setCfgRef(config) }, [config, setCfgRef])
 
   async function persist(updated: EventDashboardConfig) {
+    setCfgRef(updated)
     setCfg(updated)
     await onSave(updated)
   }
@@ -31,6 +36,7 @@ export default function EventGuestDashboard({ config, eventName, eventDate, even
   function update(partial: Partial<EventDashboardConfig>) {
     const next = { ...cfg, ...partial }
     setCfg(next)
+    updateCfgRef(prev => ({ ...prev, ...partial }))
     persist(next)
   }
 
@@ -359,4 +365,6 @@ export default function EventGuestDashboard({ config, eventName, eventDate, even
       </div>
     </div>
   )
-}
+})
+
+export default EventGuestDashboard

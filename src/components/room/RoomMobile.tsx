@@ -33,7 +33,6 @@ interface RoomMobileProps {
   onSave: () => void
   onAutoAssign: () => void
   isDirty: boolean
-  lastSaveTime: string | null
   readOnly?: boolean
   onAddGroup?: (group: Group) => void
   onEditGroup?: (group: Group, oldKey: string) => void
@@ -49,7 +48,6 @@ export default function RoomMobile({
   onSave,
   onAutoAssign,
   isDirty,
-  lastSaveTime,
   readOnly,
   onAddGroup,
   onEditGroup,

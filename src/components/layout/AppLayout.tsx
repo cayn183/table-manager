@@ -5,6 +5,7 @@ import EmailVerificationBanner from '../auth/EmailVerificationBanner'
 import { PageHeaderProvider, usePageHeader } from './PageHeaderContext'
 import { HelpProvider, useHelp } from '../shared/HelpContext'
 import HelpModal from '../shared/HelpModal'
+import FeedbackForm from '../shared/FeedbackForm'
 import BottomTabBar, { TAB_HEIGHT } from './BottomTabBar'
 import BottomNav from './BottomNav'
 import { EventTabProvider } from './EventTabContext'
@@ -12,12 +13,20 @@ import { useDeviceType } from '../../utils/useDeviceType'
 
 function AppLayoutInner() {
   const { pageTitle, pageIcon, headerContent } = usePageHeader()
+  const [showFeedback, setShowFeedback] = React.useState(false)
   const device = useDeviceType()
   const isMobile = device === 'mobile'
   const location = useLocation()
   const navigate = useNavigate()
+  const lastNavRef = React.useRef(0)
   // Show back button on sub-pages (anything deeper than /app, /app/events, /app/profile, /app/togo)
   const isSubPage = isMobile && /^\/app\/(events|rooms|club)\/[^/]+/.test(location.pathname)
+  function handleGoBack() {
+    const now = Date.now()
+    if (now - lastNavRef.current < 600) return
+    lastNavRef.current = now
+    try { navigate(-1) } catch { /* ignore */ }
+  }
   
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f5f5f5' }}>
@@ -53,7 +62,10 @@ function AppLayoutInner() {
             </div>
           )}
         </div>
-
+        {/* Desktop CTA: prominent text button to invite feedback */}
+        {!isMobile && (
+          <FeedbackCTA onOpen={() => setShowFeedback(true)} />
+        )}
         <HelpButton />
         <UserMenu />
       </nav>
@@ -74,7 +86,8 @@ function AppLayoutInner() {
         }}>
           {isSubPage ? (
             <button
-              onClick={() => navigate(-1)}
+              onClick={handleGoBack}
+              onTouchStart={handleGoBack}
               aria-label="Zurück"
               style={{
                 background: 'none',
@@ -86,6 +99,7 @@ function AppLayoutInner() {
                 flexShrink: 0,
                 lineHeight: 1,
                 WebkitTapHighlightColor: 'transparent',
+                zIndex: 1200,
               }}
             >←</button>
           ) : (
@@ -124,6 +138,18 @@ function AppLayoutInner() {
       {isMobile && <BottomTabBar />}
 
       <HelpModal />
+      {/* Feedback modal (shared with UserMenu) */}
+      {showFeedback && (
+        <div onClick={() => setShowFeedback(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: 'min(720px, 96%)', background: 'white', borderRadius: 8, padding: 16, boxShadow: '0 10px 40px rgba(2,6,23,0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <h3 style={{ margin: 0 }}>Feedback senden</h3>
+              <button onClick={() => setShowFeedback(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}>✕</button>
+            </div>
+            <FeedbackForm onDone={() => setShowFeedback(false)} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -152,6 +178,38 @@ function HelpButton({ mobile }: { mobile?: boolean }) {
         WebkitTapHighlightColor: 'transparent',
       }}
     >📖</button>
+  )
+}
+
+// Removed compact FeedbackButton; CTA handles prominent feedback action.
+
+function FeedbackCTA({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      onClick={onOpen}
+      aria-label="Wünsche und Anregungen"
+      title="Wünsche/Anregungen - Hier klicken"
+      style={{
+        background: 'linear-gradient(90deg, rgba(255,255,255,0.12), rgba(255,255,255,0.06))',
+        border: '1px solid rgba(255,255,255,0.16)',
+        color: 'white',
+        padding: '8px 16px',
+        borderRadius: 999,
+        cursor: 'pointer',
+        fontSize: 14,
+        fontWeight: 700,
+        whiteSpace: 'nowrap',
+        flexShrink: 0,
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 8,
+        boxShadow: '0 6px 18px rgba(0,0,0,0.12)',
+        transition: 'transform 150ms ease, box-shadow 150ms ease, opacity 150ms ease',
+      }}
+    >
+      <span style={{ fontSize: 16, lineHeight: 1 }}>💡</span>
+      <span>Wünsche / Anregungen — Hier klicken</span>
+    </button>
   )
 }
 

@@ -62,6 +62,10 @@ export default function ClubEventDetail() {
   const [activeTab, setActiveTab] = useState<TabKey>(
     () => (location.state as any)?.activeTab || 'overview'
   )
+  const eventRoomEditorRef = useRef<any>(null)
+  const seatingRoomRef = useRef<any>(null)
+  const [autoSaving, setAutoSaving] = useState(false)
+  const [autoSaveToast, setAutoSaveToast] = useState<string | null>(null)
 
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState('')
@@ -92,6 +96,58 @@ export default function ClubEventDetail() {
       }),
     ]).finally(() => setLoading(false))
   }, [clubId, eventId, token])
+
+  // Persist on unload: try sendBeacon for club events, fallback to localStorage
+  useEffect(() => {
+    const onBeforeUnload = (ev: BeforeUnloadEvent) => {
+      if (!clubId || !eventId || !event) return
+      // gather latest module state from seatingRoomRef and room editor
+      const payload: any = { id: eventId, data: event.data, title: event.title }
+      try {
+        const seating = seatingRoomRef.current?.getCurrentData?.()
+        if (seating) payload.data = { ...payload.data, seatingData: { groups: seating.groups, assignedGroups: seating.assignedGroups } }
+      } catch {}
+      try {
+        const roomEditor = eventRoomEditorRef.current?.getCurrentData?.()
+        if (roomEditor) payload.data = { ...payload.data, roomData: { tables: roomEditor.tables, viewFrame: roomEditor.viewFrame, gridHeight: roomEditor.gridHeight } }
+      } catch {}
+
+      // Try sendBeacon to API endpoint
+      try {
+        const RUNTIME_BASE = typeof window !== 'undefined' && (window as any).__RUNTIME_CONFIG__?.VITE_API_URL
+        const BUILD_BASE = (import.meta as any).env?.VITE_API_URL
+        let BASE = RUNTIME_BASE || BUILD_BASE
+        if (!BASE) {
+          const proto = window.location.protocol
+          const host = window.location.hostname
+          BASE = `${proto}//${host}:4000`
+        }
+        const url = `${BASE}/clubs/${clubId}/events/${eventId}`
+        const blob = new Blob([JSON.stringify({ data: payload.data, title: payload.title })], { type: 'application/json' })
+        const ok = navigator.sendBeacon ? navigator.sendBeacon(url, blob) : false
+        if (!ok) {
+          // fallback: persist locally for later sync
+          const key = `tm:pendingClubSaves`
+          try {
+            const raw = localStorage.getItem(key) || '[]'
+            const arr = JSON.parse(raw)
+            arr.push({ clubId, eventId, payload })
+            localStorage.setItem(key, JSON.stringify(arr))
+          } catch {}
+        }
+      } catch (e) {
+        try {
+          const key = `tm:pendingClubSaves`
+          const raw = localStorage.getItem(key) || '[]'
+          const arr = JSON.parse(raw)
+          arr.push({ clubId, eventId, payload })
+          localStorage.setItem(key, JSON.stringify(arr))
+        } catch {}
+      }
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [clubId, eventId, event, seatingRoomRef, eventRoomEditorRef])
 
   // ── One-time localStorage → API migration for club rooms ──
   useEffect(() => {
@@ -124,6 +180,10 @@ export default function ClubEventDetail() {
     ? (typeof event.data === 'string' ? JSON.parse(event.data) : event.data)
     : null
 
+  // Calculate visible tabs early so autoSaveActiveTab can use it
+  const completedSet = new Set(data?.completedModules ?? [])
+  const visibleTabs = ALL_TABS.filter(t => !t.moduleKey || (data?.modules?.[t.moduleKey] && !completedSet.has(t.key)))
+
   // ── Save callbacks ──────────────────────────────────────────
   const handleRoomSave = useCallback(async (tables: Table[], viewFrame: ViewFrame | null, grid?: { width?: number; height?: number }) => {
     if (!clubId || !eventId || !data) return
@@ -151,6 +211,85 @@ export default function ClubEventDetail() {
     const updated = await updateClubEvent(clubId, eventId, { data: { ...data, invitedMemberIds: selectedIds } as any }, token || undefined)
     setEvent(updated)
   }, [clubId, eventId, data, token])
+
+  // Helper to auto-save active tab before switching
+  const autoSaveActiveTab = useCallback(async (fromTab: TabKey) => {
+    if (!event || !data) return
+
+    // Only consider saves for tabs that are currently visible (module enabled)
+    const tabVisible = visibleTabs.some(t => t.key === fromTab)
+    if (!tabVisible) {
+      return
+    }
+
+    // Skip non-saveable tabs
+    if (fromTab === 'overview') return
+
+    // Get persisted version for comparison (from localStorage)
+    const persistedRaw = localStorage.getItem('events') || '[]'
+    let persistedEvent: any | null = null
+    try {
+      const list = JSON.parse(persistedRaw as string) as any[]
+      persistedEvent = list.find(e => e.id === eventId) || null
+    } catch { persistedEvent = null }
+
+    // If no persisted event found, don't auto-save
+    if (!persistedEvent) return
+
+    // Determine if data actually changed
+    let shouldSave = false
+
+    if (fromTab === 'room') {
+      shouldSave = !!eventRoomEditorRef.current?.isDirty?.()
+    } else if (fromTab === 'seating') {
+      const isDirtyFn = seatingRoomRef.current?.isDirty
+      if (typeof isDirtyFn === 'function') {
+        shouldSave = !!isDirtyFn()
+      } else {
+        const current = seatingRoomRef.current?.getCurrentData?.() ?? { groups: data.seatingData?.groups ?? [], assignedGroups: data.seatingData?.assignedGroups ?? {} }
+        const local = JSON.stringify(current ?? null)
+        const remote = JSON.stringify(persistedEvent.seatingData ?? null)
+        shouldSave = local !== remote
+      }
+    } else if (fromTab === 'food') {
+      const local = JSON.stringify(data.togoConfig ?? null)
+      const remote = JSON.stringify(persistedEvent.togoConfig ?? null)
+      shouldSave = local !== remote
+    } else if (fromTab === 'invite') {
+      const local = JSON.stringify(data.invitedMemberIds ?? null)
+      const remote = JSON.stringify(persistedEvent.invitedMemberIds ?? null)
+      shouldSave = local !== remote
+    }
+
+    if (!shouldSave) return
+
+    setAutoSaving(true)
+    setAutoSaveToast('Speichert…')
+    try {
+      if (fromTab === 'room') {
+        if (eventRoomEditorRef.current?.saveIfDirty) {
+          await eventRoomEditorRef.current.saveIfDirty()
+        }
+      } else if (fromTab === 'seating') {
+        if (seatingRoomRef.current?.saveIfDirty) {
+          await seatingRoomRef.current.saveIfDirty()
+        }
+      } else if (fromTab === 'food' && data.togoConfig) {
+        const { menuItems = [], orders = [] } = data.togoConfig
+        await handleFoodSave(menuItems, orders)
+      } else if (fromTab === 'invite' && data.invitedMemberIds) {
+        await handleInviteSave(data.invitedMemberIds)
+      }
+      setAutoSaveToast('Gespeichert ✓')
+      setTimeout(() => setAutoSaveToast(null), 1800)
+    } catch (e) {
+      console.error('club:autoSaveActiveTab:error', e, { fromTab })
+      setAutoSaveToast('Fehler beim Speichern')
+      setTimeout(() => setAutoSaveToast(null), 2500)
+    } finally {
+      setAutoSaving(false)
+    }
+  }, [event, data, visibleTabs, eventId, eventRoomEditorRef, seatingRoomRef, handleRoomSave, handleSeatingSave, handleFoodSave, handleInviteSave])
 
   const handleReservationSync = useCallback(async (reservations: Reservation[], newSyncedIds: string[]) => {
     if (!clubId || !eventId || !data) return
@@ -277,9 +416,6 @@ export default function ClubEventDetail() {
     setEvent(updated)
   }
 
-  const completedSet = new Set(data?.completedModules ?? [])
-  const visibleTabs = ALL_TABS.filter(t => !t.moduleKey || (data?.modules?.[t.moduleKey] && !completedSet.has(t.key)))
-
   const device = useDeviceType()
   const isMobile = device === 'mobile'
   const { setEventTabs, clearEventTabs } = useEventTabs()
@@ -299,9 +435,9 @@ export default function ClubEventDetail() {
     setEventTabs(
       visibleTabs.map(t => ({ key: t.key, label: t.label, icon: t.icon })),
       activeTab,
-      (key: string) => setActiveTab(key as TabKey),
+      (key: string) => { void autoSaveActiveTab(activeTab).then(() => setActiveTab(key as TabKey)) },
     )
-  }, [isMobile, visibleTabs.length, event?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isMobile, visibleTabs, event?.id, activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep context activeTab in sync when local activeTab changes
   useEffect(() => {
@@ -309,9 +445,9 @@ export default function ClubEventDetail() {
     setEventTabs(
       visibleTabs.map(t => ({ key: t.key, label: t.label, icon: t.icon })),
       activeTab,
-      (key: string) => setActiveTab(key as TabKey),
+      (key: string) => { void autoSaveActiveTab(activeTab).then(() => setActiveTab(key as TabKey)) },
     )
-  }, [activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTab, visibleTabs, isMobile, event?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear event tabs on unmount
   useEffect(() => {
@@ -504,6 +640,12 @@ export default function ClubEventDetail() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
 
+      {!isMobile && autoSaveToast && (
+        <div style={{ position: 'fixed', right: 20, bottom: 20, background: '#0f172a', color: 'white', padding: '8px 12px', borderRadius: 10, boxShadow: '0 10px 30px rgba(2,6,23,0.6)', zIndex: 4000, fontWeight: 700 }}>
+          {autoSaveToast}
+        </div>
+      )}
+
       {/* ── Slim module / tab bar (desktop/tablet only) ─────────────────────────────── */}
       {!isMobile && (
       <div ref={tabBarRef} className="scrollable-tabs" style={{ background: 'white', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 0, padding: '0 16px', flexShrink: 0 }}>
@@ -517,7 +659,10 @@ export default function ClubEventDetail() {
         {visibleTabs.map(tab => {
           const active = activeTab === tab.key
           return (
-            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+            <button key={tab.key} onClick={async () => {
+                try { await autoSaveActiveTab(activeTab) } catch (e) { console.error('club:autoSave:error', e) }
+                setActiveTab(tab.key)
+              }}
               data-active={active ? 'true' : undefined}
               style={{
                 padding: '10px 16px', border: 'none',
@@ -561,7 +706,7 @@ export default function ClubEventDetail() {
                 <span style={{ color: '#1e293b' }}>{formatDateShort(event.created_at)}</span>
                 {event.updated_at && event.updated_at !== event.created_at && (
                   <>
-                    <span style={{ color: '#64748b', fontWeight: 500 }}>Geändert:</span>
+                    <span style={{ color: '#64748b', fontWeight: 500 }}>Zuletzt gespeichert:</span>
                     <span style={{ color: '#1e293b' }}>{formatDateShort(event.updated_at)}</span>
                   </>
                 )}
@@ -699,6 +844,7 @@ export default function ClubEventDetail() {
                 initialGridHeight={data.roomData?.gridHeight ?? 20}
                 onSave={handleRoomSave}
                 readOnly={!isVorstand}
+                ref={eventRoomEditorRef}
               />
             </div>
 
@@ -723,8 +869,9 @@ export default function ClubEventDetail() {
 
         {/* ═══ TAB: Gästeplanung ═══ */}
         {activeTab === 'seating' && (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             <ClubRoomPage
+              ref={seatingRoomRef as any}
               tables={data.roomData?.tables ?? []}
               viewFrame={data.roomData?.viewFrame ?? null}
               gridHeight={data.roomData?.gridHeight ?? 20}

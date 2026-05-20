@@ -22,6 +22,20 @@ export interface EventModules {
   dashboard?: boolean
 }
 
+// User-facing labels/icons for event modules
+export const EVENT_MODULE_OPTIONS: { key: keyof EventModules; label: string; icon: string; description?: string }[] = [
+  { key: 'room', label: 'Raumplanung', icon: '🗺️', description: 'Raum und Layout' },
+  { key: 'seating', label: 'Tischplanung', icon: '🪑', description: 'Gäste Tischen zuweisen' },
+  { key: 'food', label: 'Speiseplanung', icon: '🍽️', description: 'Speisekarte / ToGo' },
+  { key: 'reservation', label: 'Reservierungen', icon: '📝', description: 'Öffentliche Reservierungsseite' },
+  { key: 'checklist', label: 'Checkliste', icon: '☑️', description: 'Aufgaben & To-Dos' },
+  { key: 'budget', label: 'Budget', icon: '💶', description: 'Kosten & Budget' },
+  { key: 'timeline', label: 'Zeitplan', icon: '🕒', description: 'Ablauf & Zeitplan' },
+  { key: 'menu', label: 'Menü', icon: '📋', description: 'Menüauswahl (ToGo)' },
+  { key: 'guestInvite', label: 'Gäste / RSVP', icon: '✉️', description: 'Einladungen & Rückmeldungen' },
+  { key: 'dashboard', label: 'Dashboard', icon: '📊', description: 'Gäste-Dashboard' },
+]
+
 // ── Club extends with invite module ──
 
 export interface ClubEventModules extends EventModules {

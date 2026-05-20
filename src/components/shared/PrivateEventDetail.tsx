@@ -59,6 +59,16 @@ export default function PrivateEventDetail() {
   const [event, setEvent] = useState<PrivateEventItem | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<TabKey>('overview')
+  const eventRoomEditorRef = useRef<any>(null)
+  const seatingRoomRef = useRef<any>(null)
+  const menuRef = useRef<any>(null)
+  const guestInviteRef = useRef<any>(null)
+  const dashboardRef = useRef<any>(null)
+  const checklistRef = useRef<any>(null)
+  const budgetRef = useRef<any>(null)
+  const timelineRef = useRef<any>(null)
+  const [autoSaving, setAutoSaving] = useState(false)
+  const [autoSaveToast, setAutoSaveToast] = useState<string | null>(null)
 
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState('')
@@ -79,6 +89,25 @@ export default function PrivateEventDetail() {
   const [templateEditError, setTemplateEditError] = useState<string | null>(null)
   const [moduleEditing, setModuleEditing] = useState(false)
   const [confirmDisable, setConfirmDisable] = useState<keyof EventModules | null>(null)
+  const eventRef = useRef<PrivateEventItem | null>(null)
+  const activeTabRef = useRef<TabKey>('overview')
+
+  const readEventsSnapshot = useCallback(() => {
+    try {
+      const rawEvents = userStorage.getItem('events', userId) || localStorage.getItem('events') || '[]'
+      return JSON.parse(rawEvents as string) as any[]
+    } catch {
+      return [] as any[]
+    }
+  }, [userId])
+
+  useEffect(() => {
+    eventRef.current = event
+  }, [event])
+
+  useEffect(() => {
+    activeTabRef.current = activeTab
+  }, [activeTab])
 
   // Load event from localStorage
   useEffect(() => {
@@ -87,8 +116,7 @@ export default function PrivateEventDetail() {
       if (userId) await hydrateUserData(token, userId)
       if (!mounted) return
 
-      const rawEvents = userStorage.getItem('events', userId) || localStorage.getItem('events') || '[]'
-      const events = JSON.parse(rawEvents as string) as any[]
+      const events = readEventsSnapshot()
       const found = events.find((e: any) => e.id === eventId)
       if (found) {
         setEvent(migratePrivateEvent(found))
@@ -96,7 +124,7 @@ export default function PrivateEventDetail() {
       setLoading(false)
     })()
     return () => { mounted = false }
-  }, [eventId, userId, token])
+  }, [eventId, readEventsSnapshot, userId, token])
 
   // Re-hydrate from backend when switching to guestInvite tab
   // so the host always sees fresh RSVP statuses
@@ -104,73 +132,311 @@ export default function PrivateEventDetail() {
     if (activeTab !== 'guestInvite' || !userId || !token) return
     let mounted = true
     ;(async () => {
+      try {
+        // Ensure local changes are synced to server before hydrating,
+        // otherwise a GET immediately after could return stale server data
+        await syncUserData(token, userId)
+      } catch (e) {
+        // ignore sync errors and proceed with hydrate as a best-effort
+      }
       await hydrateUserData(token, userId)
       if (!mounted) return
-      const rawEvents = userStorage.getItem('events', userId) || localStorage.getItem('events') || '[]'
-      const events = JSON.parse(rawEvents as string) as any[]
+      const events = readEventsSnapshot()
       const found = events.find((e: any) => e.id === eventId)
       if (found) setEvent(migratePrivateEvent(found))
     })()
     return () => { mounted = false }
-  }, [activeTab, eventId, userId, token])
+  }, [activeTab, eventId, readEventsSnapshot, userId, token])
 
   // ── Persist helper ──
-  const persistEvent = useCallback(async (updated: PrivateEventItem) => {
-    const rawEvents = userStorage.getItem('events', userId) || localStorage.getItem('events') || '[]'
-    const events = JSON.parse(rawEvents as string) as any[]
-    const newList = events.map((e: any) => e.id === updated.id ? updated : e)
-    userStorage.setItem('events', JSON.stringify(newList), userId)
-    userStorage.setItem('currentEvent', JSON.stringify(updated), userId)
+  const persistEvent = useCallback(async (next: PrivateEventItem | ((current: PrivateEventItem) => PrivateEventItem)) => {
+    const events = readEventsSnapshot()
+    const storedEvent = events.find((e: any) => e.id === eventRef.current?.id)
+    const baseEvent = storedEvent ? migratePrivateEvent(storedEvent) : eventRef.current
+    if (!baseEvent) return
+    const updated = typeof next === 'function' ? next(baseEvent) : next
+    const existingIndex = events.findIndex((e: any) => e.id === updated.id)
+    const newList = existingIndex >= 0
+      ? events.map((e: any) => e.id === updated.id ? updated : e)
+      : [...events, updated]
+
+    // Immediately persist currentEvent to ensure UI-read consistency
+    try {
+      userStorage.setItem('currentEvent', JSON.stringify(updated), userId)
+    } catch (err) { /* ignore */ }
+    eventRef.current = updated
     setEvent(updated)
-    if (userId) {
-      try { await syncUserData(token, userId) } catch {}
+
+    // Write the full events list immediately.
+    // Correctness is more important here because several code paths re-read `events`
+    // during fast module switches and tab hydration.
+    try {
+      if (eventsWriteTimerRef.current) window.clearTimeout(eventsWriteTimerRef.current)
+      pendingEventsRef.current = null
+      try {
+        userStorage.setItem('events', JSON.stringify(newList), userId)
+      } catch (err) { /* ignore */ }
+    } catch (err) {
+      try { userStorage.setItem('events', JSON.stringify(newList), userId) } catch {}
     }
-  }, [userId, token])
+
+    // Schedule background sync (throttled) instead of awaiting here
+    if (userId) scheduleBackgroundSync()
+  }, [readEventsSnapshot, userId, token])
+
+  // Debounce/throttle helpers for events write and background sync
+  const pendingEventsRef = useRef<any[] | null>(null)
+  const eventsWriteTimerRef = useRef<number | null>(null)
+  const syncTimerRef = useRef<number | null>(null)
+  const lastSyncAtRef = useRef<number | null>(null)
+
+  function scheduleBackgroundSync(delay = 5000) {
+    if (!userId) return
+    // throttle: don't sync more than once in 10s
+    const now = Date.now()
+    if (lastSyncAtRef.current && now - lastSyncAtRef.current < 10000) {
+      // schedule a delayed sync to happen after the remaining window
+      const remaining = 10000 - (now - lastSyncAtRef.current)
+      if (syncTimerRef.current) window.clearTimeout(syncTimerRef.current)
+      syncTimerRef.current = window.setTimeout(async () => {
+        try { await syncUserData(token, userId) } catch {}
+        lastSyncAtRef.current = Date.now()
+        syncTimerRef.current = null
+      }, Math.max(delay, remaining))
+      return
+    }
+    if (syncTimerRef.current) window.clearTimeout(syncTimerRef.current)
+    syncTimerRef.current = window.setTimeout(async () => {
+      try { await syncUserData(token, userId) } catch {}
+      lastSyncAtRef.current = Date.now()
+      syncTimerRef.current = null
+    }, delay)
+  }
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (eventsWriteTimerRef.current) window.clearTimeout(eventsWriteTimerRef.current)
+      if (syncTimerRef.current) window.clearTimeout(syncTimerRef.current)
+    }
+  }, [])
 
   // ── Save callbacks ──
   const handleRoomSave = useCallback(async (tables: Table[], viewFrame: ViewFrame | null, grid?: { width?: number; height?: number }) => {
-    if (!event) return
     const roomData: any = { tables, viewFrame }
     if (grid?.height != null) roomData.gridHeight = grid.height
     if (grid?.width != null) roomData.gridWidth = grid.width
-    await persistEvent({ ...event, roomData })
-  }, [event, persistEvent])
+    await persistEvent(current => ({ ...current, roomData }))
+  }, [persistEvent])
 
   const handleSeatingSave = useCallback(async (groups: Group[], assignedGroups: Record<string, AssignedGroup[]>) => {
-    if (!event) return
-    await persistEvent({ ...event, seatingData: { groups, assignedGroups } })
-  }, [event, persistEvent])
+    await persistEvent(current => ({ ...current, seatingData: { groups, assignedGroups } }))
+  }, [persistEvent])
 
   // ── New module save callbacks ──
   const handleChecklistSave = useCallback(async (data: EventChecklistData) => {
-    if (!event) return
-    await persistEvent({ ...event, checklistData: data })
-  }, [event, persistEvent])
+    await persistEvent(current => ({ ...current, checklistData: data }))
+  }, [persistEvent])
 
   const handleBudgetSave = useCallback(async (data: EventBudgetData) => {
-    if (!event) return
-    await persistEvent({ ...event, budgetData: data })
-  }, [event, persistEvent])
+    await persistEvent(current => ({ ...current, budgetData: data }))
+  }, [persistEvent])
 
   const handleTimelineSave = useCallback(async (data: EventTimelineData) => {
-    if (!event) return
-    await persistEvent({ ...event, timelineData: data })
-  }, [event, persistEvent])
+    await persistEvent(current => ({ ...current, timelineData: data }))
+  }, [persistEvent])
 
   const handleMenuSave = useCallback(async (menuData: EventMenuData) => {
-    if (!event) return
-    await persistEvent({ ...event, menuData })
-  }, [event, persistEvent])
+    await persistEvent(current => ({ ...current, menuData }))
+  }, [persistEvent])
 
   const handleGuestInviteSave = useCallback(async (guestInviteData: EventGuestInviteData) => {
-    if (!event) return
-    await persistEvent({ ...event, guestInviteData })
-  }, [event, persistEvent])
+    await persistEvent(current => ({ ...current, guestInviteData }))
+  }, [persistEvent])
 
   const handleDashboardSave = useCallback(async (dashboardConfig: EventDashboardConfig) => {
+    await persistEvent(current => ({ ...current, dashboardConfig }))
+  }, [persistEvent])
+
+  // Calculate visible tabs early so autoSaveActiveTab can use it
+  const completedSet = new Set(event?.completedModules ?? [])
+  const visibleTabs = ALL_TABS.filter(t => !t.moduleKey || (event?.modules?.[t.moduleKey] && !completedSet.has(t.key)))
+
+  // Helper to auto-save the currently active tab before switching
+  const autoSaveActiveTab = useCallback(async (fromTab: TabKey, opts?: { quiet?: boolean }) => {
     if (!event) return
-    await persistEvent({ ...event, dashboardConfig })
-  }, [event, persistEvent])
+    
+    // Only consider saves for tabs that are currently visible (module enabled)
+    const tabVisible = visibleTabs.some(t => t.key === fromTab)
+    if (!tabVisible) {
+      return
+      return
+    }
+
+    // Skip non-saveable tabs
+    if (fromTab === 'overview') return
+
+    // Get persisted version for comparison. Prefer the single `currentEvent` record
+    // which we write synchronously in `persistEvent`, fallback to `events` list.
+    let persistedEvent: any | null = null
+    try {
+      const rawCurrent = userStorage.getItem('currentEvent', userId) || localStorage.getItem('currentEvent')
+      if (rawCurrent) {
+        const parsed = JSON.parse(rawCurrent as string)
+        if (parsed && parsed.id === event.id) persistedEvent = parsed
+      }
+    } catch { persistedEvent = null }
+    if (!persistedEvent) {
+      try {
+        const persistedRaw = userStorage.getItem('events', userId) || localStorage.getItem('events') || '[]'
+        const list = JSON.parse(persistedRaw as string) as any[]
+        persistedEvent = list.find(e => e.id === event.id) || null
+      } catch { persistedEvent = null }
+    }
+    
+
+    // If no persisted event was found, don't auto-save
+    if (!persistedEvent) return
+
+    // Determine if data actually changed
+    let shouldSave = false
+    let debugInfo: any = { fromTab }
+
+    if (fromTab === 'room') {
+      const currentRoom = eventRoomEditorRef.current?.getCurrentData?.()
+      if (currentRoom) {
+        const local = JSON.stringify({
+          tables: currentRoom.tables,
+          viewFrame: currentRoom.viewFrame ?? null,
+          gridHeight: currentRoom.gridHeight,
+        })
+        const remote = JSON.stringify({
+          tables: persistedEvent.roomData?.tables ?? [],
+          viewFrame: persistedEvent.roomData?.viewFrame ?? null,
+          gridHeight: persistedEvent.roomData?.gridHeight ?? 20,
+        })
+        shouldSave = local !== remote
+        debugInfo.changed = shouldSave
+      } else {
+        shouldSave = !!eventRoomEditorRef.current?.isDirty?.()
+        debugInfo.isDirty = shouldSave
+      }
+    } else if (fromTab === 'seating') {
+      const current = seatingRoomRef.current?.getCurrentData?.() ?? { groups: event.seatingData?.groups ?? [], assignedGroups: event.seatingData?.assignedGroups ?? {} }
+      const local = JSON.stringify(current ?? null)
+      const remote = JSON.stringify({
+        groups: persistedEvent.seatingData?.groups ?? [],
+        assignedGroups: persistedEvent.seatingData?.assignedGroups ?? {},
+      })
+      shouldSave = local !== remote
+      debugInfo.changed = shouldSave
+    } else if (fromTab === 'menu') {
+      const current = menuRef.current?.getCurrentData?.() ?? event.menuData ?? null
+      const local = JSON.stringify(current)
+      const remote = JSON.stringify(persistedEvent.menuData ?? null)
+      shouldSave = local !== remote
+      debugInfo.changed = shouldSave
+    } else if (fromTab === 'guestInvite') {
+      const current = guestInviteRef.current?.getCurrentData?.() ?? event.guestInviteData ?? null
+      const local = JSON.stringify(current)
+      const remote = JSON.stringify(persistedEvent.guestInviteData ?? null)
+      shouldSave = local !== remote
+      debugInfo.changed = shouldSave
+    } else if (fromTab === 'checklist') {
+      const current = checklistRef.current?.getCurrentData?.() ?? event.checklistData ?? null
+      const local = JSON.stringify(current)
+      const remote = JSON.stringify(persistedEvent.checklistData ?? null)
+      shouldSave = local !== remote
+      debugInfo.changed = shouldSave
+    } else if (fromTab === 'budget') {
+      const current = budgetRef.current?.getCurrentData?.() ?? event.budgetData ?? null
+      const local = JSON.stringify(current)
+      const remote = JSON.stringify(persistedEvent.budgetData ?? null)
+      shouldSave = local !== remote
+      debugInfo.changed = shouldSave
+    } else if (fromTab === 'timeline') {
+      const current = timelineRef.current?.getCurrentData?.() ?? event.timelineData ?? null
+      const local = JSON.stringify(current)
+      const remote = JSON.stringify(persistedEvent.timelineData ?? null)
+      shouldSave = local !== remote
+      debugInfo.changed = shouldSave
+    } else if (fromTab === 'dashboard') {
+      const current = dashboardRef.current?.getCurrentData?.() ?? event.dashboardConfig ?? null
+      const local = JSON.stringify(current)
+      const remote = JSON.stringify(persistedEvent.dashboardConfig ?? null)
+      shouldSave = local !== remote
+      debugInfo.changed = shouldSave
+    }
+
+    debugInfo.shouldSave = shouldSave
+    if (!shouldSave) return
+
+    const quiet = !!opts?.quiet
+    if (!quiet) { setAutoSaving(true); setAutoSaveToast('Speichert…') }
+    try {
+      if (fromTab === 'room') {
+        const currentRoom = eventRoomEditorRef.current?.getCurrentData?.()
+        if (currentRoom) {
+          await handleRoomSave(currentRoom.tables, currentRoom.viewFrame ?? null, { height: currentRoom.gridHeight })
+        } else if (eventRoomEditorRef.current?.saveIfDirty) {
+          await eventRoomEditorRef.current.saveIfDirty()
+        }
+      } else if (fromTab === 'seating') {
+        const current = seatingRoomRef.current?.getCurrentData?.()
+        if (current) {
+          await handleSeatingSave(current.groups ?? [], current.assignedGroups ?? {})
+        } else if (seatingRoomRef.current?.saveIfDirty) {
+          await seatingRoomRef.current.saveIfDirty()
+        }
+      } else if (fromTab === 'menu' && event.menuData) {
+        const current = menuRef.current?.getCurrentData?.() ?? event.menuData
+        await handleMenuSave(current)
+      } else if (fromTab === 'guestInvite' && event.guestInviteData) {
+        const current = guestInviteRef.current?.getCurrentData?.() ?? event.guestInviteData
+        await handleGuestInviteSave(current)
+      } else if (fromTab === 'checklist' && event.checklistData) {
+        const current = checklistRef.current?.getCurrentData?.() ?? event.checklistData
+        await handleChecklistSave(current)
+      } else if (fromTab === 'budget' && event.budgetData) {
+        const current = budgetRef.current?.getCurrentData?.() ?? event.budgetData
+        await handleBudgetSave(current)
+      } else if (fromTab === 'timeline' && event.timelineData) {
+        const current = timelineRef.current?.getCurrentData?.() ?? event.timelineData
+        await handleTimelineSave(current)
+      } else if (fromTab === 'dashboard' && event.dashboardConfig) {
+        const current = dashboardRef.current?.getCurrentData?.() ?? event.dashboardConfig
+        await handleDashboardSave(current)
+      }
+      if (!quiet) { setAutoSaveToast('Gespeichert ✓'); setTimeout(() => setAutoSaveToast(null), 1800) }
+    } catch (e) {
+      console.error('autoSaveActiveTab:error', e, { fromTab })
+      if (!quiet) { setAutoSaveToast('Fehler beim Speichern'); setTimeout(() => setAutoSaveToast(null), 2500) }
+    } finally {
+      if (!quiet) setAutoSaving(false)
+    }
+  }, [event, visibleTabs, userId, eventRoomEditorRef, seatingRoomRef, handleRoomSave, handleSeatingSave, handleMenuSave, handleGuestInviteSave, handleChecklistSave, handleBudgetSave, handleTimelineSave, handleDashboardSave])
+
+  const handleTabSwitch = useCallback(async (key: string) => {
+    const nextTab = key as TabKey
+    const fromTab = activeTabRef.current
+    if (fromTab === nextTab) return
+
+    // Force pending input edits to commit before reading module refs/state.
+    try {
+      const activeEl = typeof document !== 'undefined' ? document.activeElement as HTMLElement | null : null
+      if (activeEl && typeof activeEl.blur === 'function') activeEl.blur()
+      await new Promise(resolve => window.setTimeout(resolve, 0))
+    } catch {}
+
+    try {
+      // Quiet-save for room/seating so no toast is shown (matches other modules)
+      const quietModules: TabKey[] = ['room', 'seating']
+      await autoSaveActiveTab(fromTab, { quiet: quietModules.includes(fromTab) })
+    } catch (e) {
+      console.error('autoSaveActiveTab:error', e, { fromTab, nextTab })
+    }
+    setActiveTab(nextTab)
+  }, [autoSaveActiveTab])
 
   // ── Toggle modules after creation ──
   async function toggleEventModule(key: keyof EventModules) {
@@ -243,9 +509,6 @@ export default function PrivateEventDetail() {
     await persistEvent({ ...event, completedModules: [...completed] })
   }
 
-  const completedSet = new Set(event?.completedModules ?? [])
-  const visibleTabs = ALL_TABS.filter(t => !t.moduleKey || (event?.modules?.[t.moduleKey] && !completedSet.has(t.key)))
-
   const device = useDeviceType()
   const isMobile = device === 'mobile'
   const { setEventTabs, clearEventTabs } = useEventTabs()
@@ -265,19 +528,9 @@ export default function PrivateEventDetail() {
     setEventTabs(
       visibleTabs.map(t => ({ key: t.key, label: t.label, icon: t.icon })),
       activeTab,
-      (key: string) => setActiveTab(key as TabKey),
+      handleTabSwitch,
     )
-  }, [isMobile, visibleTabs.length, event?.id]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Keep context activeTab in sync when local activeTab changes
-  useEffect(() => {
-    if (!isMobile || !event) return
-    setEventTabs(
-      visibleTabs.map(t => ({ key: t.key, label: t.label, icon: t.icon })),
-      activeTab,
-      (key: string) => setActiveTab(key as TabKey),
-    )
-  }, [activeTab]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isMobile, event, visibleTabs, activeTab, handleTabSwitch, setEventTabs])
 
   // Clear event tabs on unmount
   useEffect(() => {
@@ -536,6 +789,37 @@ export default function PrivateEventDetail() {
     return () => { setPageTitle(null); setHeaderContent(null) }
   }, [])
 
+  // Persist on unload: write current event synchronously to localStorage
+  useEffect(() => {
+    const onBeforeUnload = (ev: BeforeUnloadEvent) => {
+      if (!event) return
+      // gather latest module state
+      const eCopy: any = { ...event }
+      try {
+        const roomData = eventRoomEditorRef.current?.getCurrentData?.()
+        if (roomData) eCopy.roomData = { tables: roomData.tables, viewFrame: roomData.viewFrame, gridHeight: roomData.gridHeight }
+      } catch {}
+      try {
+        const seating = seatingRoomRef.current?.getCurrentData?.()
+        if (seating) eCopy.seatingData = { groups: seating.groups, assignedGroups: seating.assignedGroups }
+      } catch {}
+
+      // write synchronously
+      try {
+        const rawEvents = userStorage.getItem('events', userId) || localStorage.getItem('events') || '[]'
+        const events = JSON.parse(rawEvents as string) as any[]
+        const updated = events.map((evnt: any) => evnt.id === eCopy.id ? eCopy : evnt)
+        if (!updated.find((evnt: any) => evnt.id === eCopy.id)) updated.push(eCopy)
+        userStorage.setItem('events', JSON.stringify(updated), userId)
+        userStorage.setItem('currentEvent', JSON.stringify(eCopy), userId)
+      } catch (err) {
+        // ignore
+      }
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [event, eventRoomEditorRef, seatingRoomRef, userId])
+
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>Laden…</div>
   if (!event) return <div style={{ padding: 40, textAlign: 'center', color: '#991b1b' }}>Event nicht gefunden.</div>
 
@@ -545,6 +829,12 @@ export default function PrivateEventDetail() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+
+      {!isMobile && autoSaveToast && (
+        <div style={{ position: 'fixed', right: 20, bottom: 20, background: '#0f172a', color: 'white', padding: '8px 12px', borderRadius: 10, boxShadow: '0 10px 30px rgba(2,6,23,0.6)', zIndex: 4000, fontWeight: 700 }}>
+          {autoSaveToast}
+        </div>
+      )}
 
       {/* ── Tab bar (desktop/tablet only when mobile uses bottom tabs) ── */}
       {!isMobile && (
@@ -559,7 +849,7 @@ export default function PrivateEventDetail() {
         {visibleTabs.map(tab => {
           const active = activeTab === tab.key
           return (
-            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+            <button key={tab.key} onClick={() => { void handleTabSwitch(tab.key) }}
               data-active={active ? 'true' : undefined}
               style={{
                 padding: '10px 16px', border: 'none',
@@ -777,6 +1067,14 @@ export default function PrivateEventDetail() {
                 <span style={{ fontSize: 12, color: '#64748b' }}>{moduleEditing ? '▲ Fertig' : '▼ Module ändern'}</span>
               </button>
 
+              {/* Module info box: show last saved and sync status */}
+              {event.lastModified && (
+                <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>💾 Zuletzt gespeichert</div>
+                  <div style={{ fontSize: 13, color: '#64748b' }}>{event.lastModified}</div>
+                </div>
+              )}
+
               {!moduleEditing && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
                   {PRIVATE_MODULE_OPTIONS.filter(m => !!event.modules[m.key]).map(m => {
@@ -880,7 +1178,7 @@ export default function PrivateEventDetail() {
             {(event.createdAt || event.lastModified) && (
               <div style={{ display: 'flex', gap: 16, fontSize: 11, color: '#94a3b8', paddingLeft: 4 }}>
                 {event.createdAt && <span>Erstellt: {event.createdAt}</span>}
-                {event.lastModified && <span>Zuletzt geändert: {event.lastModified}</span>}
+                {event.lastModified && <span>Zuletzt gespeichert: {event.lastModified}</span>}
               </div>
             )}
           </div>
@@ -923,6 +1221,7 @@ export default function PrivateEventDetail() {
                 initialViewFrame={event.roomData?.viewFrame ?? null}
                 initialGridHeight={event.roomData?.gridHeight ?? 20}
                 onSave={handleRoomSave}
+                ref={eventRoomEditorRef}
               />
             </div>
           </div>
@@ -930,18 +1229,18 @@ export default function PrivateEventDetail() {
 
         {/* ═══ TAB: Tischplanung (Seating) ═══ */}
         {activeTab === 'seating' && (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-            <Room clubEventProps={{
-              tables: event.roomData?.tables ?? [],
-              viewFrame: event.roomData?.viewFrame ?? null,
-              gridHeight: event.roomData?.gridHeight ?? 20,
-              gridWidth: event.roomData?.gridWidth ?? 28,
-              initialGroups: seatingGroups,
-              initialAssignedGroups: event.seatingData?.assignedGroups ?? {},
-              onSave: handleSeatingSave,
-              onOpenRoomEditor: () => setActiveTab('room'),
-            }} />
-          </div>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+              <Room ref={seatingRoomRef as any} clubEventProps={{
+                tables: event.roomData?.tables ?? [],
+                viewFrame: event.roomData?.viewFrame ?? null,
+                gridHeight: event.roomData?.gridHeight ?? 20,
+                gridWidth: event.roomData?.gridWidth ?? 28,
+                initialGroups: seatingGroups,
+                initialAssignedGroups: event.seatingData?.assignedGroups ?? {},
+                onSave: handleSeatingSave,
+                onOpenRoomEditor: () => setActiveTab('room'),
+              }} />
+            </div>
         )}
 
         {/* ═══ TAB: Menüplanung ═══ */}
@@ -951,6 +1250,7 @@ export default function PrivateEventDetail() {
               key={`menu-${event.id}`}
               data={event.menuData ?? { courses: [] }}
               onSave={handleMenuSave}
+              ref={menuRef}
             />
           </div>
         )}
@@ -968,6 +1268,7 @@ export default function PrivateEventDetail() {
               menuData={event.menuData}
               timelineData={event.timelineData}
               onSave={handleGuestInviteSave}
+              ref={guestInviteRef}
             />
           </div>
         )}
@@ -987,6 +1288,7 @@ export default function PrivateEventDetail() {
               seatingData={event.seatingData}
               roomData={event.roomData}
               onSave={handleDashboardSave}
+              ref={dashboardRef}
             />
           </div>
         )}
@@ -998,6 +1300,7 @@ export default function PrivateEventDetail() {
               key={`checklist-${event.id}`}
               data={event.checklistData ?? { items: [] }}
               onSave={handleChecklistSave}
+              ref={checklistRef}
             />
           </div>
         )}
@@ -1009,6 +1312,7 @@ export default function PrivateEventDetail() {
               key={`budget-${event.id}`}
               data={event.budgetData ?? { items: [], currency: 'EUR' }}
               onSave={handleBudgetSave}
+              ref={budgetRef}
             />
           </div>
         )}
@@ -1023,6 +1327,7 @@ export default function PrivateEventDetail() {
               timeFrom={event.from}
               timeTo={event.to}
               onSave={handleTimelineSave}
+              ref={timelineRef}
             />
           </div>
         )}

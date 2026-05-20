@@ -2,7 +2,7 @@
 // EventRoomEditor – Embedded room/table editor for event modules
 // Derived from RoomEditor.tsx, but uses props + callback instead of localStorage.
 // ============================================================================
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+import React, { forwardRef, useImperativeHandle, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useDeviceType } from '../../utils/useDeviceType'
 import type { Table, ViewFrame } from '../../types/room'
 
@@ -14,7 +14,7 @@ export interface EventRoomEditorProps {
   readOnly?: boolean
 }
 
-export default function EventRoomEditor({ initialTables, initialViewFrame, onSave, readOnly, initialGridHeight }: EventRoomEditorProps) {
+const EventRoomEditor = forwardRef(function EventRoomEditor({ initialTables, initialViewFrame, onSave, readOnly, initialGridHeight }: EventRoomEditorProps, ref) {
   const deviceType = useDeviceType()
   const isMobile = deviceType === 'mobile'
   const [tables, setTables] = useState<Table[]>(initialTables)
@@ -43,6 +43,9 @@ export default function EventRoomEditor({ initialTables, initialViewFrame, onSav
   const gridWidth = 28
   const [gridHeight, setGridHeight] = useState<number>(initialGridHeight ?? 20)
   const cellSize = 40
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const [showScrollButtons, setShowScrollButtons] = useState(false)
+  const [scrollData, setScrollData] = useState({ scrollLeft: 0, clientWidth: 0, scrollWidth: 0 })
 
   useEffect(() => {
     setTables(initialTables)
@@ -51,6 +54,18 @@ export default function EventRoomEditor({ initialTables, initialViewFrame, onSav
     setViewFrame(initialViewFrame ?? null)
     setGridHeight(initialGridHeight ?? 20)
   }, [initialTables, initialViewFrame, initialGridHeight])
+
+  // Track last saved state to detect dirty changes
+  const lastSavedRef = useRef<{ tables: Table[]; viewFrame: ViewFrame | null; gridHeight: number }>({ tables: initialTables, viewFrame: initialViewFrame ?? null, gridHeight: initialGridHeight ?? 20 })
+  const isDirty = useMemo(() => {
+    try {
+      if (JSON.stringify(lastSavedRef.current.tables) !== JSON.stringify(tables)) return true
+    } catch { return true }
+    const vs = lastSavedRef.current.viewFrame
+    if (JSON.stringify(vs) !== JSON.stringify(viewFrame)) return true
+    if (lastSavedRef.current.gridHeight !== gridHeight) return true
+    return false
+  }, [tables, viewFrame, gridHeight])
 
   function pushUndo(currentTables: Table[]) {
     setUndoStack(prev => [...prev, currentTables].slice(-5))
@@ -73,12 +88,31 @@ export default function EventRoomEditor({ initialTables, initialViewFrame, onSav
     setTables(prev => prev.map(t => ({ ...t, y: Math.min(t.y, Math.max(0, newHeight - t.height)) })))
   }
 
+  // Update scroll button visibility and positions
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    function update() {
+      setScrollData({ scrollLeft: el.scrollLeft, clientWidth: el.clientWidth, scrollWidth: el.scrollWidth })
+      setShowScrollButtons(el.scrollWidth > el.clientWidth + 8)
+    }
+    update()
+    el.addEventListener('scroll', update, { passive: true })
+    window.addEventListener('resize', update)
+    return () => {
+      el.removeEventListener('scroll', update)
+      window.removeEventListener('resize', update)
+    }
+  }, [containerRef, tables.length, gridWidth, cellSize])
+
   const handleSaveClick = useCallback(async () => {
     setIsSaving(true)
     setSaveError(null)
     try {
       await onSave(tables, viewFrame, { width: gridWidth, height: gridHeight })
       setSaveToast('Gespeichert ✓')
+      // update lastSaved snapshot
+      lastSavedRef.current = { tables, viewFrame: viewFrame ?? null, gridHeight }
       setTimeout(() => setSaveToast(null), 2000)
     } catch (err: any) {
       setSaveError(err?.message || 'Fehler beim Speichern')
@@ -86,6 +120,17 @@ export default function EventRoomEditor({ initialTables, initialViewFrame, onSav
       setIsSaving(false)
     }
   }, [onSave, tables, viewFrame, gridWidth, gridHeight])
+
+  // Expose imperative handle for parent to trigger save-if-dirty
+  useImperativeHandle(ref, () => ({
+    isDirty: () => isDirty,
+    saveIfDirty: async () => {
+      if (!isDirty) return
+      await handleSaveClick()
+    }
+    ,
+    getCurrentData: () => ({ tables, viewFrame, gridHeight }),
+  }), [isDirty, handleSaveClick, tables, viewFrame, gridHeight])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -210,18 +255,33 @@ export default function EventRoomEditor({ initialTables, initialViewFrame, onSav
     updateDragPreview(e)
   }
 
-  function eventToCell(e: MouseEvent | React.MouseEvent): { x: number; y: number } | null {
+  function getClientPoint(e: MouseEvent | React.MouseEvent | TouchEvent | React.TouchEvent) {
+    // Support mouse and touch events
+    if ((e as TouchEvent).changedTouches && (e as TouchEvent).changedTouches.length) {
+      const t = (e as TouchEvent).changedTouches[0]
+      return { clientX: t.clientX, clientY: t.clientY }
+    }
+    if ((e as React.TouchEvent).changedTouches && (e as React.TouchEvent).changedTouches.length) {
+      const t = (e as React.TouchEvent).changedTouches[0]
+      return { clientX: t.clientX, clientY: t.clientY }
+    }
+    const me = e as MouseEvent
+    return { clientX: (me as any).clientX, clientY: (me as any).clientY }
+  }
+
+  function eventToCell(e: MouseEvent | React.MouseEvent | TouchEvent | React.TouchEvent): { x: number; y: number } | null {
     if (!gridRef.current) return null
     const rect = gridRef.current.getBoundingClientRect()
-    const x = Math.floor(((e as MouseEvent).clientX - rect.left) / cellSize)
-    const y = Math.floor(((e as MouseEvent).clientY - rect.top) / cellSize)
+    const p = getClientPoint(e)
+    const x = Math.floor((p.clientX - rect.left) / cellSize)
+    const y = Math.floor((p.clientY - rect.top) / cellSize)
     if (x < 0 || y < 0 || x >= gridWidth || y >= gridHeight) return null
     return { x, y }
   }
 
-  function startFrame(e: React.MouseEvent) {
+  function startFrame(e: React.MouseEvent | React.TouchEvent) {
     if (!defineViewMode) return
-    if ((e.target as HTMLElement).closest('[data-table="true"]')) return
+    if ((e as any).target && (e as any).target.closest && (e as any).target.closest('[data-table="true"]')) return
     const cell = eventToCell(e)
     if (!cell) return
     setFrameDragStart(cell)
@@ -229,9 +289,9 @@ export default function EventRoomEditor({ initialTables, initialViewFrame, onSav
   }
 
   useEffect(() => {
-    function onMove(ev: MouseEvent) {
+    function onMove(ev: MouseEvent | TouchEvent) {
       if (!frameDragStart) return
-      const cell = eventToCell(ev)
+      const cell = eventToCell(ev as any)
       if (!cell) return
       const minX = Math.min(frameDragStart.x, cell.x)
       const minY = Math.min(frameDragStart.y, cell.y)
@@ -240,9 +300,9 @@ export default function EventRoomEditor({ initialTables, initialViewFrame, onSav
       setViewFrame({ x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1 })
     }
 
-    function onUp(ev: MouseEvent) {
+    function onUp(ev: MouseEvent | TouchEvent) {
       if (!frameDragStart) return
-      const cell = eventToCell(ev)
+      const cell = eventToCell(ev as any)
       if (!cell) {
         setFrameDragStart(null)
         return
@@ -257,11 +317,25 @@ export default function EventRoomEditor({ initialTables, initialViewFrame, onSav
 
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
+    window.addEventListener('touchmove', onMove, { passive: false })
+    window.addEventListener('touchend', onUp)
     return () => {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('touchend', onUp)
     }
   }, [frameDragStart])
+
+  // Horizontal scroll helpers for mobile: pan grid left/right
+  const scrollAmount = cellSize * 6
+  function scrollGridBy(delta: number) {
+    try {
+      const container = gridRef.current?.parentElement as HTMLElement | null
+      if (!container) return
+      container.scrollBy({ left: delta, behavior: 'smooth' })
+    } catch {}
+  }
 
   return (
     <div style={{ height: '100%', background: '#f8fafc', display: 'flex', flexDirection: 'column' }}>
@@ -274,75 +348,67 @@ export default function EventRoomEditor({ initialTables, initialViewFrame, onSav
             display: 'flex',
             flexDirection: 'column',
             gap: isMobile ? '8px' : '12px',
-          }}
-        >
-          {!readOnly && (
+          }}>
+          {!readOnly && (isMobile ? (
+            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 100, flex: '0 0 auto' }}>
+                <label htmlFor="event-room-grid-height-mobile" style={{ fontSize: 13, color: '#374151', fontWeight: 600 }}>Rasterhöhe</label>
+                <select id="event-room-grid-height-mobile" value={String(gridHeight)} onChange={e => changeGridHeight(Math.max(8, parseInt(e.target.value, 10) || 20))} style={{ minWidth: 100, padding: '8px 10px', border: '2px solid #e2e8f0', borderRadius: 8, fontSize: 14, textAlign: 'center' }} title="Rasterhöhe auswählen" onFocus={e => (e.currentTarget.style.borderColor = '#667eea')} onBlur={e => (e.currentTarget.style.borderColor = '#e2e8f0')}>
+                  <option value="20">Standard</option>
+                  <option value="40">Mittel (+20)</option>
+                  <option value="50">Groß (+30)</option>
+                  <option value="60">Maxi (+40)</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 80, flex: '0 0 auto' }}>
+                <label htmlFor="event-room-capacity-mobile" style={{ fontSize: 13, color: '#374151', fontWeight: 600 }}>Personen</label>
+                <input
+                  id="event-room-capacity-mobile"
+                  type="number"
+                  value={capacityInput}
+                  onChange={e => setCapacityInput(e.target.value)}
+                  placeholder="4"
+                  style={{ minWidth: 56, maxWidth: 72, padding: '8px 10px', border: '2px solid #e2e8f0', borderRadius: 8, fontSize: 14, fontWeight: 500, outline: 'none', textAlign: 'center' }}
+                />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginLeft: 'auto', flex: '0 0 auto' }}>
+                <button onClick={addTable} style={{ padding: '10px 14px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>+ Tisch</button>
+              </div>
+            </div>
+          ) : (
             <>
-              {isMobile ? (
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                    <label htmlFor="event-room-grid-height-mobile" style={{ fontSize: 12, color: '#64748b' }}>Rasterhöhe</label>
-                    <select id="event-room-grid-height-mobile" value={String(gridHeight)} onChange={e => changeGridHeight(Math.max(8, parseInt(e.target.value, 10) || 20))} style={{ width: 50, padding: '8px 10px', border: '2px solid #e2e8f0', borderRadius: 8, fontSize: 14, textAlign: 'center' }} title="Rasterhöhe auswählen" onFocus={e => (e.currentTarget.style.borderColor = '#667eea')} onBlur={e => (e.currentTarget.style.borderColor = '#e2e8f0')}>
-                      <option value="20">Standart</option>
-                      <option value="40">Mittel (+20)</option>
-                      <option value="50">Groß (+30)</option>
-                      <option value="60">Maxi (+40)</option>
-                    </select>
-                  </div>
-                  <input
-                    id="event-room-capacity-mobile"
-                    type="number"
-                    value={capacityInput}
-                    onChange={e => setCapacityInput(e.target.value)}
-                    placeholder="4"
-                    style={{ width: 50, padding: '8px 10px', border: '2px solid #e2e8f0', borderRadius: 8, fontSize: 14, fontWeight: 500, outline: 'none', textAlign: 'center' }}
-                  />
-                  <button onClick={addTable} style={{ padding: '8px 14px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>+ Tisch</button>
-                  <div style={{ flex: 1 }} />
-                  <button onClick={() => void handleSaveClick()} disabled={tables.length === 0 || isSaving} style={{ padding: '8px 14px', background: tables.length === 0 ? '#e2e8f0' : '#10b981', color: 'white', border: 'none', borderRadius: 8, cursor: tables.length === 0 || isSaving ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 700, opacity: tables.length === 0 ? 0.6 : 1 }}>{isSaving ? '💾…' : '💾'}</button>
-                  <button onClick={performUndo} disabled={undoStack.length === 0} style={{ padding: '8px 10px', background: undoStack.length > 0 ? '#f8fafc' : '#f1f5f9', color: undoStack.length > 0 ? '#374151' : '#94a3b8', border: '2px solid #e2e8f0', borderRadius: 8, cursor: undoStack.length > 0 ? 'pointer' : 'not-allowed', fontSize: 13, opacity: undoStack.length > 0 ? 1 : 0.5 }}>↩</button>
+              <label htmlFor="event-room-capacity" style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>👥 Personenzahl pro Tisch</label>
+              <input
+                id="event-room-capacity"
+                type="number"
+                value={capacityInput}
+                onChange={e => setCapacityInput(e.target.value)}
+                placeholder="z. B. 4"
+                style={{ padding: '10px 12px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', fontWeight: 500, outline: 'none' }}
+                onFocus={e => { e.currentTarget.style.borderColor = '#667eea' }}
+                onBlur={e => { e.currentTarget.style.borderColor = '#e2e8f0' }}
+              />
+              <button onClick={addTable} style={{ padding: '12px 16px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 700, boxShadow: '0 2px 8px rgba(102,126,234,0.3)' }}>+ Tisch hinzufügen</button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label htmlFor="event-room-grid-height" style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>Rasterhöhe</label>
+                  <select id="event-room-grid-height" value={String(gridHeight)} onChange={e => changeGridHeight(Math.max(8, parseInt(e.target.value, 10) || 20))} style={{ width: '100%', padding: '10px 12px', border: '2px solid #e2e8f0', borderRadius: 8, fontSize: 14 }} onFocus={e => (e.currentTarget.style.borderColor = '#667eea')} onBlur={e => (e.currentTarget.style.borderColor = '#e2e8f0')}>
+                    <option value="20">Standart</option>
+                    <option value="40">Mittel (+20)</option>
+                    <option value="50">Groß (+30)</option>
+                    <option value="60">Maxi (+40)</option>
+                  </select>
                 </div>
-              ) : (
-                <>
-                  <label htmlFor="event-room-capacity" style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>👥 Personenzahl pro Tisch</label>
-                  <input
-                    id="event-room-capacity"
-                    type="number"
-                    value={capacityInput}
-                    onChange={e => setCapacityInput(e.target.value)}
-                    placeholder="z. B. 4"
-                    style={{ padding: '10px 12px', border: '2px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', fontWeight: 500, outline: 'none' }}
-                    onFocus={e => {
-                      e.currentTarget.style.borderColor = '#667eea'
-                    }}
-                    onBlur={e => {
-                      e.currentTarget.style.borderColor = '#e2e8f0'
-                    }}
-                  />
-                  <button onClick={addTable} style={{ padding: '12px 16px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 700, boxShadow: '0 2px 8px rgba(102,126,234,0.3)' }}>+ Tisch hinzufügen</button>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <label htmlFor="event-room-grid-height" style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>Rasterhöhe</label>
-                      <select id="event-room-grid-height" value={String(gridHeight)} onChange={e => changeGridHeight(Math.max(8, parseInt(e.target.value, 10) || 20))} style={{ width: '100%', padding: '10px 12px', border: '2px solid #e2e8f0', borderRadius: 8, fontSize: 14 }} onFocus={e => (e.currentTarget.style.borderColor = '#667eea')} onBlur={e => (e.currentTarget.style.borderColor = '#e2e8f0')}>
-                        <option value="20">Standart</option>
-                        <option value="40">Mittel (+20)</option>
-                        <option value="50">Groß (+30)</option>
-                        <option value="60">Maxi (+40)</option>
-                      </select>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={() => setDefineViewMode(prev => !prev)} style={{ flex: 1, padding: '10px 12px', background: '#fff', color: '#0f172a', border: '2px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>Ansicht definieren</button>
-                      <button onClick={() => setViewFrame(null)} style={{ flex: 1, padding: '10px 12px', background: '#fff', color: '#64748b', border: '2px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>Zurücksetzen</button>
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={() => void handleSaveClick()} disabled={tables.length === 0 || isSaving} style={{ flex: 2, padding: '12px 14px', background: tables.length === 0 ? '#e2e8f0' : '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: tables.length === 0 || isSaving ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: 700, opacity: tables.length === 0 ? 0.6 : 1 }}>{isSaving ? '💾 Speichert…' : '💾 Speichern'}</button>
-                      <button onClick={performUndo} disabled={undoStack.length === 0} title="Rückgängig (Strg+Z)" style={{ flex: 1, padding: '12px 10px', background: undoStack.length > 0 ? '#f8fafc' : '#f1f5f9', color: undoStack.length > 0 ? '#374151' : '#94a3b8', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: undoStack.length > 0 ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 600, opacity: undoStack.length > 0 ? 1 : 0.5, whiteSpace: 'nowrap' }}>↩ {undoStack.length > 0 ? `(${undoStack.length})` : ''}</button>
-                    </div>
-                  </div>
-                </>
-              )}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => setDefineViewMode(prev => !prev)} style={{ flex: 1, padding: '10px 12px', background: '#fff', color: '#0f172a', border: '2px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>Ansicht definieren</button>
+                  <button onClick={() => setViewFrame(null)} style={{ flex: 1, padding: '10px 12px', background: '#fff', color: '#64748b', border: '2px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}>Zurücksetzen</button>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={performUndo} disabled={undoStack.length === 0} title="Rückgängig (Strg+Z)" style={{ flex: 1, padding: '12px 10px', background: undoStack.length > 0 ? '#f8fafc' : '#f1f5f9', color: undoStack.length > 0 ? '#374151' : '#94a3b8', border: '2px solid #e2e8f0', borderRadius: '8px', cursor: undoStack.length > 0 ? 'pointer' : 'not-allowed', fontSize: '13px', fontWeight: 600, opacity: undoStack.length > 0 ? 1 : 0.5, whiteSpace: 'nowrap' }}>↩ {undoStack.length > 0 ? `(${undoStack.length})` : ''}</button>
+                </div>
+              </div>
             </>
-          )}
+          ))}
 
           {saveError && <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fee2e2', color: '#991b1b', fontSize: 13 }}>{saveError}</div>}
 
@@ -371,7 +437,7 @@ export default function EventRoomEditor({ initialTables, initialViewFrame, onSav
           )}
         </div>
 
-        <div style={{ flex: 1, padding: isMobile ? '8px' : '24px', display: 'flex', justifyContent: isMobile ? 'flex-start' : 'center', alignItems: 'flex-start', WebkitOverflowScrolling: 'touch', minHeight: 0, height: 'calc(100vh - 120px)', overflowX: 'auto', overflowY: 'auto' }}>
+        <div ref={containerRef} style={{ position: 'relative', flex: 1, padding: isMobile ? '8px' : '24px', display: 'flex', justifyContent: isMobile ? 'flex-start' : 'center', alignItems: 'flex-start', WebkitOverflowScrolling: 'touch', minHeight: 0, height: 'calc(100vh - 120px)', overflowX: 'auto', overflowY: 'auto' }}>
           <div
             className="grid"
             ref={gridRef}
@@ -379,10 +445,29 @@ export default function EventRoomEditor({ initialTables, initialViewFrame, onSav
             onDragOver={handleDragOver}
             onDragLeave={() => setDragPreviewPos(null)}
             onMouseDown={startFrame}
+            onTouchStart={e => startFrame(e)}
             onMouseMove={e => updateDragPreview(e)}
+            onTouchMove={e => { if (frameDragStart) e.preventDefault(); updateDragPreview(e as any) }}
             onClick={e => {
               if (readOnly || !draggingTable) return
               const cell = eventToCell(e)
+              if (!cell) return
+              const clampedX = Math.max(0, Math.min(gridWidth - draggingTable.width, cell.x))
+              const clampedY = Math.max(0, Math.min(gridHeight - draggingTable.height, cell.y))
+              const overlaps = tables.some(t => {
+                if (t.id === draggingTable.id) return false
+                return !(clampedX + draggingTable.width <= t.x || clampedX >= t.x + t.width || clampedY + draggingTable.height <= t.y || clampedY >= t.y + t.height)
+              })
+              if (overlaps) return
+              pushUndo(tables)
+              setTables(tables.map(t => (t.id === draggingTable.id ? { ...t, x: clampedX, y: clampedY } : t)))
+              setDraggingTable(null)
+              setDragPreviewPos(null)
+              origTableStateRef.current = null
+            }}
+            onTouchEnd={e => {
+              if (readOnly || !draggingTable) return
+              const cell = eventToCell(e as any)
               if (!cell) return
               const clampedX = Math.max(0, Math.min(gridWidth - draggingTable.width, cell.x))
               const clampedY = Math.max(0, Math.min(gridHeight - draggingTable.height, cell.y))
@@ -432,6 +517,14 @@ export default function EventRoomEditor({ initialTables, initialViewFrame, onSav
                   }
                   setSelectedTableId(table.id)
                 }}
+                onTouchStart={e => {
+                  if (readOnly) return
+                  e.stopPropagation()
+                  origTableStateRef.current = { ...table }
+                  setDraggingTable(table)
+                  setDragPreviewPos({ x: table.x, y: table.y })
+                  setSelectedTableId(table.id)
+                }}
                 style={{ gridColumn: `${table.x + 1} / span ${table.width}`, gridRow: `${table.y + 1} / span ${table.height}`, background: 'linear-gradient(135deg, #a5b4fc 0%, #818cf8 100%)', border: '2px solid #6366f1', borderRadius: '8px', pointerEvents: draggingTable && draggingTable.id === table.id ? 'none' : undefined, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: readOnly ? 'default' : 'move', opacity: draggingTable && draggingTable.id === table.id ? 0.35 : 1, fontWeight: '600', fontSize: '14px', color: 'white', boxShadow: '0 2px 8px rgba(99,102,241,0.3)', transition: 'all 0.2s' }}
                 onMouseOver={e => {
                   e.currentTarget.style.transform = 'scale(1.05)'
@@ -456,6 +549,12 @@ export default function EventRoomEditor({ initialTables, initialViewFrame, onSav
               </div>
             ))}
           </div>
+          {isMobile && showScrollButtons && (
+            <>
+              <button aria-label="Links" onClick={() => scrollGridBy(-scrollAmount)} style={{ position: 'absolute', left: (scrollData.scrollLeft + 8) + 'px', top: '50%', transform: 'translateY(-50%)', zIndex: 1002, background: 'rgba(255,255,255,0.95)', border: '1px solid #e2e8f0', borderRadius: 999, width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.12)', cursor: 'pointer' }}>◀</button>
+              <button aria-label="Rechts" onClick={() => scrollGridBy(scrollAmount)} style={{ position: 'absolute', left: (scrollData.scrollLeft + scrollData.clientWidth - 48) + 'px', top: '50%', transform: 'translateY(-50%)', zIndex: 1002, background: 'rgba(255,255,255,0.95)', border: '1px solid #e2e8f0', borderRadius: 999, width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.12)', cursor: 'pointer' }}>▶</button>
+            </>
+          )}
         </div>
       </div>
 
@@ -568,4 +667,6 @@ export default function EventRoomEditor({ initialTables, initialViewFrame, onSav
       {saveToast && <div style={{ position: 'fixed', bottom: 24, right: 24, padding: '12px 20px', background: '#22c55e', color: 'white', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', fontSize: 14, fontWeight: 500, zIndex: 3000 }}>{saveToast}</div>}
     </div>
   )
-}
+})
+
+export default EventRoomEditor
